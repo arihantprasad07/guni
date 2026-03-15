@@ -596,6 +596,15 @@ def scan_compare(
     return asyncio.get_event_loop().run_until_complete(_run())
 
 
+@app.get("/integrate", response_class=HTMLResponse, include_in_schema=False)
+def integrate():
+    """Serve the integration guide page."""
+    html_path = DASHBOARD_DIR / "integrate.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Integration Guide</h1>")
+
+
 @app.get("/threats/feed", tags=["Threat Intelligence"])
 def threat_feed():
     """
