@@ -85,7 +85,7 @@ result = <span class="fn">scan</span>(html=page_html, goal=<span class="str">"Lo
     You're receiving this because you joined the Guni waitlist.<br/>
     Questions? Reply to this email or reach us at 
     <a href="mailto:hello@guni.dev">hello@guni.dev</a><br/><br/>
-    &copy; 2026 Guni &middot; Code Mavericks, IIST
+    &copy; 2026 Guni 
   </div>
 </div>
 </body>

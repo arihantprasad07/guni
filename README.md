@@ -209,13 +209,6 @@ dashboard/
 
 ---
 
-## Built by
-
-**Code Mavericks** — Indore Institute of Science and Technology  
-Hack IITK 2026 · C3iHub Cybersecurity Hackathon
-
----
-
 <div align="center">
 
 **[Live Demo](https://guni.up.railway.app)** · **[API Docs](https://guni.up.railway.app/docs)** · **[Join Waitlist](https://guni.up.railway.app#waitlist)**
