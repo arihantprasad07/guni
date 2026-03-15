@@ -585,10 +585,10 @@ footer {
   <div class="foot-logo">guni</div>
   <div class="foot-links">
     <a href="/docs">API docs</a>
-    <a href="https://github.com/arihantprasad07/guni" target="_blank">GitHub</a>
-    <a href="mailto:arihantprasad45@gmail.com">Contact</a>
+    <a href="https://github.com/yourusername/guni" target="_blank">GitHub</a>
+    <a href="mailto:hello@guni.dev">Contact</a>
   </div>
-  <div class="foot-copy">© 2026 Guni · Arihant, Indore</div>
+  <div class="foot-copy">© 2026 Guni · Code Mavericks, IIST</div>
 </footer>
 
 <script>
@@ -660,7 +660,7 @@ async function submitEmail(email, btnId, successId) {
   btn.textContent = '...';
 
   try {
-    const r = await fetch('https://doylehauan.getform.com/7z47d' , {
+    const r = await fetch(`${API_BASE}/waitlist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })

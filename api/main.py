@@ -15,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from fastapi import WebSocket, WebSocketDisconnect
+from api.realtime import websocket_scan_endpoint
 from api.models import (
     ScanRequest, ScanURLRequest,
     ScanResponse, HealthResponse,
@@ -344,6 +346,16 @@ def get_history(
 
 
 # ── Dev entrypoint ────────────────────────────────────────────────────────────
+
+@app.websocket("/ws/scan")
+async def ws_scan(websocket: WebSocket, goal: str = "browse website"):
+    """
+    Real-time WebSocket scanning endpoint.
+    Send: {"html": "...", "goal": "...", "url": "..."}
+    Receive: streaming threat analysis results
+    """
+    await websocket_scan_endpoint(websocket, goal=goal)
+
 
 if __name__ == "__main__":
     import uvicorn

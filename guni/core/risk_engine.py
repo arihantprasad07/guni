@@ -5,15 +5,17 @@ Aggregates detector findings into a single normalized risk score (0-100).
 Scoring logic:
   Each category contributes its weight if ANY findings exist (binary).
   Multiple findings in the same category don't multiply — they're capped.
-  This prevents unrealistic scores like 180% from 2 injection phrases.
 """
 
 WEIGHTS = {
-    "injection":    30,
-    "phishing":     40,
-    "deception":    25,
-    "scripts":      20,
+    "injection":     30,
+    "phishing":      40,
+    "deception":     25,
+    "scripts":       20,
     "goal_mismatch": 35,
+    "clickjacking":  30,
+    "csrf":          35,
+    "redirect":      20,
 }
 
 
@@ -23,19 +25,19 @@ def calculate_risk(
     deception:    list,
     scripts:      list,
     goal_mismatch: list,
+    clickjacking: list = None,
+    csrf:         list = None,
+    redirect:     list = None,
 ) -> tuple[int, dict]:
-    """
-    Calculate overall risk score and per-category breakdown.
-
-    Returns:
-        (risk_score: int, breakdown: dict)
-    """
     findings = {
-        "injection":    injection,
-        "phishing":     phishing,
-        "deception":    deception,
-        "scripts":      scripts,
+        "injection":     injection,
+        "phishing":      phishing,
+        "deception":     deception,
+        "scripts":       scripts,
         "goal_mismatch": goal_mismatch,
+        "clickjacking":  clickjacking or [],
+        "csrf":          csrf or [],
+        "redirect":      redirect or [],
     }
 
     breakdown = {}
