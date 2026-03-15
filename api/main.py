@@ -66,6 +66,10 @@ LOG_PATH      = os.environ.get("GUNI_LOG_PATH", "guni_audit.log")
 WAITLIST_PATH = os.environ.get("GUNI_WAITLIST_PATH", "guni_waitlist.json")
 DASHBOARD_DIR = Path(__file__).parent.parent / "dashboard"
 
+# Serve CSS and static assets from dashboard folder
+if DASHBOARD_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static")
+
 # Initialize database on startup
 try:
     from api.database import init_db
@@ -590,6 +594,34 @@ def scan_compare(
         }
 
     return asyncio.get_event_loop().run_until_complete(_run())
+
+
+@app.get("/threats/feed", tags=["Threat Intelligence"])
+def threat_feed():
+    """
+    Public threat intelligence feed.
+    Real-time aggregate stats across all Guni scans globally.
+    No authentication required — share freely.
+    """
+    try:
+        from api.database import db_get_threat_feed
+        return db_get_threat_feed()
+    except Exception as e:
+        return {
+            "total_scans": 0, "total_blocked": 0, "block_rate": 0,
+            "last_24h_scans": 0, "last_24h_blocked": 0,
+            "threat_counts": {}, "top_threat": "none",
+            "hourly_trend": [], "error": str(e),
+        }
+
+
+@app.get("/threats", response_class=HTMLResponse, include_in_schema=False)
+def threats_page():
+    """Serve the public threat intelligence feed page."""
+    html_path = DASHBOARD_DIR / "threats.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Threat Feed</h1>")
 
 
 # ── Changelog ─────────────────────────────────────────────────────────────────

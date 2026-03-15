@@ -320,3 +320,77 @@ try:
     init_db()
 except Exception as e:
     print(f"[Guni] DB init warning: {e}")
+
+
+# ── Threat intelligence feed ───────────────────────────────────────────────
+
+def db_get_threat_feed() -> dict:
+    """
+    Aggregate global threat stats across all scans for the public feed.
+    Returns counts, top patterns, recent threats.
+    """
+    with get_conn() as conn:
+        # Global totals
+        total = conn.execute("SELECT COUNT(*) as c FROM scans").fetchone()["c"]
+        blocked = conn.execute(
+            "SELECT COUNT(*) as c FROM scans WHERE decision='BLOCK'"
+        ).fetchone()["c"]
+
+        # Threat type breakdown from breakdown JSON
+        rows = conn.execute(
+            "SELECT breakdown FROM scans WHERE breakdown IS NOT NULL ORDER BY timestamp DESC LIMIT 500"
+        ).fetchall()
+
+        threat_counts = {
+            "injection": 0, "phishing": 0, "deception": 0,
+            "scripts": 0, "goal_mismatch": 0,
+            "clickjacking": 0, "csrf": 0, "redirect": 0,
+        }
+
+        for row in rows:
+            try:
+                bd = json.loads(row["breakdown"])
+                for k in threat_counts:
+                    if bd.get(k, 0) > 0:
+                        threat_counts[k] += 1
+            except Exception:
+                pass
+
+        # Last 24h stats
+        import time as _time
+        cutoff = _time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            _time.gmtime(_time.time() - 86400)
+        )
+        last24h = conn.execute(
+            "SELECT COUNT(*) as c FROM scans WHERE timestamp >= ?", (cutoff,)
+        ).fetchone()["c"]
+        last24h_blocked = conn.execute(
+            "SELECT COUNT(*) as c FROM scans WHERE timestamp >= ? AND decision='BLOCK'",
+            (cutoff,)
+        ).fetchone()["c"]
+
+        # Hourly trend (last 24 hours)
+        hourly = conn.execute(
+            "SELECT strftime('%H', timestamp) as hour, "
+            "COUNT(*) as total, "
+            "SUM(CASE WHEN decision='BLOCK' THEN 1 ELSE 0 END) as blocks "
+            "FROM scans WHERE timestamp >= ? "
+            "GROUP BY strftime('%H', timestamp) "
+            "ORDER BY hour",
+            (cutoff,)
+        ).fetchall()
+
+        # Top threat type
+        top_threat = max(threat_counts, key=threat_counts.get) if any(threat_counts.values()) else "none"
+
+        return {
+            "total_scans":      total,
+            "total_blocked":    blocked,
+            "block_rate":       round(blocked / total * 100, 1) if total else 0,
+            "last_24h_scans":   last24h,
+            "last_24h_blocked": last24h_blocked,
+            "threat_counts":    threat_counts,
+            "top_threat":       top_threat,
+            "hourly_trend":     [dict(r) for r in hourly],
+        }
