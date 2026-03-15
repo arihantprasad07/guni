@@ -41,5 +41,4 @@ ENV GUNI_LOG_PATH=/tmp/guni_audit.log
 EXPOSE 8000
 
 # Start the API server
-# --host 0.0.0.0 is required in containers — never 127.0.0.1
-CMD uvicorn api.main:app --host 0.0.0.0 --port ${PORT}
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
