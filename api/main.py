@@ -136,9 +136,16 @@ def join_waitlist(body: WaitlistRequest):
     except OSError:
         pass  # Read-only filesystem (Railway) — still return success
 
+    # Send confirmation email (non-blocking — fails silently if not configured)
+    try:
+        from api.email_service import send_confirmation
+        send_confirmation(email)
+    except Exception:
+        pass
+
     return WaitlistResponse(
         success=True,
-        message="You're on the list! We'll reach out within 48 hours.",
+        message="You're on the list! Check your email for confirmation.",
         position=entry["position"],
     )
 
