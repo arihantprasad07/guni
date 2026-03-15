@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Guni — Customer Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080809;--bg2:#0e0e10;--bg3:#151518;--bg4:#1c1c20;
+  --amber:#ffb800;--amber2:#cc9000;
+  --green:#00e887;--red:#ff3d3d;--blue:#4d9fff;--warn:#ffaa00;
+  --text:#eeeef0;--muted:#55555e;--muted2:#8888a0;
+  --mono:'IBM Plex Mono',monospace;
+  --border:rgba(255,184,0,0.1);--border2:rgba(255,184,0,0.22);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px);pointer-events:none;z-index:9999}
+::selection{background:var(--amber);color:#000}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--muted)}
+
+nav{position:sticky;top:0;z-index:50;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(1rem,3vw,2rem);background:rgba(8,8,9,0.95);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+.nav-logo{font-size:16px;font-weight:600;color:var(--amber);text-decoration:none}
+.nav-logo em{color:var(--muted2);font-style:normal;font-weight:300;font-size:13px}
+.nav-links{display:flex;gap:1.5rem}
+.nav-links a{font-size:11px;color:var(--muted2);text-decoration:none;letter-spacing:0.06em;text-transform:uppercase;transition:color 0.15s}
+.nav-links a:hover{color:var(--amber)}
+@media(max-width:600px){.nav-links{display:none}}
+
+/* Key input gate */
+.gate{max-width:480px;margin:6rem auto;padding:0 1.5rem;text-align:center}
+.gate-title{font-size:1.4rem;color:var(--text);margin-bottom:0.5rem}
+.gate-sub{font-size:12px;color:var(--muted2);margin-bottom:1.5rem}
+.gate-row{display:flex}
+.gate-input{flex:1;background:var(--bg2);border:1px solid var(--border2);border-right:none;color:var(--text);font-family:var(--mono);font-size:12px;padding:11px 14px;outline:none;min-width:0}
+.gate-input:focus{border-color:var(--amber)}
+.gate-input::placeholder{color:var(--muted)}
+.gate-btn{font-family:var(--mono);font-size:11px;background:var(--amber);color:#000;border:none;padding:11px 18px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}
+.gate-btn:hover{background:var(--amber2)}
+.gate-err{font-size:11px;color:var(--red);margin-top:8px}
+
+/* Portal layout */
+.portal{display:none;max-width:1100px;margin:0 auto;padding:clamp(1rem,3vw,1.5rem)}
+.portal.show{display:block}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.5rem;overflow-x:auto}
+.tab{font-family:var(--mono);font-size:12px;color:var(--muted2);padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;letter-spacing:0.04em;white-space:nowrap;transition:all 0.15s;background:none;border-left:none;border-right:none;border-top:none}
+.tab:hover{color:var(--amber)}
+.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
+
+/* Tab panels */
+.panel{display:none}.panel.show{display:block}
+
+/* Metric cards */
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:1.5rem}
+.metric{background:var(--bg2);border:1px solid var(--border);padding:0.875rem 1rem}
+.metric-val{font-size:clamp(1.4rem,3vw,2rem);font-weight:300;line-height:1;margin-bottom:3px}
+.metric-val.r{color:var(--red)}.metric-val.g{color:var(--green)}.metric-val.a{color:var(--amber)}.metric-val.b{color:var(--blue)}
+.metric-label{font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
+
+/* Usage bar */
+.usage-wrap{background:var(--bg2);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.5rem}
+.usage-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.usage-label{font-size:12px;color:var(--muted2)}
+.usage-nums{font-size:12px;color:var(--text)}
+.usage-bar-wrap{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.usage-bar{height:100%;border-radius:4px;background:var(--green);transition:width 0.8s ease}
+.usage-bar.warn{background:var(--warn)}.usage-bar.danger{background:var(--red)}
+.usage-pct{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* Box */
+.box{background:var(--bg2);border:1px solid var(--border);margin-bottom:1rem}
+.box-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.box-title{font-size:11px;color:var(--muted);letter-spacing:0.06em}
+.box-body{padding:1.25rem}
+
+/* Chart bars */
+.chart{display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:1rem}
+.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar-wrap{width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:60px}
+.bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height 0.6s ease}
+.bar.total{background:var(--blue);opacity:0.6}
+.bar.block{background:var(--red)}
+.bar-label{font-size:9px;color:var(--muted);text-align:center}
+
+/* Table */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--muted2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,0.02)}
+.d-b{color:var(--red)}.d-c{color:var(--warn)}.d-a{color:var(--green)}
+
+/* Forms */
+input[type=text],input[type=url],select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:9px 12px;outline:none;transition:border-color 0.15s}
+input:focus,select:focus{border-color:var(--amber)}
+input::placeholder{color:var(--muted)}
+select option{background:var(--bg3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.field-label{font-size:10px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}
+.btn{font-family:var(--mono);font-size:11px;padding:9px 18px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;transition:all 0.15s;border:none;white-space:nowrap}
+.btn-primary{background:var(--amber);color:#000}
+.btn-primary:hover{background:var(--amber2)}
+.btn-danger{background:rgba(255,61,61,0.15);color:var(--red);border:1px solid rgba(255,61,61,0.3)}
+.btn-danger:hover{background:rgba(255,61,61,0.25)}
+.btn-outline{background:transparent;color:var(--muted2);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--amber);color:var(--amber)}
+
+/* Rule list */
+.rule-list{display:flex;flex-direction:column;gap:5px;margin-bottom:1rem}
+.rule-item{display:flex;align-items:center;gap:10px;background:var(--bg3);padding:8px 12px;border:1px solid var(--border)}
+.rule-type{font-size:10px;color:var(--amber);border:1px solid var(--border2);padding:2px 7px;flex-shrink:0}
+.rule-pattern{flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rule-weight{font-size:11px;color:var(--muted);flex-shrink:0;width:30px;text-align:right}
+
+/* Alert form */
+.alert-form{display:flex;flex-direction:column;gap:1rem}
+.toggle-row{display:flex;align-items:center;gap:10px}
+.toggle{width:36px;height:20px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0}
+.toggle.on{background:var(--green)}
+.toggle::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left 0.2s}
+.toggle.on::after{left:20px}
+.toggle-label{font-size:12px;color:var(--muted2)}
+
+/* Key display */
+.key-display{background:var(--bg3);border:1px solid var(--border2);padding:12px 16px;font-size:13px;color:var(--amber);letter-spacing:1px;word-break:break-all;margin-bottom:1rem}
+
+.success-msg{font-size:12px;color:var(--green);padding:8px 12px;border:1px solid rgba(0,232,135,0.2);background:rgba(0,232,135,0.04);margin-top:8px;display:none}
+.success-msg.show{display:block}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">guni<em>.dev</em></a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/dashboard">Live demo</a>
+    <a href="/docs">API docs</a>
+  </div>
+</nav>
+
+<!-- Key gate -->
+<div class="gate" id="gate">
+  <div class="gate-title">Customer Portal</div>
+  <div class="gate-sub">Enter your API key to view usage, analytics, and settings</div>
+  <div class="gate-row">
+    <input class="gate-input" id="key-input" type="text" placeholder="guni_live_..." autocomplete="off"/>
+    <button class="gate-btn" onclick="login()">Enter</button>
+  </div>
+  <div class="gate-err" id="gate-err"></div>
+  <div style="margin-top:1.5rem;font-size:11px;color:var(--muted)">
+    Don't have a key? <a href="/#waitlist" style="color:var(--amber);text-decoration:none">Join the waitlist →</a>
+  </div>
+</div>
+
+<!-- Portal -->
+<div class="portal" id="portal">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Signed in as</div>
+      <div style="font-size:13px;color:var(--amber)" id="portal-email">—</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--muted2)" id="portal-plan"></span>
+      <button class="btn btn-outline" onclick="logout()" style="font-size:10px;padding:5px 12px">Sign out</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('overview')">Overview</button>
+    <button class="tab" onclick="switchTab('history')">Scan history</button>
+    <button class="tab" onclick="switchTab('rules')">Custom rules</button>
+    <button class="tab" onclick="switchTab('alerts')">Alerts</button>
+    <button class="tab" onclick="switchTab('settings')">Settings</button>
+  </div>
+
+  <!-- Overview -->
+  <div class="panel show" id="tab-overview">
+    <div class="metrics">
+      <div class="metric"><div class="metric-val b" id="o-total">0</div><div class="metric-label">Total scans</div></div>
+      <div class="metric"><div class="metric-val r" id="o-blocked">0</div><div class="metric-label">Blocked</div></div>
+      <div class="metric"><div class="metric-val a" id="o-confirmed">0</div><div class="metric-label">Confirmed</div></div>
+      <div class="metric"><div class="metric-val g" id="o-allowed">0</div><div class="metric-label">Allowed</div></div>
+      <div class="metric"><div class="metric-val r" id="o-blockrate">0%</div><div class="metric-label">Block rate</div></div>
+      <div class="metric"><div class="metric-val" id="o-avgrisk">0</div><div class="metric-label">Avg risk score</div></div>
+      <div class="metric"><div class="metric-val g" id="o-avglat">0ms</div><div class="metric-label">Avg latency</div></div>
+    </div>
+
+    <div class="usage-wrap">
+      <div class="usage-header">
+        <span class="usage-label">Monthly scan usage</span>
+        <span class="usage-nums"><span id="u-used">0</span> / <span id="u-limit">1,000</span></span>
+      </div>
+      <div class="usage-bar-wrap"><div class="usage-bar" id="u-bar" style="width:0%"></div></div>
+      <div class="usage-pct"><span id="u-remaining">0</span> scans remaining this month</div>
+    </div>
+
+    <div class="box">
+      <div class="box-hdr"><span class="box-title">scans per day — last 7 days</span></div>
+      <div class="box-body">
+        <div class="chart" id="daily-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="panel" id="tab-history">
+    <div class="box">
+      <div class="box-hdr">
+        <span class="box-title">recent scans</span>
+        <button class="btn btn-outline" onclick="loadHistory()" style="font-size:10px;padding:4px 12px">Refresh</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr><th>Time</th><th>URL</th><th>Goal</th><th>Risk</th><th>Decision</th><th>Latency</th></tr></thead>
+          <tbody id="hist-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Rules -->
+  <div class="panel" id="tab-rules">
+    <div class="box">
+      <div class="box-hdr"><span class="box-title">custom threat rules</span></div>
+      <div class="box-body">
+        <p style="font-size:12px;color:var(--muted2);margin-bottom:1rem;line-height:1.7">
+          Add custom keywords that Guni will flag as threats in your agent's scans.
+          Each rule adds its weight to the risk score when matched.
+        </p>
+        <div class="form-row">
+          <div>
+            <div class="field-label">Pattern</div>
+            <input type="text" id="rule-pattern" placeholder="e.g. wire transfer"/>
+          </div>
+          <div>
+            <div class="field-label">Type</div>
+            <select id="rule-type">
+              <option value="injection">Injection</option>
+              <option value="phishing">Phishing</option>
+              <option value="goal_mismatch">Goal mismatch</option>
+              <option value="deception">UI deception</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label">Weight</div>
+            <button class="btn btn-primary" onclick="addRule()">Add rule</button>
+          </div>
+        </div>
+        <div class="success-msg" id="rule-ok">Rule added successfully.</div>
+        <div class="rule-list" id="rule-list">
+          <div style="font-size:12px;color:var(--muted);padding:1rem 0">No custom rules yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  <div class="panel" id="tab-alerts">
+    <div class="box">
+      <div class="box-hdr"><span class="box-title">alert configuration</span></div>
+      <div class="box-body">
+        <p style="font-size:12px;color:var(--muted2);margin-bottom:1.25rem;line-height:1.7">
+          Guni can notify you via Slack or webhook whenever your agent hits a threat.
+          Get instant alerts so you can review and act.
+        </p>
+        <div class="alert-form">
+          <div>
+            <div class="field-label">Slack webhook URL</div>
+            <input type="url" id="alert-slack" placeholder="https://hooks.slack.com/services/..."/>
+          </div>
+          <div>
+            <div class="field-label">Custom webhook URL</div>
+            <input type="url" id="alert-webhook" placeholder="https://your-server.com/webhook"/>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle on" id="tog-block" onclick="toggleAlert('tog-block')"></div>
+            <span class="toggle-label">Alert on BLOCK decisions</span>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle" id="tog-confirm" onclick="toggleAlert('tog-confirm')"></div>
+            <span class="toggle-label">Alert on CONFIRM decisions</span>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="saveAlerts()">Save alert config</button>
+            <div class="success-msg" id="alert-ok">Alert config saved.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="panel" id="tab-settings">
+    <div class="box">
+      <div class="box-hdr"><span class="box-title">your API key</span></div>
+      <div class="box-body">
+        <div class="field-label" style="margin-bottom:8px">API key</div>
+        <div class="key-display" id="settings-key">guni_live_...</div>
+        <button class="btn btn-outline" onclick="copyKey()" style="margin-bottom:1.5rem">Copy key</button>
+        <div style="font-size:12px;color:var(--muted2);line-height:1.8;margin-top:1rem">
+          Use this key in the <code style="color:var(--amber)">X-API-Key</code> header for REST API calls,
+          or pass as <code style="color:var(--amber)">api_key</code> parameter in the Python SDK.
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);padding:1rem;margin-top:1rem;font-size:12px;line-height:1.8">
+          <span style="color:#c792ea">from</span> guni <span style="color:#c792ea">import</span> <span style="color:#82aaff">scan</span><br><br>
+          result = <span style="color:#82aaff">scan</span>(<br>
+          &nbsp;&nbsp;html=page_html,<br>
+          &nbsp;&nbsp;goal=<span style="color:#c3e88d">"Login to website"</span>,<br>
+          &nbsp;&nbsp;api_key=<span style="color:#c3e88d" id="settings-key-code">"guni_live_..."</span><br>
+          )
+        </div>
+      </div>
+    </div>
+
+    <div class="box">
+      <div class="box-hdr"><span class="box-title">plan details</span></div>
+      <div class="box-body">
+        <table class="tbl">
+          <tbody>
+            <tr><td style="color:var(--muted)">Plan</td><td id="s-plan" style="color:var(--amber)">—</td></tr>
+            <tr><td style="color:var(--muted)">Scans/month</td><td id="s-limit">—</td></tr>
+            <tr><td style="color:var(--muted)">Member since</td><td id="s-created">—</td></tr>
+            <tr><td style="color:var(--muted)">Last scan</td><td id="s-last">—</td></tr>
+          </tbody>
+        </table>
+        <a href="/#pricing" style="display:inline-block;margin-top:1rem;font-size:11px;color:var(--amber);text-decoration:none;letter-spacing:0.06em">Upgrade plan →</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = window.location.origin;
+let currentKey = '';
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+async function login() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key.startsWith('guni_live_')) {
+    document.getElementById('gate-err').textContent = 'Invalid key format. Keys start with guni_live_';
+    return;
+  }
+
+  try {
+    const r = await fetch(API + '/keys/usage', {
+      headers: { 'X-API-Key': key }
+    });
+    if (!r.ok) {
+      document.getElementById('gate-err').textContent = 'Invalid or expired API key.';
+      return;
+    }
+    const d = await r.json();
+    currentKey = key;
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('portal').classList.add('show');
+    document.getElementById('portal-email').textContent = d.email || 'Customer';
+    document.getElementById('portal-plan').textContent = (d.plan || 'starter').toUpperCase() + ' plan';
+    document.getElementById('settings-key').textContent = key;
+    document.getElementById('settings-key-code').textContent = '"' + key + '"';
+    document.getElementById('s-plan').textContent = d.plan || '—';
+    document.getElementById('s-limit').textContent = (d.scans_limit || 0).toLocaleString();
+    document.getElementById('s-created').textContent = d.created_at || '—';
+    document.getElementById('s-last').textContent = d.last_used || 'Never';
+
+    loadOverview();
+    loadHistory();
+    loadRules();
+    loadAlerts();
+  } catch(e) {
+    document.getElementById('gate-err').textContent = 'Could not connect to API.';
+  }
+}
+
+function logout() {
+  currentKey = '';
+  document.getElementById('portal').classList.remove('show');
+  document.getElementById('gate').style.display = 'block';
+  document.getElementById('key-input').value = '';
+  document.getElementById('gate-err').textContent = '';
+}
+
+document.getElementById('key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('show');
+}
+
+// ── Overview ───────────────────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const [analytics, usage] = await Promise.all([
+      fetch(API + '/analytics', { headers: { 'X-API-Key': currentKey } }).then(r => r.json()),
+      fetch(API + '/keys/usage', { headers: { 'X-API-Key': currentKey } }).then(r => r.json()),
+    ]);
+
+    animTo('o-total',     analytics.total || 0);
+    animTo('o-blocked',   analytics.blocked || 0);
+    animTo('o-confirmed', analytics.confirmed || 0);
+    animTo('o-allowed',   analytics.allowed || 0);
+    document.getElementById('o-blockrate').textContent = (analytics.block_rate || 0) + '%';
+    document.getElementById('o-avgrisk').textContent   = analytics.avg_risk || 0;
+    document.getElementById('o-avglat').textContent    = (analytics.avg_latency_ms || 0) + 'ms';
+
+    // Usage bar
+    const used  = usage.scans_used || 0;
+    const limit = usage.scans_limit || 1000;
+    const pct   = Math.min(100, Math.round(used / limit * 100));
+    document.getElementById('u-used').textContent      = used.toLocaleString();
+    document.getElementById('u-limit').textContent     = limit.toLocaleString();
+    document.getElementById('u-remaining').textContent = Math.max(0, limit - used).toLocaleString();
+    const bar = document.getElementById('u-bar');
+    bar.style.width = pct + '%';
+    if (pct > 80) bar.classList.add('warn');
+    if (pct > 95) bar.classList.add('danger');
+
+    // Daily chart
+    renderChart(analytics.daily || []);
+  } catch(e) {}
+}
+
+function renderChart(daily) {
+  const chart = document.getElementById('daily-chart');
+  if (!daily.length) { chart.innerHTML = '<div style="color:var(--muted);font-size:11px">No scan data yet</div>'; return; }
+  const maxCount = Math.max(...daily.map(d => d.count), 1);
+  chart.innerHTML = daily.reverse().map(d => {
+    const h    = Math.round((d.count / maxCount) * 56);
+    const hb   = Math.round((d.blocks / maxCount) * 56);
+    const day  = d.day ? d.day.slice(5) : '';
+    return `<div class="bar-group">
+      <div class="bar-wrap">
+        <div class="bar total" style="height:${h}px"></div>
+      </div>
+      <div class="bar-label">${day}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const tbody = document.getElementById('hist-body');
+  try {
+    const r = await fetch(API + '/history?limit=30', { headers: { 'X-API-Key': currentKey } });
+    const d = await r.json();
+    if (!d.entries || !d.entries.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">No scans yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.entries.map(e => {
+      const cls = e.decision==='BLOCK'?'d-b':e.decision==='CONFIRM'?'d-c':'d-a';
+      const t   = e.timestamp ? e.timestamp.split('T')[1]||e.timestamp : '—';
+      return `<tr>
+        <td>${t}</td>
+        <td title="${esc(e.url||'')}">${esc((e.url||'—').slice(0,30))}</td>
+        <td title="${esc(e.goal||'')}">${esc((e.goal||'—').slice(0,20))}</td>
+        <td>${e.risk}</td>
+        <td class="${cls}">${e.decision}</td>
+        <td>${e.latency ? (e.latency*1000).toFixed(1)+'ms' : '—'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">Error loading history.</td></tr>';
+  }
+}
+
+// ── Custom rules ───────────────────────────────────────────────────────────
+async function loadRules() {
+  try {
+    const r = await fetch(API + '/rules', { headers: { 'X-API-Key': currentKey } });
+    const d = await r.json();
+    const list = document.getElementById('rule-list');
+    if (!d.rules || !d.rules.length) {
+      list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:0.5rem 0">No custom rules yet.</div>';
+      return;
+    }
+    list.innerHTML = d.rules.map(r => `
+      <div class="rule-item">
+        <span class="rule-type">${r.rule_type}</span>
+        <span class="rule-pattern">${esc(r.pattern)}</span>
+        <span class="rule-weight">w:${r.weight}</span>
+        <button class="btn btn-danger" onclick="deleteRule(${r.id})" style="font-size:10px;padding:3px 10px">×</button>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+async function addRule() {
+  const pattern = document.getElementById('rule-pattern').value.trim();
+  const type    = document.getElementById('rule-type').value;
+  if (!pattern) return;
+  try {
+    await fetch(API + '/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': currentKey },
+      body: JSON.stringify({ pattern, rule_type: type, weight: 30 })
+    });
+    document.getElementById('rule-pattern').value = '';
+    document.getElementById('rule-ok').classList.add('show');
+    setTimeout(() => document.getElementById('rule-ok').classList.remove('show'), 2000);
+    loadRules();
+  } catch(e) {}
+}
+
+async function deleteRule(id) {
+  try {
+    await fetch(API + '/rules/' + id, {
+      method: 'DELETE',
+      headers: { 'X-API-Key': currentKey }
+    });
+    loadRules();
+  } catch(e) {}
+}
+
+// ── Alerts ─────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const r = await fetch(API + '/alerts', { headers: { 'X-API-Key': currentKey } });
+    const d = await r.json();
+    if (d.slack_url)   document.getElementById('alert-slack').value   = d.slack_url;
+    if (d.webhook_url) document.getElementById('alert-webhook').value = d.webhook_url;
+    if (!d.on_block)   document.getElementById('tog-block').classList.remove('on');
+    if (d.on_confirm)  document.getElementById('tog-confirm').classList.add('on');
+  } catch(e) {}
+}
+
+async function saveAlerts() {
+  try {
+    await fetch(API + '/alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': currentKey },
+      body: JSON.stringify({
+        slack_url:   document.getElementById('alert-slack').value   || null,
+        webhook_url: document.getElementById('alert-webhook').value || null,
+        on_block:    document.getElementById('tog-block').classList.contains('on'),
+        on_confirm:  document.getElementById('tog-confirm').classList.contains('on'),
+      })
+    });
+    document.getElementById('alert-ok').classList.add('show');
+    setTimeout(() => document.getElementById('alert-ok').classList.remove('show'), 2000);
+  } catch(e) {}
+}
+
+function toggleAlert(id) {
+  document.getElementById(id).classList.toggle('on');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function animTo(id, target) {
+  const el = document.getElementById(id);
+  if (!el || !target) return;
+  let cur = 0, step = Math.ceil(target / 20);
+  const t = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur.toLocaleString();
+    if (cur >= target) clearInterval(t);
+  }, 50);
+}
+
+function copyKey() {
+  navigator.clipboard.writeText(currentKey).then(() => {
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy key', 1500);
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

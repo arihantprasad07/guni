@@ -44,10 +44,11 @@ class GuniScanner:
     """
 
     def __init__(self, goal="browse website", api_key=None, llm=False):
-        self.goal    = goal
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-        self.llm     = llm
-        self.logger  = GuniLogger()
+        self.goal     = goal
+        self.api_key  = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self._api_key = api_key  # customer key for usage tracking
+        self.llm      = llm
+        self.logger   = GuniLogger()
 
     def scan(self, html: str, url: str = "") -> dict:
         start = time.perf_counter()
@@ -136,4 +137,21 @@ class GuniScanner:
         }
 
         self.logger.log(result)
+
+        # Persist to database and trigger alerts (non-blocking)
+        try:
+            from api.database import db_log_scan, db_increment_usage
+            db_log_scan(getattr(self, '_api_key', 'anonymous'), result)
+            if hasattr(self, '_api_key') and self._api_key:
+                db_increment_usage(self._api_key)
+        except Exception:
+            pass
+
+        try:
+            from api.alerts import send_alert
+            if hasattr(self, '_api_key') and self._api_key:
+                send_alert(self._api_key, result)
+        except Exception:
+            pass
+
         return result

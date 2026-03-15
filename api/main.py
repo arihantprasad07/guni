@@ -66,6 +66,13 @@ LOG_PATH      = os.environ.get("GUNI_LOG_PATH", "guni_audit.log")
 WAITLIST_PATH = os.environ.get("GUNI_WAITLIST_PATH", "guni_waitlist.json")
 DASHBOARD_DIR = Path(__file__).parent.parent / "dashboard"
 
+# Initialize database on startup
+try:
+    from api.database import init_db
+    init_db()
+except Exception as e:
+    print(f"[Guni] DB init: {e}")
+
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
 
@@ -76,6 +83,15 @@ def landing():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text())
     return HTMLResponse(content="<h1>Guni</h1><p><a href='/dashboard'>Dashboard</a> · <a href='/docs'>API docs</a></p>")
+
+
+@app.get("/portal", response_class=HTMLResponse, include_in_schema=False)
+def portal():
+    """Serve the customer portal."""
+    html_path = DASHBOARD_DIR / "portal.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Portal</h1>")
 
 
 @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
@@ -362,6 +378,91 @@ def get_history(
 
 
 # ── Dev entrypoint ────────────────────────────────────────────────────────────
+
+@app.get("/analytics", tags=["Analytics"])
+def get_analytics(api_key: str = Depends(verify_api_key)):
+    """Get scan analytics for your API key — counts, trends, block rate."""
+    try:
+        from api.database import db_get_analytics
+        return db_get_analytics(api_key if api_key != "open" else None)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── Custom rules ──────────────────────────────────────────────────────────────
+
+class RuleRequest(BaseModel):
+    rule_type: str = "injection"
+    pattern:   str
+    weight:    int = 30
+
+@app.post("/rules", tags=["Custom Rules"])
+def add_rule(body: RuleRequest, api_key: str = Depends(verify_api_key)):
+    """Add a custom threat detection rule for your API key."""
+    try:
+        from api.database import db_add_rule
+        db_add_rule(api_key, body.rule_type, body.pattern, body.weight)
+        return {"success": True, "message": f"Rule added: '{body.pattern}'"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/rules", tags=["Custom Rules"])
+def get_rules(api_key: str = Depends(verify_api_key)):
+    """List your custom threat detection rules."""
+    try:
+        from api.database import db_get_rules
+        return {"rules": db_get_rules(api_key)}
+    except Exception as e:
+        return {"rules": []}
+
+@app.delete("/rules/{rule_id}", tags=["Custom Rules"])
+def delete_rule(rule_id: int, api_key: str = Depends(verify_api_key)):
+    """Delete a custom rule by ID."""
+    try:
+        from api.database import db_delete_rule
+        db_delete_rule(rule_id, api_key)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Alert configuration ───────────────────────────────────────────────────────
+
+class AlertRequest(BaseModel):
+    webhook_url: str = None
+    slack_url:   str = None
+    on_block:    bool = True
+    on_confirm:  bool = False
+
+@app.post("/alerts", tags=["Alerts"])
+def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key)):
+    """
+    Configure Slack or webhook alerts.
+    Guni will POST to your URL whenever an agent hits a BLOCK or CONFIRM.
+    """
+    try:
+        from api.database import db_set_alert
+        db_set_alert(
+            api_key,
+            webhook_url=body.webhook_url,
+            slack_url=body.slack_url,
+            on_block=body.on_block,
+            on_confirm=body.on_confirm,
+        )
+        return {"success": True, "message": "Alert config saved."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/alerts", tags=["Alerts"])
+def get_alert_config(api_key: str = Depends(verify_api_key)):
+    """Get your current alert configuration."""
+    try:
+        from api.database import db_get_alert
+        config = db_get_alert(api_key)
+        return config or {"message": "No alert config set"}
+    except Exception as e:
+        return {"message": "No alert config set"}
+
 
 # ── Payment webhook ───────────────────────────────────────────────────────────
 
