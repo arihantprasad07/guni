@@ -660,7 +660,7 @@ async function submitEmail(email, btnId, successId) {
   btn.textContent = '...';
 
   try {
-    const r = await fetch(`${API_BASE}/waitlist`, {
+    const r = await fetch('https://doylehauan.getform.com/z07rg' , {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
