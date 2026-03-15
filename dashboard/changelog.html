@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Changelog — Guni</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#080809;--bg2:#0e0e10;--bg3:#151518;--amber:#ffb800;--amber2:#cc9000;--green:#00e887;--red:#ff3d3d;--blue:#4d9fff;--text:#eeeef0;--muted:#55555e;--muted2:#8888a0;--mono:'IBM Plex Mono',monospace;--serif:'Instrument Serif',serif;--border:rgba(255,184,0,0.1);--border2:rgba(255,184,0,0.22)}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.6;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px);pointer-events:none;z-index:9998}
+::selection{background:var(--amber);color:#000}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(1rem,4vw,2.5rem);background:rgba(8,8,9,0.92);border-bottom:1px solid var(--border);backdrop-filter:blur(16px)}
+.nav-logo{font-size:18px;font-weight:600;color:var(--amber);text-decoration:none}
+.nav-logo em{color:var(--muted2);font-style:normal;font-weight:300}
+.nav-links{display:flex;gap:2rem}
+.nav-links a{font-size:12px;color:var(--muted2);text-decoration:none;letter-spacing:0.06em;text-transform:uppercase;transition:color 0.15s}
+.nav-links a:hover{color:var(--amber)}
+@media(max-width:600px){.nav-links{display:none}}
+.wrap{max-width:720px;margin:0 auto;padding:clamp(6rem,12vh,9rem) clamp(1.25rem,6vw,3rem) 4rem}
+.eyebrow{font-size:11px;color:var(--amber);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:1rem}
+.title{font-family:var(--serif);font-style:italic;font-size:clamp(2.5rem,6vw,4rem);font-weight:400;line-height:1.05;margin-bottom:3rem}
+.release{margin-bottom:3rem;padding-bottom:3rem;border-bottom:1px solid var(--border)}
+.release:last-child{border-bottom:none}
+.release-header{display:flex;align-items:baseline;gap:1rem;margin-bottom:0.5rem;flex-wrap:wrap}
+.version{font-size:18px;font-weight:500;color:var(--amber)}
+.release-date{font-size:12px;color:var(--muted)}
+.release-badge{font-size:10px;padding:2px 8px;letter-spacing:0.08em}
+.badge-major{background:rgba(255,184,0,0.15);color:var(--amber);border:1px solid rgba(255,184,0,0.3)}
+.badge-minor{background:rgba(0,232,135,0.1);color:var(--green);border:1px solid rgba(0,232,135,0.2)}
+.badge-patch{background:rgba(77,159,255,0.1);color:var(--blue);border:1px solid rgba(77,159,255,0.2)}
+.release-title{font-family:var(--serif);font-style:italic;font-size:1.4rem;font-weight:400;margin-bottom:1rem;line-height:1.2}
+.changes{display:flex;flex-direction:column;gap:5px}
+.change{display:flex;gap:10px;font-size:13px;color:var(--muted2);line-height:1.5}
+.change-tag{font-size:10px;padding:2px 7px;letter-spacing:0.06em;flex-shrink:0;margin-top:2px;height:fit-content}
+.tag-new{background:rgba(0,232,135,0.1);color:var(--green);border:1px solid rgba(0,232,135,0.2)}
+.tag-improved{background:rgba(255,184,0,0.1);color:var(--amber);border:1px solid rgba(255,184,0,0.2)}
+.tag-fixed{background:rgba(77,159,255,0.1);color:var(--blue);border:1px solid rgba(77,159,255,0.2)}
+.tag-removed{background:rgba(255,61,61,0.1);color:var(--red);border:1px solid rgba(255,61,61,0.2)}
+footer{border-top:1px solid var(--border);padding:1.5rem clamp(1.25rem,6vw,4rem);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.foot-logo{font-size:16px;color:var(--amber)}
+.foot-copy{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="/">guni<em>.dev</em></a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/docs">API docs</a>
+    <a href="/about">About</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="eyebrow">Changelog</div>
+  <h1 class="title">What's new<br><em>in Guni.</em></h1>
+
+  <div class="release">
+    <div class="release-header">
+      <span class="version">v2.1.0</span>
+      <span class="release-date">March 2026</span>
+      <span class="release-badge badge-minor">MINOR</span>
+    </div>
+    <div class="release-title">Customer portal, analytics &amp; alerts</div>
+    <div class="changes">
+      <div class="change"><span class="change-tag tag-new">New</span>Customer portal at /portal — usage dashboard, scan history, custom rules, alert config</div>
+      <div class="change"><span class="change-tag tag-new">New</span>SQLite persistent storage — scan history survives server restarts</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Slack + webhook alerts — get notified instantly when agent hits BLOCK or CONFIRM</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Custom threat rules — add your own keywords and patterns per API key</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Analytics endpoint — scan counts, block rates, daily trends</div>
+      <div class="change"><span class="change-tag tag-new">New</span>CSV export — download full scan history</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Scan comparison — compare two pages side by side</div>
+      <div class="change"><span class="change-tag tag-new">New</span>About page at /about</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Changelog page (you're reading it)</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Dashboard — API key input, breakdown bars, 6 presets</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Email confirmation on waitlist signup</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>API key delivery email on payment</div>
+    </div>
+  </div>
+
+  <div class="release">
+    <div class="release-header">
+      <span class="version">v2.0.0</span>
+      <span class="release-date">March 2026</span>
+      <span class="release-badge badge-major">MAJOR</span>
+    </div>
+    <div class="release-title">8 threat vectors &amp; LLM reasoning</div>
+    <div class="changes">
+      <div class="change"><span class="change-tag tag-new">New</span>Clickjacking detector — invisible iframe overlays and transparent fixed elements</div>
+      <div class="change"><span class="change-tag tag-new">New</span>CSRF &amp; token theft detector — script-based token harvesting and unsafe forms</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Open redirect detector — meta refresh, JS location hijacks, redirect parameters</div>
+      <div class="change"><span class="change-tag tag-new">New</span>WebSocket real-time scanning at /ws/scan</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Customer portal foundation</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>LLM analyzer — smarter prompt covering all 8 vectors, confidence scoring</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Landing page — fully mobile responsive, pricing section, scroll animations</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Dashboard UI — metric cards, history panel, premium terminal aesthetic</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Risk engine — binary scoring per category, no more score inflation</div>
+    </div>
+  </div>
+
+  <div class="release">
+    <div class="release-header">
+      <span class="version">v1.2.0</span>
+      <span class="release-date">March 2026</span>
+      <span class="release-badge badge-minor">MINOR</span>
+    </div>
+    <div class="release-title">Landing page &amp; waitlist</div>
+    <div class="changes">
+      <div class="change"><span class="change-tag tag-new">New</span>Landing page with waitlist email capture</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Waitlist POST endpoint with Getform integration</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Razorpay payment webhook — auto-provision API keys on payment</div>
+      <div class="change"><span class="change-tag tag-new">New</span>API key management system — generate, validate, track usage</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Dockerfile — fixed PORT variable handling for Railway</div>
+      <div class="change"><span class="change-tag tag-improved">Improved</span>Dashboard renamed to /dashboard, landing at /</div>
+    </div>
+  </div>
+
+  <div class="release">
+    <div class="release-header">
+      <span class="version">v1.0.0</span>
+      <span class="release-date">March 2026</span>
+      <span class="release-badge badge-major">INITIAL</span>
+    </div>
+    <div class="release-title">First release — SDK &amp; REST API</div>
+    <div class="changes">
+      <div class="change"><span class="change-tag tag-new">New</span>5-vector heuristic detection engine — injection, phishing, deception, scripts, goal</div>
+      <div class="change"><span class="change-tag tag-new">New</span>LLM reasoning layer using Claude Sonnet</div>
+      <div class="change"><span class="change-tag tag-new">New</span>FastAPI REST API with auth, rate limiting, audit log</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Live scan dashboard with presets</div>
+      <div class="change"><span class="change-tag tag-new">New</span>pip installable Python SDK — from guni import scan</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Railway deployment with Dockerfile</div>
+      <div class="change"><span class="change-tag tag-new">New</span>Agent state machine, planner, executor</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="foot-logo">guni</div>
+  <div class="foot-copy">&copy; 2026 Guni</div>
+</footer>
+</body>
+</html>

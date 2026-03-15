@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  guni:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GUNI_LOG_PATH=/data/guni_audit.log
+      - GUNI_WAITLIST_PATH=/data/guni_waitlist.json
+      - GUNI_KEYS_PATH=/data/guni_keys.json
+      - GUNI_DB_PATH=/data/guni.db
+      - GUNI_EMAIL_FROM=${GUNI_EMAIL_FROM:-}
+      - GUNI_EMAIL_PASS=${GUNI_EMAIL_PASS:-}
+      - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
+    volumes:
+      - guni_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  guni_data:

@@ -510,6 +510,99 @@ def list_all_keys(api_key: str = Depends(verify_api_key)):
     return {"keys": list_keys()}
 
 
+@app.get("/history/export", tags=["Audit"])
+def export_history_csv(
+    limit:   int = 500,
+    api_key: str = Depends(verify_api_key),
+):
+    """Export scan history as CSV — download and open in Excel."""
+    from fastapi.responses import StreamingResponse
+    import csv, io
+
+    try:
+        from api.database import db_get_history
+        entries = db_get_history(
+            api_key if api_key != "open" else None,
+            limit=limit
+        )
+    except Exception:
+        # fallback to log file
+        entries = []
+        if os.path.exists(LOG_PATH):
+            import json as _json
+            with open(LOG_PATH) as f:
+                for line in f:
+                    try: entries.append(_json.loads(line.strip()))
+                    except: pass
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "timestamp", "url", "goal", "risk", "decision", "latency"
+    ])
+    writer.writeheader()
+    for e in entries:
+        writer.writerow({
+            "timestamp": e.get("timestamp", ""),
+            "url":       e.get("url", ""),
+            "goal":      e.get("goal", ""),
+            "risk":      e.get("risk", ""),
+            "decision":  e.get("decision", ""),
+            "latency":   e.get("latency", e.get("total_latency", "")),
+        })
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=guni_scan_history.csv"},
+    )
+
+
+@app.post("/scan/compare", tags=["Scanning"], summary="Compare two pages")
+def scan_compare(
+    request: Request,
+    api_key: str = Depends(verify_api_key),
+):
+    """
+    Scan two HTML pages and return a side-by-side comparison.
+    Body: {"html_a": "...", "html_b": "...", "goal": "..."}
+    """
+    import asyncio
+
+    async def _run():
+        body = await request.json()
+        html_a = body.get("html_a", "")
+        html_b = body.get("html_b", "")
+        goal   = body.get("goal", "browse website")
+
+        if not html_a or not html_b:
+            raise HTTPException(status_code=422, detail="html_a and html_b required")
+
+        from guni import GuniScanner
+        scanner = GuniScanner(goal=goal, api_key=_get_anthropic_key())
+        result_a = scanner.scan(html=html_a, url="page_a")
+        result_b = scanner.scan(html=html_b, url="page_b")
+
+        return {
+            "page_a":   _build_response(result_a),
+            "page_b":   _build_response(result_b),
+            "safer":    "page_a" if result_a["risk"] <= result_b["risk"] else "page_b",
+            "risk_diff": abs(result_a["risk"] - result_b["risk"]),
+        }
+
+    return asyncio.get_event_loop().run_until_complete(_run())
+
+
+# ── Changelog ─────────────────────────────────────────────────────────────────
+
+@app.get("/changelog", response_class=HTMLResponse, include_in_schema=False)
+def changelog():
+    """Serve the changelog page."""
+    html_path = DASHBOARD_DIR / "changelog.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Changelog</h1>")
+
+
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
 @app.websocket("/ws/scan")

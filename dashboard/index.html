@@ -188,6 +188,10 @@ pre{padding:1.25rem 1.5rem;overflow-x:auto;font-size:12px;line-height:1.8;color:
           <div>
             <div class="field-label">Agent goal</div>
             <input type="text" id="goal-in" value="Login to website" style="height:36px"/>
+            <div style="margin-top:10px">
+              <div class="field-label">API key (optional)</div>
+              <input type="text" id="apikey-in" placeholder="guni_live_... (for LLM layer)" style="height:36px;font-size:11px"/>
+            </div>
             <div id="result-panel" class="result"></div>
           </div>
         </div>
@@ -305,6 +309,7 @@ function barColor(cat){
 async function runScan(){
   const html=document.getElementById('html-in').value.trim();
   const goal=document.getElementById('goal-in').value.trim()||'browse website';
+  const apikey=document.getElementById('apikey-in').value.trim();
   const btn=document.getElementById('scan-btn');
   const note=document.getElementById('scan-note');
   if(!html){note.textContent='Paste some HTML first.';return;}
@@ -313,9 +318,11 @@ async function runScan(){
   note.textContent='Scanning...';
   hideResult();
   try{
+    const headers={'Content-Type':'application/json'};
+    if(apikey) headers['X-API-Key']=apikey;
     const res=await fetch(API+'/scan',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers,
       body:JSON.stringify({html,goal})
     });
     if(!res.ok)throw new Error('API error '+res.status);
