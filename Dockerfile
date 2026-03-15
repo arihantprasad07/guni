@@ -40,5 +40,5 @@ ENV GUNI_LOG_PATH=/tmp/guni_audit.log
 # Expose port (documentation only — Railway uses PORT env var)
 EXPOSE 8000
 
-# Start the API server
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start the API server using Python to read PORT env var
+CMD ["python", "-c", "import os,uvicorn; uvicorn.run('api.main:app', host='0.0.0.0', port=int(os.environ.get('PORT', 8000)))"]
