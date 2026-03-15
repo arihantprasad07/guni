@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, Request
 from api.realtime import websocket_scan_endpoint
 from api.models import (
     ScanRequest, ScanURLRequest,
@@ -76,6 +76,15 @@ def landing():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text())
     return HTMLResponse(content="<h1>Guni</h1><p><a href='/dashboard'>Dashboard</a> · <a href='/docs'>API docs</a></p>")
+
+
+@app.get("/about", response_class=HTMLResponse, include_in_schema=False)
+def about():
+    """Serve the About page."""
+    html_path = DASHBOARD_DIR / "about.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>About Guni</h1>")
 
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
@@ -354,6 +363,54 @@ def get_history(
 
 # ── Dev entrypoint ────────────────────────────────────────────────────────────
 
+# ── Payment webhook ───────────────────────────────────────────────────────────
+
+@app.post("/webhook/razorpay", tags=["Payments"], include_in_schema=False)
+async def razorpay_webhook(request: Request):
+    """Razorpay payment webhook — auto-provisions API keys on payment."""
+    from api.webhook import handle_razorpay_webhook
+    from fastapi import Request
+    payload   = await request.body()
+    signature = request.headers.get("x-razorpay-signature", "")
+    result    = await handle_razorpay_webhook(payload, signature)
+    return result
+
+
+# ── API Key management ────────────────────────────────────────────────────────
+
+class KeyRequest(BaseModel):
+    email: str
+    plan:  str = "starter"
+
+@app.post("/keys/generate", tags=["Keys"])
+def generate_key(body: KeyRequest, api_key: str = Depends(verify_api_key)):
+    """
+    Generate an API key for a customer (admin use).
+    Requires a valid admin API key in X-API-Key header.
+    """
+    from api.key_manager import generate_api_key, PLAN_LIMITS
+    plan  = body.plan.lower()
+    limit = PLAN_LIMITS.get(plan, 1000)
+    data  = generate_api_key(email=body.email, plan=plan, scans_limit=limit)
+    return data
+
+
+@app.get("/keys/usage", tags=["Keys"])
+def get_key_usage(api_key: str = Depends(verify_api_key)):
+    """Get usage stats for the current API key."""
+    from api.key_manager import get_usage
+    return get_usage(api_key)
+
+
+@app.get("/keys/list", tags=["Keys"], include_in_schema=False)
+def list_all_keys(api_key: str = Depends(verify_api_key)):
+    """List all API keys (admin only)."""
+    from api.key_manager import list_keys
+    return {"keys": list_keys()}
+
+
+# ── WebSocket ─────────────────────────────────────────────────────────────────
+
 @app.websocket("/ws/scan")
 async def ws_scan(websocket: WebSocket, goal: str = "browse website"):
     """
@@ -367,3 +424,4 @@ async def ws_scan(websocket: WebSocket, goal: str = "browse website"):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+

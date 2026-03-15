@@ -138,3 +138,64 @@ def send_confirmation(to_email: str) -> bool:
     except Exception as e:
         print(f"[Guni] Email send failed: {e}")
         return False
+
+
+def send_api_key_email(to_email: str, api_key: str, plan: str, scans_limit: int) -> bool:
+    """Send API key delivery email after payment."""
+    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
+    app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
+    if not from_email or not app_pass:
+        return False
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/>
+<style>
+body{{font-family:'Courier New',monospace;background:#0a0a0b;color:#eeeef0;margin:0;padding:0}}
+.wrap{{max-width:560px;margin:0 auto;padding:40px 24px}}
+.logo{{font-size:24px;color:#ffb800;font-weight:600}}
+.logo em{{color:#8888a0;font-style:normal;font-weight:300}}
+.badge{{display:inline-block;background:rgba(255,184,0,0.1);border:1px solid rgba(255,184,0,0.3);color:#ffb800;font-size:12px;padding:4px 12px;margin:20px 0;letter-spacing:2px}}
+h1{{font-size:26px;font-weight:400;margin-bottom:12px}}
+h1 span{{color:#ffb800}}
+p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
+.key-box{{background:#0e0e10;border:1px solid rgba(255,184,0,0.3);padding:16px 20px;margin:20px 0;font-size:14px;letter-spacing:1px;color:#ffb800;word-break:break-all}}
+.code-box{{background:#0e0e10;border:1px solid rgba(255,184,0,0.15);padding:16px 20px;margin:20px 0;font-size:12px;line-height:1.8;color:#eeeef0}}
+.btn{{display:inline-block;background:#ffb800;color:#000;font-family:'Courier New',monospace;font-size:12px;padding:12px 28px;text-decoration:none;letter-spacing:2px;text-transform:uppercase;margin:8px 8px 8px 0}}
+.footer{{font-size:11px;color:#55555e;line-height:1.8;margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,184,0,0.1)}}
+</style></head><body>
+<div class="wrap">
+  <div class="logo">guni<em>.dev</em></div>
+  <div class="badge">&#9889; YOUR API KEY IS READY</div>
+  <h1>Welcome to <span>Guni {plan.title()}.</span></h1>
+  <p>Your payment was successful. Here is your API key — keep it secret, keep it safe.</p>
+  <div class="key-box">{api_key}</div>
+  <p>Your plan: <strong style="color:#ffb800">{plan.upper()}</strong> &mdash; {scans_limit:,} scans/month</p>
+  <div class="code-box">from guni import scan
+
+result = scan(
+    html=page_html,
+    goal="Login to website",
+    api_key="{api_key}"
+)
+print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
+  <a class="btn" href="https://guni.up.railway.app/dashboard">Open dashboard</a>
+  <div class="footer">
+    Questions? Reply to this email.<br/>
+    &copy; 2026 Guni
+  </div>
+</div></body></html>"""
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Your Guni API key is ready"
+        msg["From"]    = f"Guni <{from_email}>"
+        msg["To"]      = to_email
+        msg.attach(MIMEText(f"Your Guni API key: {api_key}\nPlan: {plan} ({scans_limit} scans/month)", "plain"))
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(from_email, app_pass)
+            server.sendmail(from_email, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[Guni] API key email failed: {e}")
+        return False
