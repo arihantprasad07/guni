@@ -1,0 +1,32 @@
+# Environment and secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs
+*.log
+guni_audit.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
