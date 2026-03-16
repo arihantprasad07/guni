@@ -394,3 +394,115 @@ def db_get_threat_feed() -> dict:
             "top_threat":       top_threat,
             "hourly_trend":     [dict(r) for r in hourly],
         }
+
+
+# ── User auth ──────────────────────────────────────────────────────────────
+
+def init_users_table():
+    """Create users table if not exists."""
+    with get_conn() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            email        TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            plan         TEXT NOT NULL DEFAULT 'free',
+            api_key      TEXT,
+            verified     INTEGER NOT NULL DEFAULT 0,
+            verify_token TEXT,
+            reset_token  TEXT,
+            reset_expiry TEXT,
+            created_at   TEXT NOT NULL,
+            last_login   TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_verify ON users(verify_token);
+        CREATE INDEX IF NOT EXISTS idx_users_reset ON users(reset_token);
+        """)
+
+
+def db_create_user(email: str, password_hash: str, verify_token: str) -> dict | None:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO users (email,password_hash,verify_token,created_at) VALUES (?,?,?,?)",
+                (email.lower().strip(), password_hash, verify_token, now)
+            )
+        return db_get_user_by_email(email)
+    except Exception:
+        return None
+
+
+def db_get_user_by_email(email: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE email=?", (email.lower().strip(),)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def db_get_user_by_token(token: str, token_type: str = "verify") -> dict | None:
+    col = "verify_token" if token_type == "verify" else "reset_token"
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT * FROM users WHERE {col}=?", (token,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def db_verify_user(verify_token: str) -> bool:
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE users SET verified=1, verify_token=NULL WHERE verify_token=?",
+            (verify_token,)
+        )
+        return result.rowcount > 0
+
+
+def db_set_reset_token(email: str, token: str, expiry: str) -> bool:
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE users SET reset_token=?, reset_expiry=? WHERE email=?",
+            (token, expiry, email.lower().strip())
+        )
+        return result.rowcount > 0
+
+
+def db_reset_password(token: str, new_hash: str) -> bool:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT reset_expiry FROM users WHERE reset_token=?", (token,)
+        ).fetchone()
+        if not row:
+            return False
+        if row["reset_expiry"] and row["reset_expiry"] < now:
+            return False
+        conn.execute(
+            "UPDATE users SET password_hash=?, reset_token=NULL, reset_expiry=NULL WHERE reset_token=?",
+            (new_hash, token)
+        )
+        return True
+
+
+def db_update_user_login(email: str, api_key: str = None):
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with get_conn() as conn:
+        if api_key:
+            conn.execute(
+                "UPDATE users SET last_login=?, api_key=? WHERE email=?",
+                (now, api_key, email.lower().strip())
+            )
+        else:
+            conn.execute(
+                "UPDATE users SET last_login=? WHERE email=?",
+                (now, email.lower().strip())
+            )
+
+
+# Initialize users table on import
+try:
+    init_users_table()
+except Exception as e:
+    print(f"[Guni] Users table init: {e}")

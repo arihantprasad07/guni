@@ -199,3 +199,26 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
     except Exception as e:
         print(f"[Guni] API key email failed: {e}")
         return False
+
+
+def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> bool:
+    """Generic HTML email sender used by auth system."""
+    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
+    app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
+    if not from_email or not app_pass:
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = f"Guni <{from_email}>"
+        msg["To"]      = to_email
+        if text:
+            msg.attach(MIMEText(text, "plain"))
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(from_email, app_pass)
+            server.sendmail(from_email, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[Guni] Email failed: {e}")
+        return False

@@ -346,21 +346,26 @@ let currentKey = '';
 // ── Auth ───────────────────────────────────────────────────────────────────
 async function login() {
   const key = document.getElementById('key-input').value.trim();
-  if (!key.startsWith('guni_live_')) {
+
+  // Also check localStorage for session from signin page
+  const storedKey = localStorage.getItem('guni_api_key');
+  const activeKey = key || storedKey || '';
+
+  if (!activeKey.startsWith('guni_live_')) {
     document.getElementById('gate-err').textContent = 'Invalid key format. Keys start with guni_live_';
     return;
   }
 
   try {
     const r = await fetch(API + '/keys/usage', {
-      headers: { 'X-API-Key': key }
+      headers: { 'X-API-Key': activeKey }
     });
     if (!r.ok) {
       document.getElementById('gate-err').textContent = 'Invalid or expired API key.';
       return;
     }
     const d = await r.json();
-    currentKey = key;
+    currentKey = activeKey;
     document.getElementById('gate').style.display = 'none';
     document.getElementById('portal').classList.add('show');
     document.getElementById('portal-email').textContent = d.email || 'Customer';
@@ -383,6 +388,9 @@ async function login() {
 
 function logout() {
   currentKey = '';
+  localStorage.removeItem('guni_api_key');
+  localStorage.removeItem('guni_session');
+  localStorage.removeItem('guni_email');
   document.getElementById('portal').classList.remove('show');
   document.getElementById('gate').style.display = 'block';
   document.getElementById('key-input').value = '';
@@ -582,6 +590,15 @@ function copyKey() {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// Auto-login if coming from signin page
+window.addEventListener('load', () => {
+  const storedKey = localStorage.getItem('guni_api_key');
+  if (storedKey && storedKey.startsWith('guni_live_')) {
+    document.getElementById('key-input').value = storedKey;
+    login();
+  }
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sign up — Guni</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem var(--pad)}
+.auth-card{width:100%;max-width:420px}
+.auth-logo{font-family:var(--display);font-size:28px;font-weight:800;color:var(--amber);letter-spacing:-0.04em;margin-bottom:2rem;display:block;text-decoration:none}
+.auth-logo em{color:var(--muted2);font-style:normal;font-weight:400;font-size:18px}
+.auth-title{font-family:var(--display);font-size:1.8rem;font-weight:700;margin-bottom:0.5rem;letter-spacing:-0.03em}
+.auth-sub{font-size:13px;color:var(--muted2);margin-bottom:2rem;line-height:1.7}
+.auth-form{display:flex;flex-direction:column;gap:1rem}
+.field{display:flex;flex-direction:column;gap:5px}
+.err{font-size:12px;color:var(--red);padding:10px 14px;border:1px solid rgba(240,64,64,0.2);background:var(--red2);display:none}
+.err.show{display:block}
+.ok{font-size:12px;color:var(--green);padding:10px 14px;border:1px solid rgba(0,217,126,0.2);background:rgba(0,217,126,0.06);display:none}
+.ok.show{display:block}
+.auth-footer{margin-top:1.5rem;font-size:12px;color:var(--muted2);text-align:center}
+.auth-footer a{color:var(--amber);text-decoration:none}
+.auth-footer a:hover{text-decoration:underline}
+.plan-select{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:0.5rem}
+.plan-opt{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;cursor:pointer;transition:all 0.15s;text-align:left}
+.plan-opt:hover{border-color:var(--amber2)}
+.plan-opt.selected{border-color:var(--amber);background:var(--amber3)}
+.plan-opt input{display:none}
+.plan-name{font-size:13px;color:var(--text);font-family:var(--display);font-weight:600}
+.plan-price{font-size:11px;color:var(--muted2);margin-top:2px}
+.plan-opt.selected .plan-name{color:var(--amber)}
+</style>
+</head>
+<body class="g-page">
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="auth-logo" href="/">guni<em>.dev</em></a>
+    <h1 class="auth-title">Create account</h1>
+    <p class="auth-sub">Start protecting your AI agents from prompt injection, phishing, and goal hijacking.</p>
+
+    <div class="auth-form">
+
+      <div class="field">
+        <label class="g-field-label">Plan</label>
+        <div class="plan-select">
+          <label class="plan-opt selected" id="plan-free" onclick="selectPlan('free')">
+            <input type="radio" name="plan" value="free" checked/>
+            <div class="plan-name">Free</div>
+            <div class="plan-price">Self-hosted · Heuristics only</div>
+          </label>
+          <label class="plan-opt" id="plan-starter" onclick="selectPlan('starter')">
+            <input type="radio" name="plan" value="starter"/>
+            <div class="plan-name">Starter <span style="color:var(--green);font-size:10px">$9/mo</span></div>
+            <div class="plan-price">LLM layer · 1,000 scans</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="g-field-label">Email</label>
+        <input class="g-input" type="email" id="email" placeholder="you@company.com" autocomplete="email"/>
+      </div>
+
+      <div class="field">
+        <label class="g-field-label">Password</label>
+        <input class="g-input" type="password" id="password" placeholder="Min 8 characters" autocomplete="new-password"/>
+      </div>
+
+      <div class="field">
+        <label class="g-field-label">Confirm password</label>
+        <input class="g-input" type="password" id="confirm" placeholder="Repeat password"/>
+      </div>
+
+      <div class="err" id="err"></div>
+      <div class="ok" id="ok"></div>
+
+      <button class="g-btn g-btn-primary" style="padding:13px;font-size:13px" onclick="signup()">Create account</button>
+
+    </div>
+
+    <div class="auth-footer">
+      Already have an account? <a href="/signin">Sign in</a>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedPlan = 'free';
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  document.getElementById('plan-free').classList.toggle('selected', plan === 'free');
+  document.getElementById('plan-starter').classList.toggle('selected', plan === 'starter');
+}
+
+async function signup() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const confirm  = document.getElementById('confirm').value;
+  const err      = document.getElementById('err');
+  const ok       = document.getElementById('ok');
+
+  err.classList.remove('show');
+  ok.classList.remove('show');
+
+  if (!email || !email.includes('@')) { err.textContent = 'Enter a valid email.'; err.classList.add('show'); return; }
+  if (password.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.classList.add('show'); return; }
+  if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.classList.add('show'); return; }
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Creating account...';
+
+  try {
+    const r = await fetch('/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.detail || 'Something went wrong.'; err.classList.add('show'); return; }
+
+    if (selectedPlan === 'starter') {
+      ok.textContent = '✓ Account created! Check your email to verify. Then complete payment for Starter plan.';
+      ok.classList.add('show');
+      setTimeout(() => window.location.href = '/#pricing', 3000);
+    } else {
+      ok.textContent = '✓ Account created! Check your email to verify your account.';
+      ok.classList.add('show');
+      setTimeout(() => window.location.href = '/signin', 3000);
+    }
+  } catch(e) {
+    err.textContent = 'Could not connect. Try again.';
+    err.classList.add('show');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') signup(); });
+</script>
+</body>
+</html>

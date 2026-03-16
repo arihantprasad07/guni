@@ -12,7 +12,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import WebSocket, WebSocketDisconnect, Request
@@ -87,6 +87,163 @@ def landing():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text())
     return HTMLResponse(content="<h1>Guni</h1><p><a href='/dashboard'>Dashboard</a> · <a href='/docs'>API docs</a></p>")
+
+
+@app.get("/signup", response_class=HTMLResponse, include_in_schema=False)
+def signup_page():
+    html_path = DASHBOARD_DIR / "signup.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Sign up</h1>")
+
+
+@app.get("/signin", response_class=HTMLResponse, include_in_schema=False)
+def signin_page():
+    html_path = DASHBOARD_DIR / "signin.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Sign in</h1>")
+
+
+@app.get("/auth/verify", response_class=HTMLResponse, include_in_schema=False)
+def verify_email(token: str = ""):
+    from api.database import db_verify_user
+    success = db_verify_user(token) if token else False
+    if success:
+        return HTMLResponse(content='<html><head><meta http-equiv="refresh" content="3;url=/signin?verified=1"/><link rel="stylesheet" href="/static/guni.css"/></head><body class="g-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="text-align:center"><div style="font-size:48px;color:#00d97e;margin-bottom:1rem">&#10003;</div><div style="font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem">Email verified!</div><div style="color:var(--muted2);font-size:13px">Redirecting to sign in...</div></div></body></html>')
+    return HTMLResponse(content='<html><head><meta http-equiv="refresh" content="3;url=/signup"/><link rel="stylesheet" href="/static/guni.css"/></head><body class="g-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="text-align:center"><div style="font-size:48px;color:#f04040;margin-bottom:1rem">&#10007;</div><div style="font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem">Invalid or expired link</div><div style="color:var(--muted2);font-size:13px">Redirecting...</div></div></body></html>')
+
+
+@app.get("/auth/forgot", response_class=HTMLResponse, include_in_schema=False)
+def forgot_page():
+    html_path = DASHBOARD_DIR / "reset.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Forgot password</h1>")
+
+
+@app.get("/auth/reset", response_class=HTMLResponse, include_in_schema=False)
+def reset_page(token: str = ""):
+    html_path = DASHBOARD_DIR / "reset.html"
+    if html_path.exists():
+        content = html_path.read_text().replace("RESET_TOKEN_PLACEHOLDER", token)
+        return HTMLResponse(content=content)
+    return HTMLResponse(content="<h1>Reset password</h1>")
+
+
+class SignupRequest(BaseModel):
+    email:    str
+    password: str
+
+class SigninRequest(BaseModel):
+    email:    str
+    password: str
+
+class ResetRequest(BaseModel):
+    email: str
+
+class NewPasswordRequest(BaseModel):
+    token:    str
+    password: str
+
+
+@app.post("/auth/signup", tags=["Auth"])
+async def auth_signup(body: SignupRequest, request: Request):
+    from api.auth_system import hash_password, generate_token, send_verification_email
+    from api.database import db_create_user, db_get_user_by_email
+    email = body.email.lower().strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=422, detail="Invalid email")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    if db_get_user_by_email(email):
+        raise HTTPException(status_code=409, detail="Account already exists")
+    pw_hash = hash_password(body.password)
+    token   = generate_token()
+    user    = db_create_user(email, pw_hash, token)
+    if not user:
+        raise HTTPException(status_code=500, detail="Could not create account")
+    base_url = str(request.base_url).rstrip("/")
+    try:
+        send_verification_email(email, token, base_url)
+    except Exception:
+        pass
+    return {"success": True, "message": "Account created. Check your email to verify.", "email": email}
+
+
+@app.post("/auth/signin", tags=["Auth"])
+async def auth_signin(body: SigninRequest):
+    from api.auth_system import verify_password, create_session
+    from api.database import db_get_user_by_email, db_update_user_login
+    from api.key_manager import generate_api_key, PLAN_LIMITS
+    email = body.email.lower().strip()
+    user  = db_get_user_by_email(email)
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.get("verified"):
+        raise HTTPException(status_code=403, detail="Please verify your email first")
+    api_key = user.get("api_key")
+    if not api_key:
+        plan    = user.get("plan", "free")
+        limit   = PLAN_LIMITS.get(plan, 0)
+        kd      = generate_api_key(email=email, plan=plan, scans_limit=limit)
+        api_key = kd["key"]
+    db_update_user_login(email, api_key)
+    session  = create_session(email)
+    response = JSONResponse({"success": True, "email": email, "plan": user.get("plan", "free"), "api_key": api_key, "session": session})
+    response.set_cookie("guni_session", session, max_age=7*24*3600, httponly=True, samesite="lax")
+    return response
+
+
+@app.post("/auth/reset-request", tags=["Auth"])
+async def auth_reset_request(body: ResetRequest, request: Request):
+    from api.auth_system import generate_token, send_reset_email
+    from api.database import db_get_user_by_email, db_set_reset_token
+    import time as _time
+    email = body.email.lower().strip()
+    user  = db_get_user_by_email(email)
+    if user:
+        token  = generate_token()
+        expiry = _time.strftime("%Y-%m-%dT%H:%M:%S", _time.gmtime(_time.time() + 3600))
+        db_set_reset_token(email, token, expiry)
+        base_url = str(request.base_url).rstrip("/")
+        try:
+            send_reset_email(email, token, base_url)
+        except Exception:
+            pass
+    return {"success": True, "message": "If that email exists, a reset link has been sent."}
+
+
+@app.post("/auth/reset-password", tags=["Auth"])
+async def auth_reset_password(body: NewPasswordRequest):
+    from api.auth_system import hash_password
+    from api.database import db_reset_password
+    if len(body.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    if not db_reset_password(body.token, hash_password(body.password)):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    return {"success": True, "message": "Password reset. You can now sign in."}
+
+
+@app.get("/auth/me", tags=["Auth"])
+async def auth_me(request: Request):
+    from api.auth_system import verify_session
+    from api.database import db_get_user_by_email
+    session = request.cookies.get("guni_session", "")
+    email   = verify_session(session) if session else None
+    if not email:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = db_get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return {"email": user["email"], "plan": user.get("plan", "free"), "api_key": user.get("api_key"), "verified": bool(user.get("verified"))}
+
+
+@app.post("/auth/signout", tags=["Auth"])
+async def auth_signout():
+    response = JSONResponse({"success": True})
+    response.delete_cookie("guni_session")
+    return response
 
 
 @app.get("/portal", response_class=HTMLResponse, include_in_schema=False)
