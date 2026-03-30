@@ -357,6 +357,11 @@ class NewPasswordRequest(BaseModel):
     password: str
 
 
+class BillingCheckoutRequest(BaseModel):
+    plan: str = "starter"
+    company: str | None = None
+
+
 @app.post("/auth/signup", tags=["Auth"])
 async def auth_signup(body: SignupRequest, request: Request):
     from api.auth_system import hash_password, generate_token, send_verification_email
@@ -496,10 +501,11 @@ async def auth_reset_password(body: NewPasswordRequest):
 
 @app.get("/auth/me", tags=["Auth"])
 async def auth_me(request: Request):
-    from api.database import db_get_organization
+    from api.database import db_get_organization, db_get_subscription_by_email
 
     user = _require_session_user(request)
     org = db_get_organization(user["org_id"]) if user.get("org_id") else None
+    subscription = db_get_subscription_by_email(user["email"])
     return {
         "email": user["email"],
         "plan": user.get("plan", "free"),
@@ -508,6 +514,7 @@ async def auth_me(request: Request):
         "verified": bool(user.get("verified")),
         "org_id": user.get("org_id"),
         "organization": org,
+        "subscription": subscription,
     }
 
 
@@ -971,11 +978,143 @@ def get_alert_config(api_key: str = Depends(verify_api_key)):
 async def razorpay_webhook(request: Request):
     """Razorpay payment webhook — auto-provisions API keys on payment."""
     from api.webhook import handle_razorpay_webhook
-    from fastapi import Request
     payload   = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
     result    = await handle_razorpay_webhook(payload, signature)
     return result
+
+
+@app.get("/billing/me", tags=["Payments"])
+def billing_me(request: Request):
+    """Return the current signed-in user's billing state."""
+    from api.database import db_get_billing_events, db_get_subscription_by_email
+
+    user = _require_session_user(request)
+    subscription = db_get_subscription_by_email(user["email"])
+    events = db_get_billing_events(email=user["email"], limit=10)
+    return {
+        "email": user["email"],
+        "plan": user.get("plan", "free"),
+        "subscription": subscription,
+        "events": events,
+    }
+
+
+@app.post("/billing/checkout", tags=["Payments"])
+async def billing_checkout(body: BillingCheckoutRequest, request: Request):
+    """Create a hosted payment link for the signed-in account."""
+    from api.database import db_log_audit_event
+    from api.webhook import create_checkout_link
+
+    user = _require_session_user(request)
+    plan = (body.plan or "starter").lower().strip()
+    if plan not in {"starter", "pro"}:
+        raise HTTPException(status_code=422, detail="Invalid billing plan")
+    company = (body.company or "").strip()
+    if not company:
+        company = _default_org_name(user["email"])
+
+    checkout = await create_checkout_link(
+        email=user["email"],
+        plan=plan,
+        company=company,
+        base_url=str(request.base_url).rstrip("/"),
+    )
+    db_log_audit_event(
+        actor_email=user["email"],
+        org_id=user.get("org_id"),
+        action="billing.checkout_created",
+        target_type="payment_link",
+        target_id=checkout.get("provider_payment_link_id", ""),
+        metadata={"plan": plan},
+    )
+    return checkout
+
+
+@app.post("/billing/cancel", tags=["Payments"])
+def billing_cancel(request: Request):
+    """Mark the current subscription to cancel at period end."""
+    from api.database import db_get_subscription_by_email, db_log_audit_event, db_upsert_subscription
+
+    user = _require_session_user(request)
+    current = db_get_subscription_by_email(user["email"])
+    if not current:
+        raise HTTPException(status_code=404, detail="No active subscription found")
+
+    updated = db_upsert_subscription(
+        email=user["email"],
+        org_id=user.get("org_id"),
+        plan=current.get("plan", user.get("plan", "free")),
+        status=current.get("status", "active"),
+        billing_provider=current.get("billing_provider", "razorpay"),
+        provider_customer_id=current.get("provider_customer_id"),
+        provider_subscription_id=current.get("provider_subscription_id"),
+        provider_payment_id=current.get("provider_payment_id"),
+        provider_payment_link_id=current.get("provider_payment_link_id"),
+        checkout_url=current.get("checkout_url"),
+        current_period_end=current.get("current_period_end"),
+        cancel_at_period_end=True,
+        last_payment_at=current.get("last_payment_at"),
+    )
+    db_log_audit_event(
+        actor_email=user["email"],
+        org_id=user.get("org_id"),
+        action="billing.cancel_requested",
+        target_type="subscription",
+        target_id=str(updated.get("id", "")),
+        metadata={"plan": updated.get("plan", "free")},
+    )
+    return updated
+
+
+@app.post("/billing/resume", tags=["Payments"])
+def billing_resume(request: Request):
+    """Resume a subscription marked for cancellation."""
+    from api.database import db_get_subscription_by_email, db_log_audit_event, db_upsert_subscription
+
+    user = _require_session_user(request)
+    current = db_get_subscription_by_email(user["email"])
+    if not current:
+        raise HTTPException(status_code=404, detail="No subscription found")
+
+    updated = db_upsert_subscription(
+        email=user["email"],
+        org_id=user.get("org_id"),
+        plan=current.get("plan", user.get("plan", "free")),
+        status=current.get("status", "active"),
+        billing_provider=current.get("billing_provider", "razorpay"),
+        provider_customer_id=current.get("provider_customer_id"),
+        provider_subscription_id=current.get("provider_subscription_id"),
+        provider_payment_id=current.get("provider_payment_id"),
+        provider_payment_link_id=current.get("provider_payment_link_id"),
+        checkout_url=current.get("checkout_url"),
+        current_period_end=current.get("current_period_end"),
+        cancel_at_period_end=False,
+        last_payment_at=current.get("last_payment_at"),
+    )
+    db_log_audit_event(
+        actor_email=user["email"],
+        org_id=user.get("org_id"),
+        action="billing.resume_requested",
+        target_type="subscription",
+        target_id=str(updated.get("id", "")),
+        metadata={"plan": updated.get("plan", "free")},
+    )
+    return updated
+
+
+@app.get("/billing/success", response_class=HTMLResponse, include_in_schema=False)
+def billing_success():
+    return HTMLResponse(
+        content="<html><head><meta http-equiv='refresh' content='3;url=/portal'/><link rel='stylesheet' href='/static/guni.css'/></head><body class='g-page' style='display:flex;align-items:center;justify-content:center;min-height:100vh'><div style='text-align:center'><div style='font-size:48px;color:#00d97e;margin-bottom:1rem'>&#10003;</div><div style='font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem'>Payment received</div><div style='color:var(--muted2);font-size:13px'>Redirecting to your portal...</div></div></body></html>"
+    )
+
+
+@app.get("/billing/cancelled", response_class=HTMLResponse, include_in_schema=False)
+def billing_cancelled():
+    return HTMLResponse(
+        content="<html><head><meta http-equiv='refresh' content='3;url=/portal'/><link rel='stylesheet' href='/static/guni.css'/></head><body class='g-page' style='display:flex;align-items:center;justify-content:center;min-height:100vh'><div style='text-align:center'><div style='font-size:48px;color:#f5a623;margin-bottom:1rem'>&#9888;</div><div style='font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem'>Checkout not completed</div><div style='color:var(--muted2);font-size:13px'>You can reopen billing from the portal.</div></div></body></html>"
+    )
 
 
 # ── API Key management ────────────────────────────────────────────────────────

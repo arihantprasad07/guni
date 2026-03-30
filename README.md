@@ -186,6 +186,7 @@ Current trust signals:
 - runtime data isolation from the repo root
 - session-backed portal access with admin-only key lifecycle actions
 - organization audit events for sensitive admin activity
+- hosted checkout, webhook-backed provisioning, and portal-visible billing state
 - enterprise-facing product and integration pages for buyer review
 
 ## Project structure

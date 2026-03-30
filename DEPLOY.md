@@ -25,6 +25,9 @@ Set these in Railway:
 | `GUNI_API_KEYS` | Comma-separated production keys if using protected mode |
 | `GUNI_SESSION_SECRET` | Long random secret |
 | `ANTHROPIC_API_KEY` | Optional, for LLM reasoning |
+| `RAZORPAY_KEY_ID` | Required for hosted checkout creation |
+| `RAZORPAY_KEY_SECRET` | Required for hosted checkout creation |
+| `RAZORPAY_WEBHOOK_SECRET` | Required for webhook verification |
 
 Optional overrides:
 
@@ -72,6 +75,7 @@ For production customers:
 - store runtime data on a persistent volume
 - rotate keys deliberately
 - set a strong `GUNI_SESSION_SECRET`
+- set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` if you want in-product checkout
 - decide whether the customer uses managed API or self-hosted mode
 
 ## CI recommendation

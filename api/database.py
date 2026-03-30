@@ -88,10 +88,46 @@ def init_db():
             created_at   TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS billing_subscriptions (
+            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id                 INTEGER,
+            email                  TEXT NOT NULL,
+            plan                   TEXT NOT NULL DEFAULT 'free',
+            status                 TEXT NOT NULL DEFAULT 'inactive',
+            billing_provider       TEXT NOT NULL DEFAULT 'razorpay',
+            provider_customer_id   TEXT,
+            provider_subscription_id TEXT,
+            provider_payment_id    TEXT,
+            provider_payment_link_id TEXT,
+            checkout_url           TEXT,
+            current_period_end     TEXT,
+            cancel_at_period_end   INTEGER NOT NULL DEFAULT 0,
+            last_payment_at        TEXT,
+            created_at             TEXT NOT NULL,
+            updated_at             TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS billing_events (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id             INTEGER,
+            email              TEXT,
+            event_type         TEXT NOT NULL,
+            status             TEXT,
+            provider           TEXT NOT NULL DEFAULT 'razorpay',
+            provider_event_id  TEXT,
+            provider_payment_id TEXT,
+            amount             INTEGER NOT NULL DEFAULT 0,
+            currency           TEXT NOT NULL DEFAULT 'INR',
+            payload            TEXT,
+            created_at         TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_scans_key ON scans(api_key);
         CREATE INDEX IF NOT EXISTS idx_scans_ts  ON scans(timestamp);
         CREATE INDEX IF NOT EXISTS idx_keys_email ON api_keys(email);
         CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_billing_email ON billing_subscriptions(email);
+        CREATE INDEX IF NOT EXISTS idx_billing_org ON billing_subscriptions(org_id);
         """)
 
         key_columns = {
@@ -172,6 +208,13 @@ def db_get_audit_events(org_id: int, limit: int = 50) -> list:
                 item["metadata"] = {}
             events.append(item)
         return events
+
+
+def _decode_json_field(value: str | None) -> dict:
+    try:
+        return json.loads(value or "{}")
+    except Exception:
+        return {}
 
 
 def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int | None = None) -> dict:
@@ -318,6 +361,192 @@ def db_rotate_key(key: str, new_key: str) -> dict | None:
         )
 
     return db_get_key(new_key)
+
+
+def db_get_subscription_by_email(email: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM billing_subscriptions WHERE email=? ORDER BY updated_at DESC LIMIT 1",
+            (email.lower().strip(),),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def db_get_subscription_by_org(org_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM billing_subscriptions WHERE org_id=? ORDER BY updated_at DESC LIMIT 1",
+            (org_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def db_upsert_subscription(
+    *,
+    email: str,
+    plan: str,
+    status: str,
+    org_id: int | None = None,
+    billing_provider: str = "razorpay",
+    provider_customer_id: str | None = None,
+    provider_subscription_id: str | None = None,
+    provider_payment_id: str | None = None,
+    provider_payment_link_id: str | None = None,
+    checkout_url: str | None = None,
+    current_period_end: str | None = None,
+    cancel_at_period_end: bool = False,
+    last_payment_at: str | None = None,
+) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    email = email.lower().strip()
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM billing_subscriptions WHERE email=?",
+            (email,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE billing_subscriptions
+                SET org_id=?,
+                    plan=?,
+                    status=?,
+                    billing_provider=?,
+                    provider_customer_id=?,
+                    provider_subscription_id=?,
+                    provider_payment_id=?,
+                    provider_payment_link_id=?,
+                    checkout_url=?,
+                    current_period_end=?,
+                    cancel_at_period_end=?,
+                    last_payment_at=?,
+                    updated_at=?
+                WHERE email=?
+                """,
+                (
+                    org_id,
+                    plan,
+                    status,
+                    billing_provider,
+                    provider_customer_id,
+                    provider_subscription_id,
+                    provider_payment_id,
+                    provider_payment_link_id,
+                    checkout_url,
+                    current_period_end,
+                    int(cancel_at_period_end),
+                    last_payment_at,
+                    now,
+                    email,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO billing_subscriptions (
+                    org_id,email,plan,status,billing_provider,
+                    provider_customer_id,provider_subscription_id,provider_payment_id,
+                    provider_payment_link_id,checkout_url,current_period_end,
+                    cancel_at_period_end,last_payment_at,created_at,updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    org_id,
+                    email,
+                    plan,
+                    status,
+                    billing_provider,
+                    provider_customer_id,
+                    provider_subscription_id,
+                    provider_payment_id,
+                    provider_payment_link_id,
+                    checkout_url,
+                    current_period_end,
+                    int(cancel_at_period_end),
+                    last_payment_at,
+                    now,
+                    now,
+                ),
+            )
+    return db_get_subscription_by_email(email) or {"email": email, "plan": plan, "status": status}
+
+
+def db_log_billing_event(
+    *,
+    event_type: str,
+    email: str | None,
+    status: str = "",
+    org_id: int | None = None,
+    provider_event_id: str = "",
+    provider_payment_id: str = "",
+    amount: int = 0,
+    currency: str = "INR",
+    payload: dict | None = None,
+) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO billing_events (
+                org_id,email,event_type,status,provider_event_id,
+                provider_payment_id,amount,currency,payload,created_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                org_id,
+                email.lower().strip() if email else None,
+                event_type,
+                status,
+                provider_event_id,
+                provider_payment_id,
+                amount,
+                currency,
+                json.dumps(payload or {}),
+                now,
+            ),
+        )
+        event_id = cursor.lastrowid
+        row = conn.execute(
+            "SELECT * FROM billing_events WHERE id=?",
+            (event_id,),
+        ).fetchone()
+    item = dict(row)
+    item["payload"] = _decode_json_field(item.get("payload"))
+    return item
+
+
+def db_get_billing_events(email: str | None = None, org_id: int | None = None, limit: int = 20) -> list:
+    with get_conn() as conn:
+        if org_id is not None:
+            rows = conn.execute(
+                "SELECT * FROM billing_events WHERE org_id=? ORDER BY created_at DESC LIMIT ?",
+                (org_id, min(limit, 100)),
+            ).fetchall()
+        elif email:
+            rows = conn.execute(
+                "SELECT * FROM billing_events WHERE email=? ORDER BY created_at DESC LIMIT ?",
+                (email.lower().strip(), min(limit, 100)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM billing_events ORDER BY created_at DESC LIMIT ?",
+                (min(limit, 100),),
+            ).fetchall()
+    events = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = _decode_json_field(item.get("payload"))
+        events.append(item)
+    return events
+
+
+def db_set_user_plan(email: str, plan: str) -> bool:
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE users SET plan=? WHERE email=?",
+            (plan, email.lower().strip()),
+        )
+        return result.rowcount > 0
 
 
 # ── Scan history ───────────────────────────────────────────────────────────

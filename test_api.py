@@ -7,6 +7,7 @@ Runs in-process with FastAPI's TestClient, so no separate server is required.
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import shutil
 import sys
@@ -322,3 +323,134 @@ def test_admin_key_lifecycle_and_audit_feed(client: TestClient):
     assert "keys.generate" in actions
     assert "keys.rotate" in actions
     assert "keys.revoke" in actions
+
+
+def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "buyer@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Buyer Co",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    user = db_get_user_by_email("buyer@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "buyer@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    async def fake_create_checkout_link(*, email: str, plan: str, company: str = "", base_url: str):
+        from api.database import db_upsert_subscription
+
+        subscription = db_upsert_subscription(
+            email=email,
+            plan=plan,
+            status="pending",
+            checkout_url="https://payments.example/checkout",
+            provider_payment_link_id="plink_test_123",
+        )
+        return {
+            "plan": plan,
+            "amount": 74900,
+            "checkout_url": "https://payments.example/checkout",
+            "provider_payment_link_id": "plink_test_123",
+            "subscription": subscription,
+        }
+
+    monkeypatch.setattr("api.webhook.create_checkout_link", fake_create_checkout_link)
+
+    checkout = client.post("/billing/checkout", json={"plan": "starter"})
+    assert checkout.status_code == 200
+    checkout_data = unwrap(checkout.json())
+    assert checkout_data["checkout_url"] == "https://payments.example/checkout"
+
+    billing_before = client.get("/billing/me")
+    assert billing_before.status_code == 200
+    billing_before_data = unwrap(billing_before.json())
+    assert billing_before_data["plan"] == "starter"
+
+    webhook_payload = {
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": "pay_test_123",
+                    "email": "buyer@example.com",
+                    "amount": 74900,
+                    "currency": "INR",
+                    "status": "captured",
+                    "notes": {
+                        "plan": "starter",
+                        "email": "buyer@example.com",
+                    },
+                }
+            }
+        },
+    }
+
+    webhook = client.post(
+        "/webhook/razorpay",
+        content=json.dumps(webhook_payload),
+        headers={"Content-Type": "application/json", "x-razorpay-signature": "test"},
+    )
+    assert webhook.status_code == 200
+    webhook_data = unwrap(webhook.json())
+    assert webhook_data["status"] == "provisioned"
+
+    billing_after = client.get("/billing/me")
+    assert billing_after.status_code == 200
+    billing_after_data = unwrap(billing_after.json())
+    assert billing_after_data["subscription"]["status"] == "active"
+    assert billing_after_data["subscription"]["provider_payment_id"] == "pay_test_123"
+    assert any(event["event_type"] == "payment.captured" for event in billing_after_data["events"])
+
+
+def test_billing_cancel_and_resume(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "billing@example.com",
+            "password": "strong-pass-123",
+            "plan": "pro",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email, db_upsert_subscription, db_verify_user
+
+    user = db_get_user_by_email("billing@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    db_upsert_subscription(
+        email="billing@example.com",
+        org_id=user["org_id"],
+        plan="pro",
+        status="active",
+    )
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "billing@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    cancel = client.post("/billing/cancel")
+    assert cancel.status_code == 200
+    cancel_data = unwrap(cancel.json())
+    assert cancel_data["cancel_at_period_end"] == 1
+
+    resume = client.post("/billing/resume")
+    assert resume.status_code == 200
+    resume_data = unwrap(resume.json())
+    assert resume_data["cancel_at_period_end"] == 0

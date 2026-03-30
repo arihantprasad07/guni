@@ -112,6 +112,7 @@
         <button class="tab" data-tab="history" type="button">History</button>
         <button class="tab" data-tab="rules" type="button">Rules</button>
         <button class="tab" data-tab="alerts" type="button">Alerts</button>
+        <button class="tab" data-tab="billing" type="button">Billing</button>
         <button class="tab" data-tab="settings" type="button">Settings</button>
         <button class="tab admin-only" data-tab="admin" id="admin-tab" type="button">Admin</button>
       </div>
@@ -246,6 +247,40 @@
         </div>
       </section>
 
+      <section class="panel" id="panel-billing">
+        <div class="section-grid">
+          <div class="box">
+            <div class="box-head"><span class="box-title">Subscription</span></div>
+            <div class="box-body">
+              <table class="table">
+                <tbody>
+                  <tr><th>Plan</th><td id="billing-plan">free</td></tr>
+                  <tr><th>Status</th><td id="billing-status">inactive</td></tr>
+                  <tr><th>Last payment</th><td id="billing-last-payment">-</td></tr>
+                  <tr><th>Cancel at period end</th><td id="billing-cancel-at-period-end">No</td></tr>
+                </tbody>
+              </table>
+              <div class="action-row" style="margin-top:1rem">
+                <button class="g-btn g-btn-primary" id="billing-starter-btn" type="button">Checkout Starter</button>
+                <button class="g-btn g-btn-outline" id="billing-pro-btn" type="button">Checkout Pro</button>
+                <button class="g-btn g-btn-outline" id="billing-cancel-btn" type="button">Cancel renewal</button>
+                <button class="g-btn g-btn-outline" id="billing-resume-btn" type="button">Resume renewal</button>
+              </div>
+              <div class="msg ok" id="billing-ok">Billing updated.</div>
+              <div class="msg err" id="billing-err">Could not update billing right now.</div>
+            </div>
+          </div>
+          <div class="box">
+            <div class="box-head"><span class="box-title">Recent billing events</span></div>
+            <div class="box-body">
+              <div id="billing-events" style="display:grid;gap:8px">
+                <div class="note">Loading...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel admin-only" id="panel-admin">
         <div class="admin-grid">
           <div class="stack">
@@ -332,7 +367,7 @@ async function hydrateSession() {
     }
 
     showPortal();
-    await Promise.all([loadOverview(), loadHistory(), loadRules(), loadAlerts()]);
+    await Promise.all([loadOverview(), loadHistory(), loadRules(), loadAlerts(), loadBilling()]);
     if (authUser.role === "admin") {
       await Promise.all([loadAdmin(), loadAudit()]);
     }
@@ -500,6 +535,76 @@ async function loadAdmin() {
   `).join("");
 }
 
+async function loadBilling() {
+  const response = await fetch(`${API}/billing/me`, { credentials: "include" });
+  const data = unwrap(await response.json());
+  const subscription = data.subscription || {};
+
+  document.getElementById("billing-plan").textContent = subscription.plan || data.plan || "free";
+  document.getElementById("billing-status").textContent = subscription.status || "inactive";
+  document.getElementById("billing-last-payment").textContent = subscription.last_payment_at || "-";
+  document.getElementById("billing-cancel-at-period-end").textContent = subscription.cancel_at_period_end ? "Yes" : "No";
+
+  const events = document.getElementById("billing-events");
+  if (!Array.isArray(data.events) || !data.events.length) {
+    events.innerHTML = '<div class="note">No billing events yet.</div>';
+    return;
+  }
+
+  events.innerHTML = data.events.map((event) => `
+    <div class="box" style="padding:0.8rem 1rem">
+      <strong style="display:block;font-size:12px">${esc(event.event_type)}</strong>
+      <span class="note">${esc(event.status || "-")} | ${esc(event.created_at || "-")}</span>
+      <div class="note" style="margin-top:6px">${esc(event.amount || 0)} ${esc(event.currency || "INR")}</div>
+    </div>
+  `).join("");
+}
+
+async function startCheckout(plan) {
+  const ok = document.getElementById("billing-ok");
+  const err = document.getElementById("billing-err");
+  ok.classList.remove("show");
+  err.classList.remove("show");
+
+  const response = await fetch(`${API}/billing/checkout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan })
+  });
+  const payload = await response.json();
+  const data = unwrap(payload);
+  if (!response.ok || !data.checkout_url) {
+    err.textContent = payload.error || "Could not create checkout link.";
+    err.classList.add("show");
+    return;
+  }
+  window.location.href = data.checkout_url;
+}
+
+async function updateBilling(action) {
+  const ok = document.getElementById("billing-ok");
+  const err = document.getElementById("billing-err");
+  ok.classList.remove("show");
+  err.classList.remove("show");
+
+  const response = await fetch(`${API}/billing/${action}`, {
+    method: "POST",
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    const payload = await response.json();
+    err.textContent = payload.error || "Could not update billing.";
+    err.classList.add("show");
+    return;
+  }
+
+  ok.textContent = action === "cancel" ? "Renewal cancellation requested." : "Renewal resumed.";
+  ok.classList.add("show");
+  await loadBilling();
+}
+
 async function loadAudit() {
   const response = await fetch(`${API}/audit/events?limit=20`, { credentials: "include" });
   const data = unwrap(await response.json());
@@ -566,6 +671,10 @@ document.getElementById("signout-btn").addEventListener("click", signOut);
 document.getElementById("refresh-history").addEventListener("click", loadHistory);
 document.getElementById("add-rule-btn").addEventListener("click", addRule);
 document.getElementById("save-alerts-btn").addEventListener("click", saveAlerts);
+document.getElementById("billing-starter-btn").addEventListener("click", () => startCheckout("starter"));
+document.getElementById("billing-pro-btn").addEventListener("click", () => startCheckout("pro"));
+document.getElementById("billing-cancel-btn").addEventListener("click", () => updateBilling("cancel"));
+document.getElementById("billing-resume-btn").addEventListener("click", () => updateBilling("resume"));
 document.getElementById("toggle-block").addEventListener("click", () => document.getElementById("toggle-block").classList.toggle("on"));
 document.getElementById("toggle-confirm").addEventListener("click", () => document.getElementById("toggle-confirm").classList.toggle("on"));
 document.getElementById("copy-key-btn").addEventListener("click", async () => {
