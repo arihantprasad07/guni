@@ -24,6 +24,7 @@ TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
 os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com"
 os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
+os.environ["GUNI_SESSION_SECRET"] = "test-session-secret"
 
 for module_name in [
     "runtime_config",
@@ -183,7 +184,7 @@ def test_scan_requires_key_when_open_mode_disabled(client: TestClient, monkeypat
 
     response = client.post("/scan", json={"html": "<p>test</p>", "goal": "test"})
 
-    assert response.status_code == 200
+    assert response.status_code == 401
 
 
 def test_scan_requires_key_when_open_mode_not_explicitly_enabled(client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -193,7 +194,7 @@ def test_scan_requires_key_when_open_mode_not_explicitly_enabled(client: TestCli
 
     response = client.post("/scan", json={"html": "<p>test</p>", "goal": "test"})
 
-    assert response.status_code == 200
+    assert response.status_code == 401
 
 
 def test_scan_latency_stays_under_five_seconds(client: TestClient):
@@ -254,7 +255,7 @@ def test_scan_usage_and_history_are_tracked_per_customer_key(client: TestClient)
 
 
 def test_public_demo_history_works_without_api_key(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("GUNI_ALLOW_OPEN_MODE", raising=False)
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
     monkeypatch.delenv("GUNI_API_KEYS", raising=False)
 
@@ -268,7 +269,7 @@ def test_public_demo_history_works_without_api_key(client: TestClient, monkeypat
     )
     assert scan_response.status_code == 200
 
-    history = client.get("/history?limit=5")
+    history = client.get("/history?limit=50")
     assert history.status_code == 200
     history_data = unwrap(history.json())
     assert history_data["count"] >= 1
@@ -343,6 +344,20 @@ def test_scan_url_requires_auth_when_unsigned(client: TestClient, monkeypatch: p
     assert response.status_code == 401
 
 
+def test_scan_url_blocks_private_network_targets(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="ssrf@example.com", plan="starter", scans_limit=5)["key"]
+    response = client.post(
+        "/scan/url",
+        json={"url": "http://127.0.0.1/internal", "goal": "Read page"},
+        headers={"X-API-Key": key},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["success"] is False
+
+
 def test_session_can_access_history_without_pasted_api_key(client: TestClient):
     signup = client.post(
         "/auth/signup",
@@ -381,6 +396,50 @@ def test_session_can_access_history_without_pasted_api_key(client: TestClient):
     history_data = unwrap(history.json())
     urls = [entry["url"] for entry in history_data["entries"]]
     assert "https://session-owned.example" in urls
+
+
+def test_open_mode_analytics_and_export_are_isolated_to_open_scans(client, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
+
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="private-analytics@example.com", plan="starter", scans_limit=5)["key"]
+
+    analytics_before = client.get("/analytics")
+    assert analytics_before.status_code == 200
+    before_total = unwrap(analytics_before.json())["total"]
+
+    open_scan = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Open</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://open-analytics.example",
+        },
+    )
+    assert open_scan.status_code == 200
+
+    private_scan = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Private</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://private-analytics.example",
+        },
+        headers={"X-API-Key": key},
+    )
+    assert private_scan.status_code == 200
+
+    analytics = client.get("/analytics")
+    assert analytics.status_code == 200
+    analytics_data = unwrap(analytics.json())
+    assert analytics_data["total"] == before_total + 1
+
+    export = client.get("/history/export")
+    assert export.status_code == 200
+    csv_text = export.text
+    assert "https://open-analytics.example" in csv_text
+    assert "https://private-analytics.example" not in csv_text
 
 
 def test_custom_rules_affect_scan_results(client: TestClient):

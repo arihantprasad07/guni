@@ -100,7 +100,7 @@ def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) ->
     if session_key:
         return session_key
 
-    if not api_key and _public_demo_path(request):
+    if not api_key and _public_demo_path(request) and _open_mode_allowed():
         return "open"
 
     if not valid_keys and not api_key and _open_mode_allowed():

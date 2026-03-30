@@ -11,6 +11,8 @@ import json
 import time
 import asyncio
 import threading
+import socket
+import ipaddress
 from pathlib import Path
 from urllib.parse import urlparse
 from pydantic import BaseModel
@@ -658,6 +660,42 @@ def _get_anthropic_key() -> str:
     return os.environ.get("ANTHROPIC_API_KEY", "")
 
 
+def _validate_safe_fetch_url(raw_url: str) -> str:
+    parsed = urlparse((raw_url or "").strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise HTTPException(status_code=400, detail="Only http and https URLs are allowed.")
+
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname:
+        raise HTTPException(status_code=400, detail="URL must include a valid hostname.")
+
+    blocked_hosts = {"localhost", "metadata.google.internal"}
+    if hostname in blocked_hosts or hostname.endswith(".local"):
+        raise HTTPException(status_code=400, detail="Target host is not allowed.")
+
+    try:
+        resolved = {
+            info[4][0]
+            for info in socket.getaddrinfo(hostname, parsed.port or None, proto=socket.IPPROTO_TCP)
+        }
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="Could not resolve target hostname.")
+
+    for ip_text in resolved:
+        ip_obj = ipaddress.ip_address(ip_text)
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            raise HTTPException(status_code=400, detail="Target host resolves to a non-public IP address.")
+
+    return parsed.geturl()
+
+
 def _analyze_action(action: str, url: str, data: str | None = None) -> AnalyzeResponse:
     trusted_domains = ["google.com", "github.com"]
     action_text = (action or "").strip().lower()
@@ -829,11 +867,13 @@ def scan_url(
     """
     check_rate_limit(api_key)
 
+    safe_url = _validate_safe_fetch_url(body.url)
+
     try:
         import urllib.request
         import urllib.error
         req = urllib.request.Request(
-            body.url,
+            safe_url,
             headers={"User-Agent": "Guni-Scanner/1.0"},
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -847,7 +887,7 @@ def scan_url(
     raw = scan(
         html        = html,
         goal        = body.goal,
-        url         = body.url,
+        url         = safe_url,
         llm_api_key = _get_anthropic_key(),
         tracking_key= api_key,
         llm         = body.llm,
@@ -891,33 +931,7 @@ def get_history(
         ]
         return HistoryResponse(count=len(entries), entries=entries)
     except Exception:
-        if not os.path.exists(LOG_PATH):
-            return HistoryResponse(count=0, entries=[])
-
-        with open(LOG_PATH, "r") as f:
-            lines = f.readlines()
-
-        entries = []
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                entries.append(HistoryEntry(
-                    timestamp = data.get("timestamp", ""),
-                    url       = data.get("url", ""),
-                    goal      = data.get("goal", ""),
-                    risk      = data.get("risk", 0),
-                    decision  = data.get("decision", ""),
-                    latency   = data.get("latency", 0),
-                ))
-            except Exception:
-                continue
-            if len(entries) >= limit:
-                break
-
-        return HistoryResponse(count=len(entries), entries=entries)
+        return HistoryResponse(count=0, entries=[])
 
 
 # ── Dev entrypoint ────────────────────────────────────────────────────────────
@@ -927,7 +941,7 @@ def get_analytics(api_key: str = Depends(verify_api_key)):
     """Get scan analytics for your API key — counts, trends, block rate."""
     try:
         from api.database import db_get_analytics
-        return db_get_analytics(api_key if api_key != "open" else None)
+        return db_get_analytics(api_key)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1264,19 +1278,9 @@ def export_history_csv(
 
     try:
         from api.database import db_get_history
-        entries = db_get_history(
-            api_key if api_key != "open" else None,
-            limit=limit
-        )
+        entries = db_get_history(api_key, limit=limit)
     except Exception:
-        # fallback to log file
         entries = []
-        if os.path.exists(LOG_PATH):
-            import json as _json
-            with open(LOG_PATH) as f:
-                for line in f:
-                    try: entries.append(_json.loads(line.strip()))
-                    except: pass
 
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=[

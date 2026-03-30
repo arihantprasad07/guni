@@ -13,7 +13,27 @@ import json
 import base64
 
 
-SESSION_SECRET = os.environ.get("GUNI_SESSION_SECRET") or secrets.token_urlsafe(32)
+def _is_production_environment() -> bool:
+    markers = (
+        os.environ.get("RAILWAY_ENVIRONMENT"),
+        os.environ.get("RAILWAY_PROJECT_ID"),
+        os.environ.get("ENV"),
+        os.environ.get("APP_ENV"),
+        os.environ.get("GUNI_ENV"),
+    )
+    normalized = {(marker or "").strip().lower() for marker in markers if marker}
+    return bool(normalized & {"production", "prod"}) or any(
+        marker for marker in markers[:2]
+    )
+
+
+_SESSION_SECRET = os.environ.get("GUNI_SESSION_SECRET")
+if not _SESSION_SECRET:
+    if _is_production_environment():
+        raise RuntimeError("GUNI_SESSION_SECRET must be set in production.")
+    _SESSION_SECRET = secrets.token_urlsafe(32)
+
+SESSION_SECRET = _SESSION_SECRET
 SESSION_EXPIRY = 7 * 24 * 3600  # 7 days
 
 

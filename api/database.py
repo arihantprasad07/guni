@@ -721,7 +721,7 @@ def db_get_threat_feed() -> dict:
 
         # Threat type breakdown from breakdown JSON
         rows = conn.execute(
-            "SELECT breakdown FROM scans WHERE breakdown IS NOT NULL ORDER BY timestamp DESC LIMIT 500"
+            "SELECT breakdown FROM scans WHERE breakdown IS NOT NULL"
         ).fetchall()
 
         threat_counts = {
