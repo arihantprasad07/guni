@@ -8,7 +8,7 @@ Scoring logic:
 """
 
 WEIGHTS = {
-    "injection":     30,
+    "injection":     40,
     "phishing":      40,
     "deception":     25,
     "scripts":       20,

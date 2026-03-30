@@ -730,12 +730,33 @@ def db_get_threat_feed() -> dict:
             "clickjacking": 0, "csrf": 0, "redirect": 0,
         }
 
+        threat_priority = [
+            "clickjacking",
+            "phishing",
+            "injection",
+            "goal_mismatch",
+            "csrf",
+            "deception",
+            "redirect",
+            "scripts",
+        ]
+
+        def primary_threat(breakdown: dict) -> str | None:
+            best_key = None
+            best_score = 0
+            for key in threat_priority:
+                score = int(breakdown.get(key, 0) or 0)
+                if score > best_score:
+                    best_key = key
+                    best_score = score
+            return best_key if best_score > 0 else None
+
         for row in rows:
             try:
                 bd = json.loads(row["breakdown"])
-                for k in threat_counts:
-                    if bd.get(k, 0) > 0:
-                        threat_counts[k] += 1
+                top = primary_threat(bd)
+                if top:
+                    threat_counts[top] += 1
             except Exception:
                 pass
 

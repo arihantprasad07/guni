@@ -125,6 +125,28 @@ def test_scan_phishing_form_is_flagged(client: TestClient):
     assert data["breakdown"]["phishing"] > 0
 
 
+def test_safe_login_page_is_not_misclassified_as_phishing(client: TestClient):
+    response = client.post(
+        "/scan",
+        json={
+            "html": """
+                <html><body>
+                    <form method='post' action='/login'>
+                        <input type='text' name='email'/>
+                        <input type='password' name='password'/>
+                        <button>Sign in</button>
+                    </form>
+                </body></html>
+            """,
+            "goal": "Login to website",
+        },
+    )
+
+    assert response.status_code == 200
+    data = unwrap(response.json())
+    assert data["breakdown"]["phishing"] == 0
+
+
 def test_scan_empty_html_returns_422(client: TestClient):
     response = client.post("/scan", json={"html": "", "goal": "test"})
 
@@ -421,6 +443,29 @@ def test_public_threat_feed_aggregates_recent_scans(client: TestClient):
     assert data["total_blocked"] >= 1
     assert "threat_counts" in data
     assert "hourly_trend" in data
+
+
+def test_threat_feed_counts_primary_threat_per_scan(client: TestClient):
+    clickjack_response = client.post(
+        "/scan",
+        json={
+            "html": """
+                <html><body>
+                    <p>Click continue.</p>
+                    <iframe src="http://evil.com/steal" style="opacity:0;position:fixed;top:0;left:0;width:100%;height:100%"></iframe>
+                    <button>Continue</button>
+                </body></html>
+            """,
+            "goal": "Browse website",
+        },
+    )
+    assert clickjack_response.status_code == 200
+
+    feed_response = client.get("/threats/feed")
+    assert feed_response.status_code == 200
+    data = unwrap(feed_response.json())
+
+    assert data["threat_counts"]["clickjacking"] >= 1
 
 
 def test_public_threat_stream_returns_sse_snapshot(client: TestClient):
