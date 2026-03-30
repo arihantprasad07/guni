@@ -57,6 +57,7 @@
     <a href="#features">Features</a>
     <a href="#how">How it works</a>
     <a href="#pricing">Pricing</a>
+    <a href="/enterprise">Enterprise</a>
     <a href="/dashboard">Dashboard</a>
     <a href="/threats">Threat feed</a>
     <a href="/integrate">Integrate</a>
@@ -84,7 +85,7 @@
   <div class="hero-actions">
     <a class="g-btn g-btn-primary g-btn-lg" href="#waitlist">Get early access</a>
     <a class="g-btn g-btn-outline g-btn-lg" href="/dashboard">Try live demo</a>
-    <a class="g-btn g-btn-outline g-btn-lg" href="/threats">Threat feed</a>
+    <a class="g-btn g-btn-outline g-btn-lg" href="/enterprise">For agentic browsers</a>
   </div>
 
   <div id="waitlist" class="g-fade-up" style="max-width:520px;margin-bottom:2rem">
@@ -230,6 +231,7 @@
   <div class="g-footer-logo">guni</div>
   <div class="g-footer-links">
     <a href="/dashboard">Dashboard</a>
+    <a href="/enterprise">Enterprise</a>
     <a href="/portal">Portal</a>
     <a href="/threats">Threat feed</a>
     <a href="/changelog">Changelog</a>
@@ -275,7 +277,8 @@ function runTerm(){
 async function fetchStats(){
   try{
     const r=await fetch(API+'/history?limit=100');
-    const d=await r.json();
+    const payload=await r.json();
+    const d=payload&&payload.data?payload.data:payload;
     if(d.entries){
       animTo('s-scans',d.count||d.entries.length);
       animTo('s-blocked',d.entries.filter(e=>e.decision==='BLOCK').length);
@@ -294,9 +297,19 @@ async function joinWL(eId,bId,sId,rId){
   if(!email||!email.includes('@')){document.getElementById(eId).focus();return;}
   const btn=document.getElementById(bId);
   btn.disabled=true;btn.textContent='...';
-  try{await fetch('https://doylehauan.getform.com/7z47d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});}catch(e){}
-  document.getElementById(sId).classList.add('show');
-  document.getElementById(rId).style.display='none';
+  try{
+    const r=await fetch(API+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const payload=await r.json();
+    const d=payload&&payload.data?payload.data:payload;
+    if(!r.ok) throw new Error(payload.error||'Could not join waitlist');
+    const success=document.getElementById(sId);
+    success.innerHTML=`&#10003; ${d.message||"You're on the list."} Position: #${d.position||'--'}`;
+    success.classList.add('show');
+    document.getElementById(rId).style.display='none';
+  }catch(e){
+    btn.disabled=false;
+    btn.textContent='Get access';
+  }
 }
 document.addEventListener('keydown',e=>{
   if(e.key!=='Enter')return;

@@ -35,4 +35,5 @@ htmlcov/
 
 # Local app state
 .guni/
+.guni-test-runtime/
 guni_waitlist.json

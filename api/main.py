@@ -91,6 +91,7 @@ def log_event(action: str, url: str, decision: str):
 
             entries.append(entry)
 
+            _ensure_parent_dir(EVENT_LOG_PATH)
             with open(EVENT_LOG_PATH, "w", encoding="utf-8") as f:
                 json.dump(entries, f, indent=2)
     except OSError:
@@ -103,6 +104,14 @@ def _json_payload(success: bool, data=None, error: str | None = None):
         "data": data if data is not None else {},
         "error": error,
     }
+
+
+def _read_dashboard_html(name: str) -> str:
+    return (DASHBOARD_DIR / name).read_text(encoding="utf-8")
+
+
+def _ensure_parent_dir(file_path: str) -> None:
+    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
 
 def _is_api_json_path(path: str) -> bool:
@@ -247,7 +256,7 @@ def landing():
     """Serve the Guni landing page (waitlist)."""
     html_path = DASHBOARD_DIR / "landing.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("landing.html"))
     return HTMLResponse(content="<h1>Guni</h1><p><a href='/dashboard'>Dashboard</a> · <a href='/docs'>API docs</a></p>")
 
 
@@ -255,7 +264,7 @@ def landing():
 def signup_page():
     html_path = DASHBOARD_DIR / "signup.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("signup.html"))
     return HTMLResponse(content="<h1>Sign up</h1>")
 
 
@@ -263,7 +272,7 @@ def signup_page():
 def signin_page():
     html_path = DASHBOARD_DIR / "signin.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("signin.html"))
     return HTMLResponse(content="<h1>Sign in</h1>")
 
 
@@ -280,7 +289,7 @@ def verify_email(token: str = ""):
 def forgot_page():
     html_path = DASHBOARD_DIR / "reset.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("reset.html"))
     return HTMLResponse(content="<h1>Forgot password</h1>")
 
 
@@ -288,7 +297,7 @@ def forgot_page():
 def reset_page(token: str = ""):
     html_path = DASHBOARD_DIR / "reset.html"
     if html_path.exists():
-        content = html_path.read_text().replace("RESET_TOKEN_PLACEHOLDER", token)
+        content = _read_dashboard_html("reset.html").replace("RESET_TOKEN_PLACEHOLDER", token)
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>Reset password</h1>")
 
@@ -413,7 +422,7 @@ def portal():
     """Serve the customer portal."""
     html_path = DASHBOARD_DIR / "portal.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("portal.html"))
     return HTMLResponse(content="<h1>Portal</h1>")
 
 
@@ -422,7 +431,7 @@ def about():
     """Serve the About page."""
     html_path = DASHBOARD_DIR / "about.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("about.html"))
     return HTMLResponse(content="<h1>About Guni</h1>")
 
 
@@ -431,7 +440,7 @@ def dashboard():
     """Serve the Guni live dashboard UI."""
     html_path = DASHBOARD_DIR / "index.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("index.html"))
     return HTMLResponse(content="<h1>Guni Dashboard</h1><p>Visit <a href='/docs'>/docs</a></p>")
 
 
@@ -456,7 +465,7 @@ def join_waitlist(body: WaitlistRequest):
     waitlist = []
     if os.path.exists(WAITLIST_PATH):
         try:
-            with open(WAITLIST_PATH) as f:
+            with open(WAITLIST_PATH, encoding="utf-8") as f:
                 waitlist = json.load(f)
         except Exception:
             waitlist = []
@@ -479,7 +488,8 @@ def join_waitlist(body: WaitlistRequest):
     waitlist.append(entry)
 
     try:
-        with open(WAITLIST_PATH, "w") as f:
+        _ensure_parent_dir(WAITLIST_PATH)
+        with open(WAITLIST_PATH, "w", encoding="utf-8") as f:
             json.dump(waitlist, f, indent=2)
     except OSError:
         pass  # Read-only filesystem (Railway) — still return success
@@ -504,7 +514,7 @@ def waitlist_count():
     if not os.path.exists(WAITLIST_PATH):
         return {"count": 0}
     try:
-        with open(WAITLIST_PATH) as f:
+        with open(WAITLIST_PATH, encoding="utf-8") as f:
             return {"count": len(json.load(f))}
     except Exception:
         return {"count": 0}
@@ -976,8 +986,17 @@ def integrate():
     """Serve the integration guide page."""
     html_path = DASHBOARD_DIR / "integrate.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("integrate.html"))
     return HTMLResponse(content="<h1>Integration Guide</h1>")
+
+
+@app.get("/enterprise", response_class=HTMLResponse, include_in_schema=False)
+def enterprise():
+    """Serve the enterprise and agentic-browser pitch page."""
+    html_path = DASHBOARD_DIR / "enterprise.html"
+    if html_path.exists():
+        return HTMLResponse(content=_read_dashboard_html("enterprise.html"))
+    return HTMLResponse(content="<h1>Guni for Agentic Browsers</h1>")
 
 
 @app.get("/threats/feed", tags=["Threat Intelligence"])
@@ -1004,7 +1023,7 @@ def threats_page():
     """Serve the public threat intelligence feed page."""
     html_path = DASHBOARD_DIR / "threats.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("threats.html"))
     return HTMLResponse(content="<h1>Threat Feed</h1>")
 
 
@@ -1015,7 +1034,7 @@ def changelog():
     """Serve the changelog page."""
     html_path = DASHBOARD_DIR / "changelog.html"
     if html_path.exists():
-        return HTMLResponse(content=html_path.read_text())
+        return HTMLResponse(content=_read_dashboard_html("changelog.html"))
     return HTMLResponse(content="<h1>Changelog</h1>")
 
 

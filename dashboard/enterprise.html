@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Guni for agentic browsers and autonomous web products. Security middleware for real browser execution."/>
+<title>Guni for Agentic Browsers</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.enterprise-hero{
+  padding:clamp(5rem,9vw,8rem) 0 3rem;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(245,166,35,0.16), transparent 24%),
+    radial-gradient(circle at 90% 0%, rgba(74,158,255,0.14), transparent 22%);
+}
+.hero-grid{display:grid;grid-template-columns:1.25fr 0.95fr;gap:1rem;align-items:stretch}
+.hero-panel,.proof-panel,.section-panel{background:rgba(7,7,10,0.74);border:1px solid var(--border2);backdrop-filter:blur(10px)}
+.hero-panel{padding:clamp(1.5rem,3vw,2rem)}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
+  border:1px solid var(--border2);background:rgba(245,166,35,0.08);color:var(--amber);
+  font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem;
+}
+.hero-copy{margin-top:1rem;max-width:62ch}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:1.5rem}
+.proof-panel{padding:1.25rem}
+.proof-title{font-size:10px;color:var(--muted2);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.8rem}
+.proof-list,.fit-list,.metric-list,.pilot-list{display:grid;gap:10px}
+.proof-item,.fit-item,.pilot-item{
+  padding:0.95rem 1rem;background:rgba(255,255,255,0.02);border:1px solid var(--border);
+}
+.proof-item strong,.fit-item strong,.pilot-item strong{display:block;font-size:12px;color:var(--text);margin-bottom:0.35rem}
+.proof-item span,.fit-item span,.pilot-item span{display:block;font-size:12px;color:var(--muted3);line-height:1.7}
+.metric-list{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.metric-card{padding:1rem;background:var(--bg2);border:1px solid var(--border2)}
+.metric-card strong{display:block;font-family:var(--display);font-size:2rem;line-height:1;color:var(--amber)}
+.metric-card span{display:block;font-size:11px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;margin-top:0.4rem}
+.section-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.section-panel{padding:1.4rem}
+.section-title{font-family:var(--display);font-size:clamp(1.5rem,3vw,2.3rem);line-height:1.05;margin-bottom:0.6rem}
+.section-copy{font-size:13px;color:var(--muted3);line-height:1.8;margin-bottom:1rem}
+.code-card{background:var(--bg2);border:1px solid var(--border2);overflow:hidden}
+.code-card pre{padding:1.1rem 1.2rem;font-size:12px;line-height:1.8;overflow:auto}
+.cta-band{
+  margin-top:1rem;padding:1.4rem;border:1px solid var(--border2);background:rgba(245,166,35,0.05);
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+}
+@media (max-width: 920px){
+  .hero-grid,.section-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
+    <a href="/">Home</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/integrate">Integrate</a>
+    <a href="/docs">Docs</a>
+    <a href="/threats">Threat feed</a>
+  </div>
+  <div class="g-nav-right">
+    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Pilot ready</span></div>
+    <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Book pilot</a>
+  </div>
+</nav>
+
+<section class="enterprise-hero">
+  <div class="g-wrap">
+    <div class="hero-grid">
+      <div class="hero-panel">
+        <div class="hero-badge">For agentic browsers and autonomous web products</div>
+        <h1 class="g-title">Security for browser agents<br><span class="g-accent">before they click.</span></h1>
+        <p class="g-subtitle hero-copy">Guni sits between the page and the action layer. We inspect the DOM, forms, scripts, and goal alignment before your agent logs in, submits data, moves money, or follows hostile instructions.</p>
+        <div class="hero-actions">
+          <a class="g-btn g-btn-primary" href="/dashboard">See live demo</a>
+          <a class="g-btn g-btn-outline" href="/integrate">Integration guide</a>
+          <a class="g-btn g-btn-outline" href="mailto:hello@guni.dev?subject=Guni%20pilot">Contact founder</a>
+        </div>
+      </div>
+      <div class="proof-panel">
+        <div class="proof-title">Why teams like Aera should care</div>
+        <div class="proof-list">
+          <div class="proof-item">
+            <strong>Prompt injection is a browser problem now</strong>
+            <span>Autonomous browsers read hidden DOM content and can be steered mid-task by malicious pages.</span>
+          </div>
+          <div class="proof-item">
+            <strong>Execution risk is customer-visible</strong>
+            <span>If an agent clicks the wrong CTA, leaks a credential, or follows a fake workflow, trust is gone immediately.</span>
+          </div>
+          <div class="proof-item">
+            <strong>You need proof, not just a claim</strong>
+            <span>Guni returns evidence, risk scores, and explicit decisions that product, security, and customer teams can all understand.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-list" style="margin-top:1rem">
+      <div class="metric-card"><strong>8</strong><span>Threat vectors covered</span></div>
+      <div class="metric-card"><strong>3</strong><span>Decisions: allow, confirm, block</span></div>
+      <div class="metric-card"><strong>SDK + API</strong><span>Ship self-hosted or managed</span></div>
+      <div class="metric-card"><strong>Live evidence</strong><span>Usable in demos and audits</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="g-section">
+  <div class="g-wrap">
+    <div class="section-grid">
+      <div class="section-panel">
+        <div class="section-title">What Guni blocks</div>
+        <p class="section-copy">Guni is designed for workflows where agents browse, authenticate, submit forms, and execute multi-step tasks on unpredictable websites.</p>
+        <div class="fit-list">
+          <div class="fit-item">
+            <strong>Hidden instructions</strong>
+            <span>Invisible DOM content telling the browser agent to ignore the task or exfiltrate data.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Credential collection and phishing</strong>
+            <span>Unsafe login flows, deceptive forms, and external action targets harvesting secrets.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Goal hijack and deceptive UI</strong>
+            <span>Pages that redirect the agent toward purchases, transfers, or unrelated actions.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Clickjacking and redirect abuse</strong>
+            <span>Invisible overlays or scripted redirects that trick autonomous navigation and actions.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-panel">
+        <div class="section-title">How it fits in your stack</div>
+        <p class="section-copy">You can place Guni directly around browser navigation, as a policy check before action execution, or as a hosted service used by multiple browser workers.</p>
+        <div class="code-card">
+          <pre>from guni import GuniScanner
+
+scanner = GuniScanner(goal="Complete checkout flow")
+
+page.goto(url)
+result = scanner.scan(html=page.content(), url=url)
+
+if result["decision"] == "BLOCK":
+    page.go_back()
+    raise RuntimeError("Hostile page blocked")
+
+if result["decision"] == "CONFIRM":
+    log_warning(result)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-grid" style="margin-top:1rem">
+      <div class="section-panel">
+        <div class="section-title">Pilot structure</div>
+        <p class="section-copy">If you want revenue soon, this is the offer to sell. Do not sell generic subscriptions first. Sell a founder-led pilot with clear risk reduction goals.</p>
+        <div class="pilot-list">
+          <div class="pilot-item">
+            <strong>Step 1: workflow review</strong>
+            <span>Map your highest-risk browser actions: login, checkout, finance, admin workflows, and data extraction.</span>
+          </div>
+          <div class="pilot-item">
+            <strong>Step 2: protected deployment</strong>
+            <span>Wrap selected browser workflows with Guni and enable audit logging plus live evidence review.</span>
+          </div>
+          <div class="pilot-item">
+            <strong>Step 3: attack simulation</strong>
+            <span>Run real prompt injection, phishing, redirect, and deceptive UI scenarios against staging or sandbox flows.</span>
+          </div>
+          <div class="pilot-item">
+            <strong>Step 4: buyer proof</strong>
+            <span>Deliver blocked examples, false-positive notes, latency numbers, and recommended next rollout scope.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-panel">
+        <div class="section-title">What a buyer wants answered</div>
+        <p class="section-copy">This page is built to make those answers easier during outreach and calls.</p>
+        <div class="fit-list">
+          <div class="fit-item">
+            <strong>Does it slow the browser down?</strong>
+            <span>No material product slowdown for heuristic scans; you can reserve LLM reasoning for deeper analysis paths.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Can we self-host?</strong>
+            <span>Yes. The SDK and API can run in your own environment, with runtime state isolated from the repo.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Will product teams understand the output?</strong>
+            <span>Yes. Decisions are human-readable and include evidence, not just opaque scores.</span>
+          </div>
+          <div class="fit-item">
+            <strong>Can this be shown to customers?</strong>
+            <span>Yes. The dashboard and audit trail are usable in product demos, onboarding, and trust conversations.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-band">
+      <div>
+        <div class="proof-title">Best next move for outbound</div>
+        <div style="font-size:13px;color:var(--muted3);line-height:1.8">Send this page plus the live dashboard when pitching agentic-browser startups. Sell a paid pilot with a narrow scope and explicit attack scenarios.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="g-btn g-btn-primary" href="/dashboard">Open dashboard</a>
+        <a class="g-btn g-btn-outline" href="/signup">Start pilot flow</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="g-footer">
+  <div class="g-footer-logo">guni</div>
+  <div class="g-footer-links">
+    <a href="/">Home</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/integrate">Integrate</a>
+    <a href="/docs">API docs</a>
+  </div>
+  <div class="g-footer-copy">&copy; 2026 Guni</div>
+</footer>
+</body>
+</html>
