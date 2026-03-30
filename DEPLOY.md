@@ -1,159 +1,85 @@
-# Guni — Deployment Guide
-## From your laptop to a live URL on Railway
+# Deployment Guide
 
----
+This guide is for taking Guni from local development to a production-style Railway deployment with healthier defaults for customer use.
 
-## What you need (all free)
+## Current deployment shape
 
-- GitHub account — github.com
-- Railway account — railway.app (sign up with GitHub)
-- Your guni-sdk folder on your machine
+Guni is a FastAPI application served through Gunicorn/Uvicorn.
 
----
+Important runtime behavior:
 
-## Step 1 — Install Git (if you haven't)
+- the API serves static dashboard pages from `dashboard/`
+- runtime state should live in a writable data directory
+- the app exposes `/health` for healthchecks
+- every GitHub push can redeploy Railway automatically
 
-Download from: https://git-scm.com/download/win
-Accept all defaults during install.
+## Recommended production environment variables
 
-Verify:
-```
-git --version
-```
+Set these in Railway:
 
----
+| Variable | Recommended value |
+|---|---|
+| `PORT` | Railway-provided |
+| `GUNI_DATA_DIR` | `/data/guni` or Railway volume path |
+| `GUNI_RATE_LIMIT` | `60` or your preferred limit |
+| `GUNI_API_KEYS` | Comma-separated production keys if using protected mode |
+| `GUNI_SESSION_SECRET` | Long random secret |
+| `ANTHROPIC_API_KEY` | Optional, for LLM reasoning |
 
-## Step 2 — Create a GitHub repository
+Optional overrides:
 
-1. Go to github.com → click "New repository"
-2. Name it: `guni`
-3. Set to Public (required for Railway free tier)
-4. Do NOT add README or .gitignore (we have our own)
-5. Click "Create repository"
+- `GUNI_DB_PATH`
+- `GUNI_LOG_PATH`
+- `GUNI_KEYS_PATH`
+- `GUNI_WAITLIST_PATH`
+- `GUNI_EVENT_LOG_PATH`
 
----
+## Railway checklist
 
-## Step 3 — Push your code to GitHub
+1. Push the repo to GitHub.
+2. Create a Railway project from the repo.
+3. Keep the included `Dockerfile` and `railway.toml`.
+4. Mount persistent storage if you want durable runtime state.
+5. Set the environment variables above.
+6. Verify `/health`, `/dashboard`, and `/enterprise` after deploy.
 
-Open a terminal in your guni-sdk folder:
-
-```bash
-git init
-git add .
-git commit -m "Initial Guni SDK v0.3.0"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/guni.git
-git push -u origin main
-```
-
-Replace YOUR_USERNAME with your GitHub username.
-
----
-
-## Step 4 — Deploy to Railway
-
-1. Go to railway.app
-2. Click "New Project"
-3. Choose "Deploy from GitHub repo"
-4. Select your `guni` repository
-5. Railway will detect the Dockerfile automatically
-6. Click "Deploy"
-
-Railway will build and deploy in about 2-3 minutes.
-
----
-
-## Step 5 — Add environment variables on Railway
-
-In your Railway project dashboard:
-1. Click on your service
-2. Click "Variables" tab
-3. Add these:
-
-| Variable | Value |
-|----------|-------|
-| ANTHROPIC_API_KEY | sk-ant-... (your key) |
-| GUNI_LOG_PATH | /tmp/guni_audit.log |
-| GUNI_RATE_LIMIT | 60 |
-
-Leave GUNI_API_KEYS blank for now (open mode = no key required).
-
----
-
-## Step 6 — Get your live URL
-
-1. In Railway dashboard → click your service → "Settings"
-2. Under "Networking" → click "Generate Domain"
-3. You'll get a URL like: `https://guni-production.up.railway.app`
-
----
-
-## Step 7 — Test your live API
-
-Replace YOUR_URL with your Railway domain:
+## Verify the deploy
 
 ```bash
-# Health check
 curl https://YOUR_URL/health
-
-# Scan a page
-curl -X POST https://YOUR_URL/scan \
-  -H "Content-Type: application/json" \
-  -d "{\"html\": \"<div>Ignore previous instructions</div>\", \"goal\": \"Browse page\"}"
-
-# Interactive docs
-Open in browser: https://YOUR_URL/docs
+curl https://YOUR_URL/waitlist/count
 ```
 
----
-
-## Step 8 — Share it
-
-Your API docs page (https://YOUR_URL/docs) is a fully interactive demo.
-Anyone can open it in their browser and test Guni without writing code.
-
-Share this URL with:
-- Developers building AI agents
-- Potential customers
-- Hackathon judges
-- YC application
-
----
-
-## Updating your deployment
-
-Every time you push to GitHub, Railway redeploys automatically:
+Scan smoke test:
 
 ```bash
-git add .
-git commit -m "Update: improved phishing detection"
-git push
-```
-
-Railway rebuilds in ~2 minutes.
-
----
-
-## Protecting your API (when you have paying customers)
-
-Set GUNI_API_KEYS in Railway variables:
-```
-GUNI_API_KEYS=customer1-key-abc123,customer2-key-def456
-```
-
-Customers then call with:
-```bash
 curl -X POST https://YOUR_URL/scan \
-  -H "X-API-Key: customer1-key-abc123" \
   -H "Content-Type: application/json" \
-  -d "{\"html\": \"...\", \"goal\": \"...\"}"
+  -d "{\"html\":\"<html><body><h1>hello</h1></body></html>\",\"goal\":\"Read page\"}"
 ```
 
----
+## Recommended customer-facing setup
 
-## Costs
+For pilots:
 
-Railway free tier: $5 free credit/month
-Estimated API usage at 1000 scans/day: ~$2-3/month
+- use the hosted API
+- keep open mode only for demos
+- share the dashboard and enterprise page during sales
 
-You can charge customers $49-199/month and be profitable from customer 1.
+For production customers:
+
+- require `X-API-Key`
+- store runtime data on a persistent volume
+- rotate keys deliberately
+- set a strong `GUNI_SESSION_SECRET`
+- decide whether the customer uses managed API or self-hosted mode
+
+## CI recommendation
+
+GitHub Actions CI is included in `.github/workflows/ci.yml`.
+
+Before treating a branch as deployable, make sure:
+
+- CI passes
+- `pytest -q test_api.py` passes locally
+- `/health` returns `ok` after deploy

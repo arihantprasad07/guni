@@ -405,6 +405,7 @@ def init_users_table():
             email        TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             plan         TEXT NOT NULL DEFAULT 'free',
+            role         TEXT NOT NULL DEFAULT 'owner',
             api_key      TEXT,
             verified     INTEGER NOT NULL DEFAULT 0,
             verify_token TEXT,
@@ -417,15 +418,20 @@ def init_users_table():
         CREATE INDEX IF NOT EXISTS idx_users_verify ON users(verify_token);
         CREATE INDEX IF NOT EXISTS idx_users_reset ON users(reset_token);
         """)
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "role" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'")
 
-
-def db_create_user(email: str, password_hash: str, verify_token: str) -> dict | None:
+def db_create_user(email: str, password_hash: str, verify_token: str, plan: str = "free", role: str = "owner") -> dict | None:
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     try:
         with get_conn() as conn:
             conn.execute(
-                "INSERT INTO users (email,password_hash,verify_token,created_at) VALUES (?,?,?,?)",
-                (email.lower().strip(), password_hash, verify_token, now)
+                "INSERT INTO users (email,password_hash,plan,role,verify_token,created_at) VALUES (?,?,?,?,?,?)",
+                (email.lower().strip(), password_hash, plan, role, verify_token, now)
             )
         return db_get_user_by_email(email)
     except Exception:
@@ -497,6 +503,15 @@ def db_update_user_login(email: str, api_key: str = None):
                 "UPDATE users SET last_login=? WHERE email=?",
                 (now, email.lower().strip())
             )
+
+
+def db_set_user_role(email: str, role: str) -> bool:
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE users SET role=? WHERE email=?",
+            (role, email.lower().strip())
+        )
+        return result.rowcount > 0
 
 
 # Initialize users table on import

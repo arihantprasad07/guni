@@ -21,6 +21,7 @@ if TEST_DATA_DIR.exists():
     shutil.rmtree(TEST_DATA_DIR)
 TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
+os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com"
 
 for module_name in [
     "runtime_config",
@@ -198,3 +199,66 @@ def test_waitlist_join_and_count_work(client: TestClient):
 
 def test_runtime_data_dir_isolated_for_tests():
     assert runtime_config.DATA_DIR == TEST_DATA_DIR.resolve()
+
+
+def test_auth_signup_signin_and_me_include_role(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "admin@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_verify_user
+    from api.database import db_get_user_by_email
+
+    user = db_get_user_by_email("admin@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "admin@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    signin_data = unwrap(signin.json())
+    assert signin_data["role"] == "admin"
+    assert signin_data["plan"] == "starter"
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    me_data = unwrap(me.json())
+    assert me_data["role"] == "admin"
+    assert me_data["verified"] is True
+
+
+def test_admin_key_inventory_requires_admin_session(client: TestClient):
+    unauthorized = client.get("/keys/list")
+    assert unauthorized.status_code == 401
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "admin2@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    from api.database import db_get_user_by_email, db_verify_user
+
+    user = db_get_user_by_email("admin2@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "admin2@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    authorized = client.get("/keys/list")
+    assert authorized.status_code == 200

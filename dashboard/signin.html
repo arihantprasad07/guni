@@ -93,10 +93,11 @@ async function signin() {
       body: JSON.stringify({ email, password }),
       credentials: 'include',
     });
-    const d = await r.json();
+    const payload = await r.json();
+    const d = payload && payload.data ? payload.data : payload;
 
     if (!r.ok) {
-      err.textContent = d.detail || 'Invalid email or password.';
+      err.textContent = payload.error || payload.detail || 'Invalid email or password.';
       err.classList.add('show');
       return;
     }
@@ -104,6 +105,7 @@ async function signin() {
     // Store session and API key in localStorage for portal use
     localStorage.setItem('guni_email',   d.email);
     localStorage.setItem('guni_plan',    d.plan);
+    localStorage.setItem('guni_role',    d.role || 'owner');
     localStorage.setItem('guni_api_key', d.api_key || '');
     localStorage.setItem('guni_session', d.session || '');
 

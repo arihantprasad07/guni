@@ -6,9 +6,11 @@ Keys are stored in a JSON file (upgradeable to a database later).
 Format: guni_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 """
 
+import os
 import json
 import secrets
 import time
+from pathlib import Path
 
 from runtime_config import KEYS_PATH
 
@@ -33,6 +35,7 @@ def _load_keys() -> dict:
 
 def _save_keys(keys: dict):
     try:
+        Path(KEYS_PATH).parent.mkdir(parents=True, exist_ok=True)
         with open(KEYS_PATH, "w") as f:
             json.dump(keys, f, indent=2)
     except OSError:

@@ -3,602 +3,514 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Guni — Customer Portal</title>
+<title>Guni | Customer Portal</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080809;--bg2:#0e0e10;--bg3:#151518;--bg4:#1c1c20;
-  --amber:#ffb800;--amber2:#cc9000;
-  --green:#00e887;--red:#ff3d3d;--blue:#4d9fff;--warn:#ffaa00;
-  --text:#eeeef0;--muted:#55555e;--muted2:#8888a0;
-  --mono:'IBM Plex Mono',monospace;
-  --border:rgba(255,184,0,0.1);--border2:rgba(255,184,0,0.22);
-}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh}
-body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px);pointer-events:none;z-index:9999}
-::selection{background:var(--amber);color:#000}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--muted)}
-
-nav{position:sticky;top:0;z-index:50;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(1rem,3vw,2rem);background:rgba(8,8,9,0.95);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
-.nav-logo{font-size:16px;font-weight:600;color:var(--amber);text-decoration:none}
-.nav-logo em{color:var(--muted2);font-style:normal;font-weight:300;font-size:13px}
-.nav-links{display:flex;gap:1.5rem}
-.nav-links a{font-size:11px;color:var(--muted2);text-decoration:none;letter-spacing:0.06em;text-transform:uppercase;transition:color 0.15s}
-.nav-links a:hover{color:var(--amber)}
-@media(max-width:600px){.nav-links{display:none}}
-
-/* Key input gate */
-.gate{max-width:480px;margin:6rem auto;padding:0 1.5rem;text-align:center}
-.gate-title{font-size:1.4rem;color:var(--text);margin-bottom:0.5rem}
-.gate-sub{font-size:12px;color:var(--muted2);margin-bottom:1.5rem}
-.gate-row{display:flex}
-.gate-input{flex:1;background:var(--bg2);border:1px solid var(--border2);border-right:none;color:var(--text);font-family:var(--mono);font-size:12px;padding:11px 14px;outline:none;min-width:0}
-.gate-input:focus{border-color:var(--amber)}
-.gate-input::placeholder{color:var(--muted)}
-.gate-btn{font-family:var(--mono);font-size:11px;background:var(--amber);color:#000;border:none;padding:11px 18px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}
-.gate-btn:hover{background:var(--amber2)}
-.gate-err{font-size:11px;color:var(--red);margin-top:8px}
-
-/* Portal layout */
-.portal{display:none;max-width:1100px;margin:0 auto;padding:clamp(1rem,3vw,1.5rem)}
+.portal-shell{padding:calc(56px + 1.5rem) 0 3rem}
+.gate{max-width:420px;margin:5rem auto 0;padding:0 1.5rem;text-align:center}
+.gate-card,.portal-card{background:rgba(7,7,10,0.8);border:1px solid var(--border2);backdrop-filter:blur(10px)}
+.gate-card{padding:2rem}
+.portal{display:none}
 .portal.show{display:block}
-
-/* Tabs */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.5rem;overflow-x:auto}
-.tab{font-family:var(--mono);font-size:12px;color:var(--muted2);padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;letter-spacing:0.04em;white-space:nowrap;transition:all 0.15s;background:none;border-left:none;border-right:none;border-top:none}
-.tab:hover{color:var(--amber)}
-.tab.active{color:var(--amber);border-bottom-color:var(--amber)}
-
-/* Tab panels */
-.panel{display:none}.panel.show{display:block}
-
-/* Metric cards */
-.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:1.5rem}
-.metric{background:var(--bg2);border:1px solid var(--border);padding:0.875rem 1rem}
-.metric-val{font-size:clamp(1.4rem,3vw,2rem);font-weight:300;line-height:1;margin-bottom:3px}
-.metric-val.r{color:var(--red)}.metric-val.g{color:var(--green)}.metric-val.a{color:var(--amber)}.metric-val.b{color:var(--blue)}
-.metric-label{font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase}
-
-/* Usage bar */
-.usage-wrap{background:var(--bg2);border:1px solid var(--border);padding:1.25rem;margin-bottom:1.5rem}
-.usage-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.usage-label{font-size:12px;color:var(--muted2)}
-.usage-nums{font-size:12px;color:var(--text)}
-.usage-bar-wrap{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
-.usage-bar{height:100%;border-radius:4px;background:var(--green);transition:width 0.8s ease}
-.usage-bar.warn{background:var(--warn)}.usage-bar.danger{background:var(--red)}
-.usage-pct{font-size:11px;color:var(--muted);margin-top:6px}
-
-/* Box */
-.box{background:var(--bg2);border:1px solid var(--border);margin-bottom:1rem}
-.box-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
-.box-title{font-size:11px;color:var(--muted);letter-spacing:0.06em}
-.box-body{padding:1.25rem}
-
-/* Chart bars */
-.chart{display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:1rem}
-.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
-.bar-wrap{width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:60px}
-.bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height 0.6s ease}
-.bar.total{background:var(--blue);opacity:0.6}
-.bar.block{background:var(--red)}
-.bar-label{font-size:9px;color:var(--muted);text-align:center}
-
-/* Table */
-.tbl{width:100%;border-collapse:collapse;font-size:11px}
-.tbl th{text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;border-bottom:1px solid var(--border)}
-.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--muted2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tbl tr:last-child td{border-bottom:none}
-.tbl tr:hover td{background:rgba(255,255,255,0.02)}
-.d-b{color:var(--red)}.d-c{color:var(--warn)}.d-a{color:var(--green)}
-
-/* Forms */
-input[type=text],input[type=url],select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:9px 12px;outline:none;transition:border-color 0.15s}
-input:focus,select:focus{border-color:var(--amber)}
-input::placeholder{color:var(--muted)}
-select option{background:var(--bg3)}
-.form-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
-@media(max-width:600px){.form-row{grid-template-columns:1fr}}
-.field-label{font-size:10px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}
-.btn{font-family:var(--mono);font-size:11px;padding:9px 18px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;transition:all 0.15s;border:none;white-space:nowrap}
-.btn-primary{background:var(--amber);color:#000}
-.btn-primary:hover{background:var(--amber2)}
-.btn-danger{background:rgba(255,61,61,0.15);color:var(--red);border:1px solid rgba(255,61,61,0.3)}
-.btn-danger:hover{background:rgba(255,61,61,0.25)}
-.btn-outline{background:transparent;color:var(--muted2);border:1px solid var(--border)}
-.btn-outline:hover{border-color:var(--amber);color:var(--amber)}
-
-/* Rule list */
-.rule-list{display:flex;flex-direction:column;gap:5px;margin-bottom:1rem}
-.rule-item{display:flex;align-items:center;gap:10px;background:var(--bg3);padding:8px 12px;border:1px solid var(--border)}
-.rule-type{font-size:10px;color:var(--amber);border:1px solid var(--border2);padding:2px 7px;flex-shrink:0}
-.rule-pattern{flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rule-weight{font-size:11px;color:var(--muted);flex-shrink:0;width:30px;text-align:right}
-
-/* Alert form */
-.alert-form{display:flex;flex-direction:column;gap:1rem}
-.toggle-row{display:flex;align-items:center;gap:10px}
-.toggle{width:36px;height:20px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0}
-.toggle.on{background:var(--green)}
-.toggle::after{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left 0.2s}
+.topbar{display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.identity{display:grid;gap:4px}
+.identity strong{font-family:var(--display);font-size:1.6rem;line-height:1}
+.identity span{font-size:12px;color:var(--muted2)}
+.role-pill{display:inline-flex;gap:8px;align-items:center;width:fit-content;padding:5px 10px;border:1px solid var(--border2);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber)}
+.tabs{display:flex;gap:0;overflow:auto;border-bottom:1px solid var(--border2);margin-bottom:1rem}
+.tab{font-family:var(--mono);font-size:11px;color:var(--muted2);padding:10px 16px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab.active,.tab:hover{color:var(--amber);border-bottom-color:var(--amber)}
+.panel{display:none}
+.panel.show{display:block}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.metric{background:var(--bg2);border:1px solid var(--border2);padding:1rem}
+.metric strong{display:block;font-family:var(--display);font-size:2rem;line-height:1}
+.metric span{display:block;font-size:11px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;margin-top:0.4rem}
+.section-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:1rem}
+.box{background:var(--bg2);border:1px solid var(--border2)}
+.box-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.box-title{font-size:11px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase}
+.box-body{padding:1rem 1.2rem}
+.usage-bar{height:10px;background:var(--bg4);border-radius:999px;overflow:hidden;margin-top:0.8rem}
+.usage-bar div{height:100%;background:var(--green);transition:width 0.5s ease}
+.table-wrap{overflow:auto}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table th,.table td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left}
+.table th{font-size:10px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase}
+.table td{color:var(--muted3)}
+.table tr:last-child td{border-bottom:none}
+.field-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.field{display:grid;gap:5px}
+.field label{font-size:10px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase}
+.note{font-size:12px;color:var(--muted3);line-height:1.7}
+.msg{display:none;margin-top:10px;padding:10px 12px;font-size:12px;border:1px solid}
+.msg.show{display:block}
+.msg.ok{color:var(--green);border-color:rgba(0,217,126,0.2);background:rgba(0,217,126,0.05)}
+.msg.err{color:var(--red);border-color:rgba(240,64,64,0.2);background:rgba(240,64,64,0.05)}
+.toggle-row{display:flex;gap:10px;align-items:center}
+.toggle{width:40px;height:22px;border-radius:999px;border:1px solid var(--border2);background:var(--bg3);position:relative;cursor:pointer}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left 0.2s}
+.toggle.on{background:rgba(0,217,126,0.24)}
 .toggle.on::after{left:20px}
-.toggle-label{font-size:12px;color:var(--muted2)}
-
-/* Key display */
-.key-display{background:var(--bg3);border:1px solid var(--border2);padding:12px 16px;font-size:13px;color:var(--amber);letter-spacing:1px;word-break:break-all;margin-bottom:1rem}
-
-.success-msg{font-size:12px;color:var(--green);padding:8px 12px;border:1px solid rgba(0,232,135,0.2);background:rgba(0,232,135,0.04);margin-top:8px;display:none}
-.success-msg.show{display:block}
+.key-box{word-break:break-all;padding:12px;border:1px solid var(--border2);background:var(--bg3);color:var(--amber)}
+.admin-only{display:none}
+.admin-only.show{display:block}
+@media (max-width: 900px){
+  .section-grid,.field-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
-<body>
-
-<nav>
-  <a class="nav-logo" href="/">guni<em>.dev</em></a>
-  <div class="nav-links">
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
     <a href="/">Home</a>
-    <a href="/dashboard">Live demo</a>
-    <a href="/docs">API docs</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/docs">Docs</a>
+  </div>
+  <div class="g-nav-right">
+    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Portal</span></div>
   </div>
 </nav>
 
-<!-- Key gate -->
-<div class="gate" id="gate">
-  <div class="gate-title">Customer Portal</div>
-  <div class="gate-sub">Enter your API key to view usage, analytics, and settings</div>
-  <div class="gate-row">
-    <input class="gate-input" id="key-input" type="text" placeholder="guni_live_..." autocomplete="off"/>
-    <button class="gate-btn" onclick="login()">Enter</button>
-  </div>
-  <div class="gate-err" id="gate-err"></div>
-  <div style="margin-top:1.5rem;font-size:11px;color:var(--muted)">
-    Don't have a key? <a href="/#waitlist" style="color:var(--amber);text-decoration:none">Join the waitlist →</a>
-  </div>
-</div>
-
-<!-- Portal -->
-<div class="portal" id="portal">
-
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px">
-    <div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Signed in as</div>
-      <div style="font-size:13px;color:var(--amber)" id="portal-email">—</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:11px;color:var(--muted2)" id="portal-plan"></span>
-      <button class="btn btn-outline" onclick="logout()" style="font-size:10px;padding:5px 12px">Sign out</button>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('overview')">Overview</button>
-    <button class="tab" onclick="switchTab('history')">Scan history</button>
-    <button class="tab" onclick="switchTab('rules')">Custom rules</button>
-    <button class="tab" onclick="switchTab('alerts')">Alerts</button>
-    <button class="tab" onclick="switchTab('settings')">Settings</button>
-  </div>
-
-  <!-- Overview -->
-  <div class="panel show" id="tab-overview">
-    <div class="metrics">
-      <div class="metric"><div class="metric-val b" id="o-total">0</div><div class="metric-label">Total scans</div></div>
-      <div class="metric"><div class="metric-val r" id="o-blocked">0</div><div class="metric-label">Blocked</div></div>
-      <div class="metric"><div class="metric-val a" id="o-confirmed">0</div><div class="metric-label">Confirmed</div></div>
-      <div class="metric"><div class="metric-val g" id="o-allowed">0</div><div class="metric-label">Allowed</div></div>
-      <div class="metric"><div class="metric-val r" id="o-blockrate">0%</div><div class="metric-label">Block rate</div></div>
-      <div class="metric"><div class="metric-val" id="o-avgrisk">0</div><div class="metric-label">Avg risk score</div></div>
-      <div class="metric"><div class="metric-val g" id="o-avglat">0ms</div><div class="metric-label">Avg latency</div></div>
-    </div>
-
-    <div class="usage-wrap">
-      <div class="usage-header">
-        <span class="usage-label">Monthly scan usage</span>
-        <span class="usage-nums"><span id="u-used">0</span> / <span id="u-limit">1,000</span></span>
-      </div>
-      <div class="usage-bar-wrap"><div class="usage-bar" id="u-bar" style="width:0%"></div></div>
-      <div class="usage-pct"><span id="u-remaining">0</span> scans remaining this month</div>
-    </div>
-
-    <div class="box">
-      <div class="box-hdr"><span class="box-title">scans per day — last 7 days</span></div>
-      <div class="box-body">
-        <div class="chart" id="daily-chart"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- History -->
-  <div class="panel" id="tab-history">
-    <div class="box">
-      <div class="box-hdr">
-        <span class="box-title">recent scans</span>
-        <button class="btn btn-outline" onclick="loadHistory()" style="font-size:10px;padding:4px 12px">Refresh</button>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="tbl">
-          <thead><tr><th>Time</th><th>URL</th><th>Goal</th><th>Risk</th><th>Decision</th><th>Latency</th></tr></thead>
-          <tbody id="hist-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">Loading...</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Custom Rules -->
-  <div class="panel" id="tab-rules">
-    <div class="box">
-      <div class="box-hdr"><span class="box-title">custom threat rules</span></div>
-      <div class="box-body">
-        <p style="font-size:12px;color:var(--muted2);margin-bottom:1rem;line-height:1.7">
-          Add custom keywords that Guni will flag as threats in your agent's scans.
-          Each rule adds its weight to the risk score when matched.
-        </p>
-        <div class="form-row">
-          <div>
-            <div class="field-label">Pattern</div>
-            <input type="text" id="rule-pattern" placeholder="e.g. wire transfer"/>
-          </div>
-          <div>
-            <div class="field-label">Type</div>
-            <select id="rule-type">
-              <option value="injection">Injection</option>
-              <option value="phishing">Phishing</option>
-              <option value="goal_mismatch">Goal mismatch</option>
-              <option value="deception">UI deception</option>
-            </select>
-          </div>
-          <div>
-            <div class="field-label">Weight</div>
-            <button class="btn btn-primary" onclick="addRule()">Add rule</button>
-          </div>
+<main class="portal-shell">
+  <div class="g-wrap">
+    <div class="gate" id="gate">
+      <div class="gate-card">
+        <div class="role-pill" style="margin:0 auto 1rem">Signed session required</div>
+        <h1 class="g-title-md" style="margin-bottom:0.8rem">Customer Portal</h1>
+        <p class="g-subtitle" style="margin:0 auto 1.5rem">Use your account session for access. API keys stay server-issued and role-based controls only appear for admins.</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <a class="g-btn g-btn-primary" href="/signin">Sign in</a>
+          <a class="g-btn g-btn-outline" href="/signup">Create account</a>
         </div>
-        <div class="success-msg" id="rule-ok">Rule added successfully.</div>
-        <div class="rule-list" id="rule-list">
-          <div style="font-size:12px;color:var(--muted);padding:1rem 0">No custom rules yet.</div>
+        <div class="msg err" id="gate-error"></div>
+      </div>
+    </div>
+
+    <div class="portal" id="portal">
+      <div class="topbar">
+        <div class="identity">
+          <span>Signed in as</span>
+          <strong id="user-email">customer@guni.dev</strong>
+          <div class="role-pill" id="user-role">owner</div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <span class="g-tag g-tag-amber" id="user-plan">FREE</span>
+          <button class="g-btn g-btn-outline" id="signout-btn" type="button">Sign out</button>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Alerts -->
-  <div class="panel" id="tab-alerts">
-    <div class="box">
-      <div class="box-hdr"><span class="box-title">alert configuration</span></div>
-      <div class="box-body">
-        <p style="font-size:12px;color:var(--muted2);margin-bottom:1.25rem;line-height:1.7">
-          Guni can notify you via Slack or webhook whenever your agent hits a threat.
-          Get instant alerts so you can review and act.
-        </p>
-        <div class="alert-form">
-          <div>
-            <div class="field-label">Slack webhook URL</div>
-            <input type="url" id="alert-slack" placeholder="https://hooks.slack.com/services/..."/>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="overview" type="button">Overview</button>
+        <button class="tab" data-tab="history" type="button">History</button>
+        <button class="tab" data-tab="rules" type="button">Rules</button>
+        <button class="tab" data-tab="alerts" type="button">Alerts</button>
+        <button class="tab" data-tab="settings" type="button">Settings</button>
+        <button class="tab admin-only" data-tab="admin" id="admin-tab" type="button">Admin</button>
+      </div>
+
+      <section class="panel show" id="panel-overview">
+        <div class="metrics" style="margin-bottom:1rem">
+          <div class="metric"><strong id="metric-total">0</strong><span>Total scans</span></div>
+          <div class="metric"><strong id="metric-blocked" style="color:var(--red)">0</strong><span>Blocked</span></div>
+          <div class="metric"><strong id="metric-confirmed" style="color:var(--amber)">0</strong><span>Confirmed</span></div>
+          <div class="metric"><strong id="metric-allowed" style="color:var(--green)">0</strong><span>Allowed</span></div>
+          <div class="metric"><strong id="metric-latency" style="color:var(--blue)">0ms</strong><span>Average latency</span></div>
+        </div>
+        <div class="section-grid">
+          <div class="box">
+            <div class="box-head"><span class="box-title">Usage</span></div>
+            <div class="box-body">
+              <div class="note">Current month usage against your issued scan limit.</div>
+              <div style="display:flex;justify-content:space-between;gap:12px;margin-top:0.8rem;font-size:12px;color:var(--muted3)">
+                <span><strong id="usage-used">0</strong> used</span>
+                <span><strong id="usage-limit">0</strong> limit</span>
+              </div>
+              <div class="usage-bar"><div id="usage-fill" style="width:0%"></div></div>
+              <div class="note" style="margin-top:0.7rem"><span id="usage-remaining">0</span> scans remaining.</div>
+            </div>
           </div>
-          <div>
-            <div class="field-label">Custom webhook URL</div>
-            <input type="url" id="alert-webhook" placeholder="https://your-server.com/webhook"/>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle on" id="tog-block" onclick="toggleAlert('tog-block')"></div>
-            <span class="toggle-label">Alert on BLOCK decisions</span>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle" id="tog-confirm" onclick="toggleAlert('tog-confirm')"></div>
-            <span class="toggle-label">Alert on CONFIRM decisions</span>
-          </div>
-          <div>
-            <button class="btn btn-primary" onclick="saveAlerts()">Save alert config</button>
-            <div class="success-msg" id="alert-ok">Alert config saved.</div>
+          <div class="box">
+            <div class="box-head"><span class="box-title">Readiness</span></div>
+            <div class="box-body">
+              <div class="note">Portal access now depends on account session and role instead of trusting a pasted API key in the browser.</div>
+              <div style="display:grid;gap:8px;margin-top:1rem">
+                <span class="g-tag g-tag-green">Session-based access</span>
+                <span class="g-tag g-tag-blue">Wrapped API-aware client</span>
+                <span class="g-tag g-tag-amber">Admin panel gated by role</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section class="panel" id="panel-history">
+        <div class="box">
+          <div class="box-head">
+            <span class="box-title">Recent scans</span>
+            <button class="g-code-copy" id="refresh-history" type="button">Refresh</button>
+          </div>
+          <div class="box-body table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th>Time</th><th>URL</th><th>Goal</th><th>Risk</th><th>Decision</th><th>Latency</th></tr>
+              </thead>
+              <tbody id="history-body"><tr><td colspan="6">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-rules">
+        <div class="box">
+          <div class="box-head"><span class="box-title">Custom rules</span></div>
+          <div class="box-body">
+            <p class="note">Create customer-specific patterns that increase risk when matched in page content.</p>
+            <div class="field-grid" style="margin-top:1rem">
+              <div class="field">
+                <label for="rule-pattern">Pattern</label>
+                <input class="g-input" id="rule-pattern" type="text" placeholder="wire transfer"/>
+              </div>
+              <div class="field">
+                <label for="rule-type">Type</label>
+                <select class="g-select" id="rule-type">
+                  <option value="injection">Injection</option>
+                  <option value="phishing">Phishing</option>
+                  <option value="goal_mismatch">Goal mismatch</option>
+                  <option value="deception">UI deception</option>
+                </select>
+              </div>
+              <button class="g-btn g-btn-primary" id="add-rule-btn" type="button">Add rule</button>
+            </div>
+            <div class="msg ok" id="rule-ok">Rule saved.</div>
+            <div class="msg err" id="rule-err">Could not save rule.</div>
+            <div id="rule-list" style="display:grid;gap:8px;margin-top:1rem"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-alerts">
+        <div class="box">
+          <div class="box-head"><span class="box-title">Alerts</span></div>
+          <div class="box-body">
+            <p class="note">Send threat notifications to Slack or your own webhook endpoint.</p>
+            <div style="display:grid;gap:12px;margin-top:1rem">
+              <div class="field">
+                <label for="alert-slack">Slack webhook URL</label>
+                <input class="g-input" id="alert-slack" type="url" placeholder="https://hooks.slack.com/services/..."/>
+              </div>
+              <div class="field">
+                <label for="alert-webhook">Custom webhook URL</label>
+                <input class="g-input" id="alert-webhook" type="url" placeholder="https://your-company.com/webhook"/>
+              </div>
+              <div class="toggle-row"><div class="toggle on" id="toggle-block"></div><span class="note">Alert on block decisions</span></div>
+              <div class="toggle-row"><div class="toggle" id="toggle-confirm"></div><span class="note">Alert on confirm decisions</span></div>
+              <div>
+                <button class="g-btn g-btn-primary" id="save-alerts-btn" type="button">Save alerts</button>
+                <div class="msg ok" id="alert-ok">Alert configuration saved.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-settings">
+        <div class="section-grid">
+          <div class="box">
+            <div class="box-head"><span class="box-title">API key</span></div>
+            <div class="box-body">
+              <div class="key-box" id="api-key-display">guni_live_...</div>
+              <button class="g-btn g-btn-outline" id="copy-key-btn" type="button" style="margin-top:0.8rem">Copy key</button>
+              <p class="note" style="margin-top:1rem">Use this key in the `X-API-Key` header when calling the hosted API. Keep it server-side wherever possible.</p>
+            </div>
+          </div>
+          <div class="box">
+            <div class="box-head"><span class="box-title">Account</span></div>
+            <div class="box-body">
+              <table class="table">
+                <tbody>
+                  <tr><th>Plan</th><td id="settings-plan">-</td></tr>
+                  <tr><th>Role</th><td id="settings-role">-</td></tr>
+                  <tr><th>Verified</th><td id="settings-verified">-</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel admin-only" id="panel-admin">
+        <div class="box">
+          <div class="box-head"><span class="box-title">Admin key inventory</span></div>
+          <div class="box-body table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th>Email</th><th>Plan</th><th>Used</th><th>Limit</th><th>Active</th></tr>
+              </thead>
+              <tbody id="admin-body"><tr><td colspan="5">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
-
-  <!-- Settings -->
-  <div class="panel" id="tab-settings">
-    <div class="box">
-      <div class="box-hdr"><span class="box-title">your API key</span></div>
-      <div class="box-body">
-        <div class="field-label" style="margin-bottom:8px">API key</div>
-        <div class="key-display" id="settings-key">guni_live_...</div>
-        <button class="btn btn-outline" onclick="copyKey()" style="margin-bottom:1.5rem">Copy key</button>
-        <div style="font-size:12px;color:var(--muted2);line-height:1.8;margin-top:1rem">
-          Use this key in the <code style="color:var(--amber)">X-API-Key</code> header for REST API calls,
-          or pass as <code style="color:var(--amber)">api_key</code> parameter in the Python SDK.
-        </div>
-        <div style="background:var(--bg3);border:1px solid var(--border);padding:1rem;margin-top:1rem;font-size:12px;line-height:1.8">
-          <span style="color:#c792ea">from</span> guni <span style="color:#c792ea">import</span> <span style="color:#82aaff">scan</span><br><br>
-          result = <span style="color:#82aaff">scan</span>(<br>
-          &nbsp;&nbsp;html=page_html,<br>
-          &nbsp;&nbsp;goal=<span style="color:#c3e88d">"Login to website"</span>,<br>
-          &nbsp;&nbsp;api_key=<span style="color:#c3e88d" id="settings-key-code">"guni_live_..."</span><br>
-          )
-        </div>
-      </div>
-    </div>
-
-    <div class="box">
-      <div class="box-hdr"><span class="box-title">plan details</span></div>
-      <div class="box-body">
-        <table class="tbl">
-          <tbody>
-            <tr><td style="color:var(--muted)">Plan</td><td id="s-plan" style="color:var(--amber)">—</td></tr>
-            <tr><td style="color:var(--muted)">Scans/month</td><td id="s-limit">—</td></tr>
-            <tr><td style="color:var(--muted)">Member since</td><td id="s-created">—</td></tr>
-            <tr><td style="color:var(--muted)">Last scan</td><td id="s-last">—</td></tr>
-          </tbody>
-        </table>
-        <a href="/#pricing" style="display:inline-block;margin-top:1rem;font-size:11px;color:var(--amber);text-decoration:none;letter-spacing:0.06em">Upgrade plan →</a>
-      </div>
-    </div>
-  </div>
-
-</div>
+</main>
 
 <script>
 const API = window.location.origin;
-let currentKey = '';
+let authUser = null;
+let currentKey = "";
 
-// ── Auth ───────────────────────────────────────────────────────────────────
-async function login() {
-  const key = document.getElementById('key-input').value.trim();
+function unwrap(payload) {
+  if (payload && typeof payload === "object" && "success" in payload && "data" in payload) {
+    return payload.data || {};
+  }
+  return payload || {};
+}
 
-  // Also check localStorage for session from signin page
-  const storedKey = localStorage.getItem('guni_api_key');
-  const activeKey = key || storedKey || '';
+function esc(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
-  if (!activeKey.startsWith('guni_live_')) {
-    document.getElementById('gate-err').textContent = 'Invalid key format. Keys start with guni_live_';
+function showPortal() {
+  document.getElementById("gate").style.display = "none";
+  document.getElementById("portal").classList.add("show");
+}
+
+function showGate(message = "") {
+  document.getElementById("portal").classList.remove("show");
+  document.getElementById("gate").style.display = "block";
+  const error = document.getElementById("gate-error");
+  error.textContent = message;
+  error.classList.toggle("show", Boolean(message));
+}
+
+async function hydrateSession() {
+  try {
+    const response = await fetch(`${API}/auth/me`, { credentials: "include" });
+    const payload = await response.json();
+    if (!response.ok) {
+      showGate("Sign in to access the customer portal.");
+      return;
+    }
+
+    authUser = unwrap(payload);
+    currentKey = authUser.api_key || "";
+    document.getElementById("user-email").textContent = authUser.email;
+    document.getElementById("user-role").textContent = authUser.role || "owner";
+    document.getElementById("user-plan").textContent = (authUser.plan || "free").toUpperCase();
+    document.getElementById("api-key-display").textContent = currentKey || "No key issued yet";
+    document.getElementById("settings-plan").textContent = authUser.plan || "-";
+    document.getElementById("settings-role").textContent = authUser.role || "-";
+    document.getElementById("settings-verified").textContent = authUser.verified ? "Yes" : "No";
+
+    if (authUser.role === "admin") {
+      document.querySelectorAll(".admin-only").forEach((node) => node.classList.add("show"));
+    }
+
+    showPortal();
+    await Promise.all([loadOverview(), loadHistory(), loadRules(), loadAlerts()]);
+    if (authUser.role === "admin") {
+      await loadAdmin();
+    }
+  } catch (error) {
+    showGate("Could not load the portal right now.");
+  }
+}
+
+async function loadOverview() {
+  const [analyticsResponse, usageResponse] = await Promise.all([
+    fetch(`${API}/analytics`, { headers: { "X-API-Key": currentKey } }),
+    fetch(`${API}/keys/usage`, { headers: { "X-API-Key": currentKey } }),
+  ]);
+
+  const analytics = unwrap(await analyticsResponse.json());
+  const usage = unwrap(await usageResponse.json());
+
+  document.getElementById("metric-total").textContent = (analytics.total || 0).toLocaleString();
+  document.getElementById("metric-blocked").textContent = (analytics.blocked || 0).toLocaleString();
+  document.getElementById("metric-confirmed").textContent = (analytics.confirmed || 0).toLocaleString();
+  document.getElementById("metric-allowed").textContent = (analytics.allowed || 0).toLocaleString();
+  document.getElementById("metric-latency").textContent = `${analytics.avg_latency_ms || 0}ms`;
+
+  const used = Number(usage.scans_used || 0);
+  const limit = Number(usage.scans_limit || 0);
+  const percent = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  document.getElementById("usage-used").textContent = used.toLocaleString();
+  document.getElementById("usage-limit").textContent = limit.toLocaleString();
+  document.getElementById("usage-fill").style.width = `${percent}%`;
+  document.getElementById("usage-remaining").textContent = Math.max(0, limit - used).toLocaleString();
+}
+
+async function loadHistory() {
+  const response = await fetch(`${API}/history?limit=30`, {
+    headers: { "X-API-Key": currentKey }
+  });
+  const data = unwrap(await response.json());
+  const body = document.getElementById("history-body");
+
+  if (!Array.isArray(data.entries) || !data.entries.length) {
+    body.innerHTML = '<tr><td colspan="6">No scans yet.</td></tr>';
     return;
   }
 
-  try {
-    const r = await fetch(API + '/keys/usage', {
-      headers: { 'X-API-Key': activeKey }
-    });
-    if (!r.ok) {
-      document.getElementById('gate-err').textContent = 'Invalid or expired API key.';
-      return;
-    }
-    const d = await r.json();
-    currentKey = activeKey;
-    document.getElementById('gate').style.display = 'none';
-    document.getElementById('portal').classList.add('show');
-    document.getElementById('portal-email').textContent = d.email || 'Customer';
-    document.getElementById('portal-plan').textContent = (d.plan || 'starter').toUpperCase() + ' plan';
-    document.getElementById('settings-key').textContent = key;
-    document.getElementById('settings-key-code').textContent = '"' + key + '"';
-    document.getElementById('s-plan').textContent = d.plan || '—';
-    document.getElementById('s-limit').textContent = (d.scans_limit || 0).toLocaleString();
-    document.getElementById('s-created').textContent = d.created_at || '—';
-    document.getElementById('s-last').textContent = d.last_used || 'Never';
-
-    loadOverview();
-    loadHistory();
-    loadRules();
-    loadAlerts();
-  } catch(e) {
-    document.getElementById('gate-err').textContent = 'Could not connect to API.';
-  }
+  body.innerHTML = data.entries.map((entry) => `
+    <tr>
+      <td>${esc((entry.timestamp || "").split("T")[1] || entry.timestamp || "-")}</td>
+      <td title="${esc(entry.url || "")}">${esc((entry.url || "-").slice(0, 32))}</td>
+      <td title="${esc(entry.goal || "")}">${esc((entry.goal || "-").slice(0, 26))}</td>
+      <td>${esc(entry.risk ?? 0)}</td>
+      <td>${esc(entry.decision || "-")}</td>
+      <td>${entry.latency ? `${(entry.latency * 1000).toFixed(1)}ms` : "-"}</td>
+    </tr>
+  `).join("");
 }
 
-function logout() {
-  currentKey = '';
-  localStorage.removeItem('guni_api_key');
-  localStorage.removeItem('guni_session');
-  localStorage.removeItem('guni_email');
-  document.getElementById('portal').classList.remove('show');
-  document.getElementById('gate').style.display = 'block';
-  document.getElementById('key-input').value = '';
-  document.getElementById('gate-err').textContent = '';
-}
-
-document.getElementById('key-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') login();
-});
-
-// ── Tab switching ──────────────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('show'));
-  event.target.classList.add('active');
-  document.getElementById('tab-' + name).classList.add('show');
-}
-
-// ── Overview ───────────────────────────────────────────────────────────────
-async function loadOverview() {
-  try {
-    const [analytics, usage] = await Promise.all([
-      fetch(API + '/analytics', { headers: { 'X-API-Key': currentKey } }).then(r => r.json()),
-      fetch(API + '/keys/usage', { headers: { 'X-API-Key': currentKey } }).then(r => r.json()),
-    ]);
-
-    animTo('o-total',     analytics.total || 0);
-    animTo('o-blocked',   analytics.blocked || 0);
-    animTo('o-confirmed', analytics.confirmed || 0);
-    animTo('o-allowed',   analytics.allowed || 0);
-    document.getElementById('o-blockrate').textContent = (analytics.block_rate || 0) + '%';
-    document.getElementById('o-avgrisk').textContent   = analytics.avg_risk || 0;
-    document.getElementById('o-avglat').textContent    = (analytics.avg_latency_ms || 0) + 'ms';
-
-    // Usage bar
-    const used  = usage.scans_used || 0;
-    const limit = usage.scans_limit || 1000;
-    const pct   = Math.min(100, Math.round(used / limit * 100));
-    document.getElementById('u-used').textContent      = used.toLocaleString();
-    document.getElementById('u-limit').textContent     = limit.toLocaleString();
-    document.getElementById('u-remaining').textContent = Math.max(0, limit - used).toLocaleString();
-    const bar = document.getElementById('u-bar');
-    bar.style.width = pct + '%';
-    if (pct > 80) bar.classList.add('warn');
-    if (pct > 95) bar.classList.add('danger');
-
-    // Daily chart
-    renderChart(analytics.daily || []);
-  } catch(e) {}
-}
-
-function renderChart(daily) {
-  const chart = document.getElementById('daily-chart');
-  if (!daily.length) { chart.innerHTML = '<div style="color:var(--muted);font-size:11px">No scan data yet</div>'; return; }
-  const maxCount = Math.max(...daily.map(d => d.count), 1);
-  chart.innerHTML = daily.reverse().map(d => {
-    const h    = Math.round((d.count / maxCount) * 56);
-    const hb   = Math.round((d.blocks / maxCount) * 56);
-    const day  = d.day ? d.day.slice(5) : '';
-    return `<div class="bar-group">
-      <div class="bar-wrap">
-        <div class="bar total" style="height:${h}px"></div>
-      </div>
-      <div class="bar-label">${day}</div>
-    </div>`;
-  }).join('');
-}
-
-// ── History ────────────────────────────────────────────────────────────────
-async function loadHistory() {
-  const tbody = document.getElementById('hist-body');
-  try {
-    const r = await fetch(API + '/history?limit=30', { headers: { 'X-API-Key': currentKey } });
-    const d = await r.json();
-    if (!d.entries || !d.entries.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">No scans yet.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = d.entries.map(e => {
-      const cls = e.decision==='BLOCK'?'d-b':e.decision==='CONFIRM'?'d-c':'d-a';
-      const t   = e.timestamp ? e.timestamp.split('T')[1]||e.timestamp : '—';
-      return `<tr>
-        <td>${t}</td>
-        <td title="${esc(e.url||'')}">${esc((e.url||'—').slice(0,30))}</td>
-        <td title="${esc(e.goal||'')}">${esc((e.goal||'—').slice(0,20))}</td>
-        <td>${e.risk}</td>
-        <td class="${cls}">${e.decision}</td>
-        <td>${e.latency ? (e.latency*1000).toFixed(1)+'ms' : '—'}</td>
-      </tr>`;
-    }).join('');
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">Error loading history.</td></tr>';
-  }
-}
-
-// ── Custom rules ───────────────────────────────────────────────────────────
 async function loadRules() {
-  try {
-    const r = await fetch(API + '/rules', { headers: { 'X-API-Key': currentKey } });
-    const d = await r.json();
-    const list = document.getElementById('rule-list');
-    if (!d.rules || !d.rules.length) {
-      list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:0.5rem 0">No custom rules yet.</div>';
-      return;
-    }
-    list.innerHTML = d.rules.map(r => `
-      <div class="rule-item">
-        <span class="rule-type">${r.rule_type}</span>
-        <span class="rule-pattern">${esc(r.pattern)}</span>
-        <span class="rule-weight">w:${r.weight}</span>
-        <button class="btn btn-danger" onclick="deleteRule(${r.id})" style="font-size:10px;padding:3px 10px">×</button>
+  const response = await fetch(`${API}/rules`, {
+    headers: { "X-API-Key": currentKey }
+  });
+  const data = unwrap(await response.json());
+  const list = document.getElementById("rule-list");
+
+  if (!Array.isArray(data.rules) || !data.rules.length) {
+    list.innerHTML = '<div class="note">No custom rules yet.</div>';
+    return;
+  }
+
+  list.innerHTML = data.rules.map((rule) => `
+    <div class="box" style="padding:0.8rem 1rem">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div>
+          <strong style="display:block;font-size:12px">${esc(rule.pattern)}</strong>
+          <span class="note">${esc(rule.rule_type)} | weight ${esc(rule.weight)}</span>
+        </div>
+        <button class="g-btn g-btn-outline" type="button" onclick="deleteRule(${rule.id})">Delete</button>
       </div>
-    `).join('');
-  } catch(e) {}
+    </div>
+  `).join("");
 }
 
 async function addRule() {
-  const pattern = document.getElementById('rule-pattern').value.trim();
-  const type    = document.getElementById('rule-type').value;
+  const pattern = document.getElementById("rule-pattern").value.trim();
+  const ruleType = document.getElementById("rule-type").value;
   if (!pattern) return;
-  try {
-    await fetch(API + '/rules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': currentKey },
-      body: JSON.stringify({ pattern, rule_type: type, weight: 30 })
-    });
-    document.getElementById('rule-pattern').value = '';
-    document.getElementById('rule-ok').classList.add('show');
-    setTimeout(() => document.getElementById('rule-ok').classList.remove('show'), 2000);
-    loadRules();
-  } catch(e) {}
+
+  const response = await fetch(`${API}/rules`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": currentKey
+    },
+    body: JSON.stringify({ pattern, rule_type: ruleType, weight: 30 })
+  });
+
+  document.getElementById("rule-ok").classList.toggle("show", response.ok);
+  document.getElementById("rule-err").classList.toggle("show", !response.ok);
+  if (response.ok) {
+    document.getElementById("rule-pattern").value = "";
+    await loadRules();
+  }
 }
 
-async function deleteRule(id) {
-  try {
-    await fetch(API + '/rules/' + id, {
-      method: 'DELETE',
-      headers: { 'X-API-Key': currentKey }
-    });
-    loadRules();
-  } catch(e) {}
+async function deleteRule(ruleId) {
+  await fetch(`${API}/rules/${ruleId}`, {
+    method: "DELETE",
+    headers: { "X-API-Key": currentKey }
+  });
+  await loadRules();
 }
 
-// ── Alerts ─────────────────────────────────────────────────────────────────
 async function loadAlerts() {
-  try {
-    const r = await fetch(API + '/alerts', { headers: { 'X-API-Key': currentKey } });
-    const d = await r.json();
-    if (d.slack_url)   document.getElementById('alert-slack').value   = d.slack_url;
-    if (d.webhook_url) document.getElementById('alert-webhook').value = d.webhook_url;
-    if (!d.on_block)   document.getElementById('tog-block').classList.remove('on');
-    if (d.on_confirm)  document.getElementById('tog-confirm').classList.add('on');
-  } catch(e) {}
+  const response = await fetch(`${API}/alerts`, {
+    headers: { "X-API-Key": currentKey }
+  });
+  const data = unwrap(await response.json());
+
+  document.getElementById("alert-slack").value = data.slack_url || "";
+  document.getElementById("alert-webhook").value = data.webhook_url || "";
+  document.getElementById("toggle-block").classList.toggle("on", data.on_block !== false);
+  document.getElementById("toggle-confirm").classList.toggle("on", Boolean(data.on_confirm));
 }
 
 async function saveAlerts() {
-  try {
-    await fetch(API + '/alerts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': currentKey },
-      body: JSON.stringify({
-        slack_url:   document.getElementById('alert-slack').value   || null,
-        webhook_url: document.getElementById('alert-webhook').value || null,
-        on_block:    document.getElementById('tog-block').classList.contains('on'),
-        on_confirm:  document.getElementById('tog-confirm').classList.contains('on'),
-      })
-    });
-    document.getElementById('alert-ok').classList.add('show');
-    setTimeout(() => document.getElementById('alert-ok').classList.remove('show'), 2000);
-  } catch(e) {}
+  const response = await fetch(`${API}/alerts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": currentKey
+    },
+    body: JSON.stringify({
+      slack_url: document.getElementById("alert-slack").value || null,
+      webhook_url: document.getElementById("alert-webhook").value || null,
+      on_block: document.getElementById("toggle-block").classList.contains("on"),
+      on_confirm: document.getElementById("toggle-confirm").classList.contains("on")
+    })
+  });
+  document.getElementById("alert-ok").classList.toggle("show", response.ok);
 }
 
-function toggleAlert(id) {
-  document.getElementById(id).classList.toggle('on');
+async function loadAdmin() {
+  const response = await fetch(`${API}/keys/list`, { credentials: "include" });
+  const data = unwrap(await response.json());
+  const body = document.getElementById("admin-body");
+
+  if (!Array.isArray(data.keys) || !data.keys.length) {
+    body.innerHTML = '<tr><td colspan="5">No customer keys yet.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = data.keys.map((item) => `
+    <tr>
+      <td>${esc(item.email)}</td>
+      <td>${esc(item.plan)}</td>
+      <td>${esc(item.scans_used)}</td>
+      <td>${esc(item.scans_limit)}</td>
+      <td>${item.active ? "Yes" : "No"}</td>
+    </tr>
+  `).join("");
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function animTo(id, target) {
-  const el = document.getElementById(id);
-  if (!el || !target) return;
-  let cur = 0, step = Math.ceil(target / 20);
-  const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur.toLocaleString();
-    if (cur >= target) clearInterval(t);
-  }, 50);
+async function signOut() {
+  await fetch(`${API}/auth/signout`, {
+    method: "POST",
+    credentials: "include"
+  });
+  window.location.href = "/signin";
 }
 
-function copyKey() {
-  navigator.clipboard.writeText(currentKey).then(() => {
-    const btn = event.target;
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = 'Copy key', 1500);
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === name);
+  });
+  document.querySelectorAll(".panel").forEach((panel) => {
+    panel.classList.toggle("show", panel.id === `panel-${name}`);
   });
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// Auto-login if coming from signin page
-window.addEventListener('load', () => {
-  const storedKey = localStorage.getItem('guni_api_key');
-  if (storedKey && storedKey.startsWith('guni_live_')) {
-    document.getElementById('key-input').value = storedKey;
-    login();
-  }
+document.getElementById("tabs").addEventListener("click", (event) => {
+  const button = event.target.closest(".tab");
+  if (!button) return;
+  switchTab(button.dataset.tab);
 });
+
+document.getElementById("signout-btn").addEventListener("click", signOut);
+document.getElementById("refresh-history").addEventListener("click", loadHistory);
+document.getElementById("add-rule-btn").addEventListener("click", addRule);
+document.getElementById("save-alerts-btn").addEventListener("click", saveAlerts);
+document.getElementById("toggle-block").addEventListener("click", () => document.getElementById("toggle-block").classList.toggle("on"));
+document.getElementById("toggle-confirm").addEventListener("click", () => document.getElementById("toggle-confirm").classList.toggle("on"));
+document.getElementById("copy-key-btn").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(currentKey);
+});
+
+window.addEventListener("load", hydrateSession);
 </script>
 </body>
 </html>

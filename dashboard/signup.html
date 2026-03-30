@@ -114,10 +114,11 @@ async function signup() {
     const r = await fetch('/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, plan: selectedPlan }),
     });
-    const d = await r.json();
-    if (!r.ok) { err.textContent = d.detail || 'Something went wrong.'; err.classList.add('show'); return; }
+    const payload = await r.json();
+    const d = payload && payload.data ? payload.data : payload;
+    if (!r.ok) { err.textContent = payload.error || payload.detail || 'Something went wrong.'; err.classList.add('show'); return; }
 
     if (selectedPlan === 'starter') {
       ok.textContent = '✓ Account created! Check your email to verify. Then complete payment for Starter plan.';

@@ -114,11 +114,37 @@ def _ensure_parent_dir(file_path: str) -> None:
     Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _admin_emails() -> set[str]:
+    raw = os.environ.get("GUNI_ADMIN_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
+def _session_user(request: Request):
+    from api.auth_system import verify_session
+    from api.database import db_get_user_by_email
+
+    session = request.cookies.get("guni_session", "")
+    email = verify_session(session) if session else None
+    if not email:
+        return None
+    return db_get_user_by_email(email)
+
+
+def _require_session_user(request: Request, roles: set[str] | None = None) -> dict:
+    user = _session_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if roles and user.get("role", "owner") not in roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return user
+
+
 def _is_api_json_path(path: str) -> bool:
     excluded = {
         "/docs", "/redoc", "/openapi.json",
         "/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset",
         "/portal", "/about", "/dashboard", "/integrate", "/threats", "/changelog",
+        "/enterprise", "/security", "/pilot",
     }
     if path in excluded:
         return False
@@ -305,6 +331,7 @@ def reset_page(token: str = ""):
 class SignupRequest(BaseModel):
     email:    str
     password: str
+    plan:     str = "free"
 
 class SigninRequest(BaseModel):
     email:    str
@@ -323,15 +350,19 @@ async def auth_signup(body: SignupRequest, request: Request):
     from api.auth_system import hash_password, generate_token, send_verification_email
     from api.database import db_create_user, db_get_user_by_email
     email = body.email.lower().strip()
+    plan = (body.plan or "free").lower().strip()
     if not email or "@" not in email:
         raise HTTPException(status_code=422, detail="Invalid email")
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     if db_get_user_by_email(email):
         raise HTTPException(status_code=409, detail="Account already exists")
+    if plan not in {"free", "starter", "pro"}:
+        raise HTTPException(status_code=422, detail="Invalid plan")
     pw_hash = hash_password(body.password)
     token   = generate_token()
-    user    = db_create_user(email, pw_hash, token)
+    role    = "admin" if email in _admin_emails() else "owner"
+    user    = db_create_user(email, pw_hash, token, plan=plan, role=role)
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
     base_url = str(request.base_url).rstrip("/")
@@ -339,7 +370,7 @@ async def auth_signup(body: SignupRequest, request: Request):
         send_verification_email(email, token, base_url)
     except Exception:
         pass
-    return {"success": True, "message": "Account created. Check your email to verify.", "email": email}
+    return {"success": True, "message": "Account created. Check your email to verify.", "email": email, "plan": plan, "role": role}
 
 
 @app.post("/auth/signin", tags=["Auth"])
@@ -361,7 +392,14 @@ async def auth_signin(body: SigninRequest):
         api_key = kd["key"]
     db_update_user_login(email, api_key)
     session  = create_session(email)
-    response = JSONResponse({"success": True, "email": email, "plan": user.get("plan", "free"), "api_key": api_key, "session": session})
+    response = JSONResponse({
+        "success": True,
+        "email": email,
+        "plan": user.get("plan", "free"),
+        "role": user.get("role", "owner"),
+        "api_key": api_key,
+        "session": session
+    })
     response.set_cookie("guni_session", session, max_age=7*24*3600, httponly=True, samesite="lax")
     return response
 
@@ -398,16 +436,14 @@ async def auth_reset_password(body: NewPasswordRequest):
 
 @app.get("/auth/me", tags=["Auth"])
 async def auth_me(request: Request):
-    from api.auth_system import verify_session
-    from api.database import db_get_user_by_email
-    session = request.cookies.get("guni_session", "")
-    email   = verify_session(session) if session else None
-    if not email:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    user = db_get_user_by_email(email)
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return {"email": user["email"], "plan": user.get("plan", "free"), "api_key": user.get("api_key"), "verified": bool(user.get("verified"))}
+    user = _require_session_user(request)
+    return {
+        "email": user["email"],
+        "plan": user.get("plan", "free"),
+        "role": user.get("role", "owner"),
+        "api_key": user.get("api_key"),
+        "verified": bool(user.get("verified"))
+    }
 
 
 @app.post("/auth/signout", tags=["Auth"])
@@ -873,11 +909,12 @@ class KeyRequest(BaseModel):
     plan:  str = "starter"
 
 @app.post("/keys/generate", tags=["Keys"])
-def generate_key(body: KeyRequest, api_key: str = Depends(verify_api_key)):
+def generate_key(body: KeyRequest, request: Request):
     """
     Generate an API key for a customer (admin use).
-    Requires a valid admin API key in X-API-Key header.
+    Requires an authenticated admin session.
     """
+    _require_session_user(request, {"admin"})
     from api.key_manager import generate_api_key, PLAN_LIMITS
     plan  = body.plan.lower()
     limit = PLAN_LIMITS.get(plan, 1000)
@@ -893,8 +930,9 @@ def get_key_usage(api_key: str = Depends(verify_api_key)):
 
 
 @app.get("/keys/list", tags=["Keys"], include_in_schema=False)
-def list_all_keys(api_key: str = Depends(verify_api_key)):
+def list_all_keys(request: Request):
     """List all API keys (admin only)."""
+    _require_session_user(request, {"admin"})
     from api.key_manager import list_keys
     return {"keys": list_keys()}
 
@@ -997,6 +1035,24 @@ def enterprise():
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("enterprise.html"))
     return HTMLResponse(content="<h1>Guni for Agentic Browsers</h1>")
+
+
+@app.get("/security", response_class=HTMLResponse, include_in_schema=False)
+def security_page():
+    """Serve the customer-facing security architecture page."""
+    html_path = DASHBOARD_DIR / "security.html"
+    if html_path.exists():
+        return HTMLResponse(content=_read_dashboard_html("security.html"))
+    return HTMLResponse(content="<h1>Security Architecture</h1>")
+
+
+@app.get("/pilot", response_class=HTMLResponse, include_in_schema=False)
+def pilot_page():
+    """Serve the pilot pricing and outbound page."""
+    html_path = DASHBOARD_DIR / "pilot.html"
+    if html_path.exists():
+        return HTMLResponse(content=_read_dashboard_html("pilot.html"))
+    return HTMLResponse(content="<h1>Pilot Program</h1>")
 
 
 @app.get("/threats/feed", tags=["Threat Intelligence"])

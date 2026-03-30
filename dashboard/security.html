@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Customer-facing security architecture for Guni."/>
+<title>Guni | Security Architecture</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.hero{padding:calc(56px + 2rem) 0 2rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.card{background:rgba(7,7,10,0.8);border:1px solid var(--border2)}
+.card-body{padding:1.3rem 1.4rem}
+.label{font-size:10px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.6rem}
+.list{display:grid;gap:10px}
+.item{padding:0.9rem 1rem;background:var(--bg2);border:1px solid var(--border)}
+.item strong{display:block;font-size:12px;margin-bottom:0.35rem}
+.item span{font-size:12px;color:var(--muted3);line-height:1.7}
+.diagram{padding:1rem;border:1px solid var(--border2);background:var(--bg2);font-size:12px;line-height:1.9;white-space:pre-wrap}
+@media (max-width: 900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
+    <a href="/">Home</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/pilot">Pilot</a>
+    <a href="/docs">Docs</a>
+  </div>
+</nav>
+<main class="hero">
+  <div class="g-wrap">
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-body">
+        <div class="label">Customer-facing security architecture</div>
+        <h1 class="g-title-md">How Guni fits into a browser-agent stack</h1>
+        <p class="g-subtitle" style="margin-top:1rem">This page is built for security reviews and technical buyers. It explains where Guni sits, what data it handles, and how teams can deploy it with stronger controls.</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-body">
+          <div class="label">Request flow</div>
+          <div class="diagram">1. Agent loads or receives page HTML
+2. Guni parses DOM, forms, scripts, and visible/hidden text
+3. Detectors score prompt injection, phishing, clickjacking, redirects, and goal mismatch
+4. Policy decision returned: ALLOW / CONFIRM / BLOCK
+5. Agent proceeds, pauses, or aborts based on policy</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="label">Deployment choices</div>
+          <div class="list">
+            <div class="item"><strong>Self-hosted</strong><span>Run the SDK or API inside the customer environment for tighter control over HTML and logs.</span></div>
+            <div class="item"><strong>Managed pilot</strong><span>Use the hosted API for faster evaluation and design-partner rollouts.</span></div>
+            <div class="item"><strong>Hybrid</strong><span>Keep sensitive workflows self-hosted while using the hosted dashboard for controlled demos and reporting.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:1rem">
+      <div class="card">
+        <div class="card-body">
+          <div class="label">Data handling</div>
+          <div class="list">
+            <div class="item"><strong>Inputs</strong><span>HTML, page URL, agent goal, and optional API key/session context.</span></div>
+            <div class="item"><strong>Runtime state</strong><span>Audit logs, waitlist entries, user records, alerts, and scan history live in the configured runtime data directory.</span></div>
+            <div class="item"><strong>Control point</strong><span>Teams can isolate these paths using persistent volumes and explicit environment variables.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="label">Auth and controls</div>
+          <div class="list">
+            <div class="item"><strong>Session-backed portal</strong><span>The customer portal now requires account session authentication instead of trusting a pasted API key in the browser.</span></div>
+            <div class="item"><strong>Role gating</strong><span>Admin-only operations such as full key inventory are restricted to authenticated admin accounts.</span></div>
+            <div class="item"><strong>API protection</strong><span>Production deployments should require `X-API-Key` on the hosted API and a strong `GUNI_SESSION_SECRET`.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="card-body">
+        <div class="label">Current trust posture</div>
+        <div class="list">
+          <div class="item"><strong>Included today</strong><span>CI-backed API tests, isolated runtime storage, role-aware portal access, deployment guidance, and customer-facing security documentation.</span></div>
+          <div class="item"><strong>Still maturing</strong><span>Formal penetration testing, enterprise SSO, signed audit exports, and deeper tenant isolation.</span></div>
+          <div class="item"><strong>Best rollout</strong><span>Start with a paid pilot on high-risk browser workflows, then expand after measuring latency, block rate, and false positives.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

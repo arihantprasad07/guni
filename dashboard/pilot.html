@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Guni pilot pricing and founder-led rollout material."/>
+<title>Guni | Pilot Program</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.hero{padding:calc(56px + 2rem) 0 2rem}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+.card{background:rgba(7,7,10,0.8);border:1px solid var(--border2)}
+.card-body{padding:1.3rem 1.4rem}
+.price{font-family:var(--display);font-size:2.5rem;line-height:1;color:var(--amber)}
+.muted{font-size:12px;color:var(--muted3);line-height:1.7}
+.list{display:grid;gap:10px;margin-top:1rem}
+.list div{padding:0.85rem 0.9rem;background:var(--bg2);border:1px solid var(--border)}
+.outreach{white-space:pre-wrap;font-size:12px;line-height:1.8;background:var(--bg2);border:1px solid var(--border2);padding:1rem}
+@media (max-width: 980px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
+    <a href="/">Home</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/security">Security</a>
+    <a href="/dashboard">Dashboard</a>
+  </div>
+</nav>
+<main class="hero">
+  <div class="g-wrap">
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-body">
+        <div class="g-eyebrow">Pilot pricing and outbound</div>
+        <h1 class="g-title-md">Sell a founder-led pilot first</h1>
+        <p class="g-subtitle" style="margin-top:1rem">This is the pricing and messaging layer for serious early customers. It is designed for agentic-browser teams evaluating whether Guni reduces real execution risk.</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-body">
+          <div class="g-tag g-tag-green">Starter pilot</div>
+          <div class="price" style="margin-top:1rem">$1.5k</div>
+          <div class="muted">2-week pilot, one workflow, founder support</div>
+          <div class="list">
+            <div>One browser workflow protected</div>
+            <div>Attack simulation and evidence review</div>
+            <div>Deployment help and weekly checkpoint</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="g-tag g-tag-amber">Growth pilot</div>
+          <div class="price" style="margin-top:1rem">$4k</div>
+          <div class="muted">4-week pilot, multiple risky flows, team review</div>
+          <div class="list">
+            <div>2-3 workflows protected</div>
+            <div>Custom rules and alerting setup</div>
+            <div>Security architecture review material</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="g-tag g-tag-blue">Enterprise design partner</div>
+          <div class="price" style="margin-top:1rem">$8k+</div>
+          <div class="muted">Custom rollout, self-hosting support, roadmap input</div>
+          <div class="list">
+            <div>Priority roadmap collaboration</div>
+            <div>Staging attack lab and rollout metrics</div>
+            <div>Admin and policy setup for internal teams</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="card-body">
+        <div class="g-eyebrow">Outbound message</div>
+        <div class="outreach">Subject: protecting browser agents from hostile pages
+
+Hi {{name}},
+
+I have been following what your team is building around browser automation and agentic workflows.
+
+We built Guni because browser agents are now exposed to prompt injection, phishing forms, deceptive UI, and goal hijacking directly inside the DOM. Guni sits between the page and the action layer, then returns an ALLOW, CONFIRM, or BLOCK decision before the agent clicks.
+
+We can run a short paid pilot on one of your high-risk workflows and show:
+- what gets blocked
+- what would need tuning
+- what the latency impact looks like
+
+If helpful, I can share the live dashboard, enterprise page, and a concrete attack demo tailored to your workflow.
+
+Best,
+{{your_name}}</div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

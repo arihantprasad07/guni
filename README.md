@@ -10,6 +10,7 @@ Detect prompt injection, phishing, clickjacking, redirect abuse, and goal hijack
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Live Demo](https://img.shields.io/badge/demo-live-green.svg)](https://guni.up.railway.app)
 [![Version](https://img.shields.io/badge/version-2.2.0-orange.svg)](https://guni.up.railway.app/changelog)
+[![CI](https://img.shields.io/badge/ci-github_actions-brightgreen.svg)](./.github/workflows/ci.yml)
 
 ![Guni Demo](https://raw.githubusercontent.com/arihantprasad07/guni/main/assets/demo.gif)
 
@@ -174,6 +175,21 @@ pytest -q test_api.py
 
 Runtime state is stored in `.guni/` by default so logs and local databases do not pollute the repo root.
 
+## Trust and deployment
+
+If a customer asks whether this is safe to evaluate in a real workflow, send them these:
+
+- [Security And Trust](./SECURITY.md)
+- [Deployment Guide](./DEPLOY.md)
+- [GitHub Setup Checklist](./GITHUB_SETUP.md)
+
+Current trust signals:
+
+- deterministic API test coverage in CI
+- self-hostable architecture
+- runtime data isolation from the repo root
+- enterprise-facing product and integration pages for buyer review
+
 ## Project structure
 
 ```text
@@ -190,4 +206,6 @@ test_api.py         In-process API tests
 - Live demo: https://guni.up.railway.app
 - Dashboard: https://guni.up.railway.app/dashboard
 - Enterprise page: https://guni.up.railway.app/enterprise
+- Security architecture: https://guni.up.railway.app/security
+- Pilot program: https://guni.up.railway.app/pilot
 - API docs: https://guni.up.railway.app/docs
