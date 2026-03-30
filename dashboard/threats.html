@@ -270,7 +270,10 @@ const THREAT_META = {
 async function loadFeed() {
   try {
     const r = await fetch(API + '/threats/feed');
-    const d = await r.json();
+    const payload = await r.json();
+    const d = payload && typeof payload === 'object' && 'data' in payload
+      ? (payload.data || {})
+      : (payload || {});
     applyFeedSnapshot(d, 'poll');
   } catch(e) {
     document.getElementById('last-updated').textContent = 'API offline';
@@ -293,20 +296,26 @@ function applyFeedSnapshot(d, source) {
 }
 
 function renderFeed(d) {
+  const totalScans = Number(d.total_scans || 0);
+  const totalBlocked = Number(d.total_blocked || 0);
+  const last24hScans = Number(d.last_24h_scans || 0);
+  const last24hBlocked = Number(d.last_24h_blocked || 0);
+
   // Big stats
-  countUp('total-scans',  d.total_scans   || 0, currentTotalScans);
-  countUp('total-blocked', d.total_blocked || 0, currentTotalBlocked);
-  currentTotalScans = d.total_scans || 0;
-  currentTotalBlocked = d.total_blocked || 0;
-  document.getElementById('block-rate').textContent   = (d.block_rate || 0) + '%';
+  countUp('total-scans', totalScans, currentTotalScans);
+  countUp('total-blocked', totalBlocked, currentTotalBlocked);
+  currentTotalScans = totalScans;
+  currentTotalBlocked = totalBlocked;
+  const globalRate = totalScans ? Math.round((totalBlocked / totalScans) * 100) : 0;
+  document.getElementById('block-rate').textContent = globalRate + '%';
 
   // 24h
-  countUp('h24-scans',   d.last_24h_scans   || 0, current24hScans);
-  countUp('h24-blocked', d.last_24h_blocked || 0, current24hBlocked);
-  current24hScans = d.last_24h_scans || 0;
-  current24hBlocked = d.last_24h_blocked || 0;
-  const h24rate = d.last_24h_scans
-    ? Math.round(d.last_24h_blocked / d.last_24h_scans * 100)
+  countUp('h24-scans', last24hScans, current24hScans);
+  countUp('h24-blocked', last24hBlocked, current24hBlocked);
+  current24hScans = last24hScans;
+  current24hBlocked = last24hBlocked;
+  const h24rate = last24hScans
+    ? Math.round((last24hBlocked / last24hScans) * 100)
     : 0;
   document.getElementById('h24-rate').textContent = h24rate + '%';
 
@@ -315,7 +324,7 @@ function renderFeed(d) {
   const topMeta = THREAT_META[top] || { label: top, color: '#ff3d3d', desc: 'Threat data will appear here as scans are collected.' };
   document.getElementById('top-threat-stat').textContent  = topMeta.label;
   document.getElementById('top-threat-name').textContent  = topMeta.label;
-  document.getElementById('top-threat-desc').textContent  = d.total_scans ? topMeta.desc : 'Run a few scans through Guni and this feed will start showing aggregate threat patterns.';
+  document.getElementById('top-threat-desc').textContent  = totalScans ? topMeta.desc : 'Run a few scans through Guni and this feed will start showing aggregate threat patterns.';
   document.getElementById('top-threat-stat').style.fontSize = '1rem';
 
   // Threat bars
@@ -326,7 +335,7 @@ function renderFeed(d) {
   document.getElementById('threat-bars').innerHTML = sorted.map(([key, count]) => {
     const meta = THREAT_META[key] || { label: key, color: '#888' };
     const pct  = Math.round(count / maxCount * 100);
-    const ofTotal = d.total_scans ? Math.round(count / d.total_scans * 100) : 0;
+    const ofTotal = totalScans ? Math.round(count / totalScans * 100) : 0;
     return `<div class="tb-row">
       <div class="tb-header">
         <span class="tb-name">${meta.label}</span>
