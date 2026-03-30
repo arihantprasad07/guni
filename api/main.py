@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import WebSocket, WebSocketDisconnect, Request
@@ -154,7 +154,7 @@ def _is_api_json_path(path: str) -> bool:
     excluded = {
         "/docs", "/redoc", "/openapi.json",
         "/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset",
-        "/portal", "/about", "/dashboard", "/integrate", "/threats", "/changelog",
+        "/portal", "/about", "/dashboard", "/demo", "/integrate", "/threats", "/changelog",
         "/enterprise", "/security", "/pilot",
     }
     if path in excluded:
@@ -294,7 +294,7 @@ def landing():
     html_path = DASHBOARD_DIR / "landing.html"
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("landing.html"))
-    return HTMLResponse(content="<h1>Guni</h1><p><a href='/dashboard'>Dashboard</a> · <a href='/docs'>API docs</a></p>")
+    return HTMLResponse(content="<h1>Guni</h1><p><a href='/demo'>Demo</a> · <a href='/docs'>API docs</a></p>")
 
 
 @app.get("/signup", response_class=HTMLResponse, include_in_schema=False)
@@ -537,8 +537,10 @@ async def auth_signout(request: Request):
 
 
 @app.get("/portal", response_class=HTMLResponse, include_in_schema=False)
-def portal():
+def portal(request: Request):
     """Serve the customer portal."""
+    if not _session_user(request):
+        return RedirectResponse(url="/signin", status_code=302)
     html_path = DASHBOARD_DIR / "portal.html"
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("portal.html"))
@@ -554,13 +556,21 @@ def about():
     return HTMLResponse(content="<h1>About Guni</h1>")
 
 
-@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-def dashboard():
-    """Serve the Guni live dashboard UI."""
+@app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
+def demo_page():
+    """Serve the public Guni scanner demo."""
     html_path = DASHBOARD_DIR / "index.html"
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("index.html"))
-    return HTMLResponse(content="<h1>Guni Dashboard</h1><p>Visit <a href='/docs'>/docs</a></p>")
+    return HTMLResponse(content="<h1>Guni Demo</h1><p>Visit <a href='/docs'>/docs</a></p>")
+
+
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
+def dashboard(request: Request):
+    """Send users to the authenticated product area."""
+    if _session_user(request):
+        return RedirectResponse(url="/portal", status_code=302)
+    return RedirectResponse(url="/signin", status_code=302)
 
 
 # ── Waitlist ───────────────────────────────────────────────────────────────────

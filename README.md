@@ -203,7 +203,7 @@ test_api.py         In-process API tests
 ## Links
 
 - Live demo: https://guni.up.railway.app
-- Dashboard: https://guni.up.railway.app/dashboard
+- Demo: https://guni.up.railway.app/demo
 - Enterprise page: https://guni.up.railway.app/enterprise
 - Security architecture: https://guni.up.railway.app/security
 - Pilot program: https://guni.up.railway.app/pilot
