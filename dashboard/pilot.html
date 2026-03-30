@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="Guni pilot pricing and founder-led rollout material."/>
-<title>Guni | Pilot Program</title>
+<meta name="description" content="Guni security evaluation program for agentic-browser and autonomous web teams."/>
+<title>Guni | Security Evaluation Program</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -12,11 +12,10 @@
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
 .card{background:rgba(7,7,10,0.8);border:1px solid var(--border2)}
 .card-body{padding:1.3rem 1.4rem}
-.price{font-family:var(--display);font-size:2.5rem;line-height:1;color:var(--amber)}
-.muted{font-size:12px;color:var(--muted3);line-height:1.7}
+.section-copy{font-size:12px;color:var(--muted3);line-height:1.8}
 .list{display:grid;gap:10px;margin-top:1rem}
 .list div{padding:0.85rem 0.9rem;background:var(--bg2);border:1px solid var(--border)}
-.outreach{white-space:pre-wrap;font-size:12px;line-height:1.8;background:var(--bg2);border:1px solid var(--border2);padding:1rem}
+.template{white-space:pre-wrap;font-size:12px;line-height:1.8;background:var(--bg2);border:1px solid var(--border2);padding:1rem}
 @media (max-width: 980px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -32,70 +31,73 @@
 </nav>
 <main class="hero">
   <div class="g-wrap">
-    <div class="card" style="margin-bottom:1rem">
-      <div class="card-body">
-        <div class="g-eyebrow">Pilot pricing and outbound</div>
-        <h1 class="g-title-md">Sell a founder-led pilot first</h1>
-        <p class="g-subtitle" style="margin-top:1rem">This is the pricing and messaging layer for serious early customers. It is designed for agentic-browser teams evaluating whether Guni reduces real execution risk.</p>
+    <div class="g-card" style="margin-bottom:1rem">
+      <div class="g-card-body">
+        <div class="g-eyebrow">Security evaluation program</div>
+        <h1 class="g-title-md">Start with a focused security evaluation</h1>
+        <p class="g-subtitle" style="margin-top:1rem">Evaluate Guni on one or more high-risk browser workflows, review blocked threats and evidence, and decide how to expand coverage with confidence.</p>
       </div>
     </div>
 
     <div class="grid">
       <div class="card">
         <div class="card-body">
-          <div class="g-tag g-tag-green">Starter pilot</div>
-          <div class="price" style="margin-top:1rem">$1.5k</div>
-          <div class="muted">2-week pilot, one workflow, founder support</div>
+          <div class="g-tag g-tag-green">Focused workflow</div>
+          <div class="g-title-md" style="font-size:1.8rem;margin-top:1rem">One critical path</div>
+          <div class="section-copy">Ideal for validating a login, checkout, data-entry, or sensitive admin workflow.</div>
           <div class="list">
-            <div>One browser workflow protected</div>
-            <div>Attack simulation and evidence review</div>
-            <div>Deployment help and weekly checkpoint</div>
+            <div>Workflow-specific protection setup</div>
+            <div>Threat simulation and evidence review</div>
+            <div>Measured decision quality and latency</div>
           </div>
         </div>
       </div>
       <div class="card">
         <div class="card-body">
-          <div class="g-tag g-tag-amber">Growth pilot</div>
-          <div class="price" style="margin-top:1rem">$4k</div>
-          <div class="muted">4-week pilot, multiple risky flows, team review</div>
+          <div class="g-tag g-tag-amber">Multi-flow review</div>
+          <div class="g-title-md" style="font-size:1.8rem;margin-top:1rem">Broader coverage</div>
+          <div class="section-copy">Designed for teams testing multiple browser actions and customer-facing trust requirements.</div>
           <div class="list">
-            <div>2-3 workflows protected</div>
-            <div>Custom rules and alerting setup</div>
-            <div>Security architecture review material</div>
+            <div>Multiple risky workflow evaluations</div>
+            <div>Custom rule and alert configuration</div>
+            <div>Architecture and rollout guidance</div>
           </div>
         </div>
       </div>
       <div class="card">
         <div class="card-body">
-          <div class="g-tag g-tag-blue">Enterprise design partner</div>
-          <div class="price" style="margin-top:1rem">$8k+</div>
-          <div class="muted">Custom rollout, self-hosting support, roadmap input</div>
+          <div class="g-tag g-tag-blue">Design collaboration</div>
+          <div class="g-title-md" style="font-size:1.8rem;margin-top:1rem">Production planning</div>
+          <div class="section-copy">For teams that want deployment guidance, self-hosting review, and staged rollout planning.</div>
           <div class="list">
-            <div>Priority roadmap collaboration</div>
-            <div>Staging attack lab and rollout metrics</div>
-            <div>Admin and policy setup for internal teams</div>
+            <div>Deployment and operating model review</div>
+            <div>Security architecture discussion</div>
+            <div>Expansion plan for additional workflows</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:1rem">
-      <div class="card-body">
-        <div class="g-eyebrow">Outbound message</div>
-        <div class="outreach">Subject: protecting browser agents from hostile pages
+    <div class="g-card" style="margin-top:1rem">
+      <div class="g-card-body">
+        <div class="g-eyebrow">Evaluation message template</div>
+        <div class="template">Subject: browser-agent security evaluation
 
 Hi {{name}},
 
-I have been following what your team is building around browser automation and agentic workflows.
+I have been following your work on browser automation and agentic workflows.
 
-We built Guni because browser agents are now exposed to prompt injection, phishing forms, deceptive UI, and goal hijacking directly inside the DOM. Guni sits between the page and the action layer, then returns an ALLOW, CONFIRM, or BLOCK decision before the agent clicks.
+We built Guni to help teams inspect a page before the browser agent executes on it. Guni evaluates prompt injection, phishing, deceptive UI, redirect abuse, and goal hijacking, then returns an ALLOW, CONFIRM, or BLOCK decision with evidence.
 
-We can run a short paid pilot on one of your high-risk workflows and show:
-- what gets blocked
-- what would need tuning
-- what the latency impact looks like
+If useful, we can run a focused evaluation on one of your higher-risk browser workflows and share:
+- the blocked scenarios
+- the evidence returned by the policy layer
+- the latency and rollout considerations
 
-If helpful, I can share the live dashboard, enterprise page, and a concrete attack demo tailored to your workflow.
+Useful links:
+- Dashboard: /dashboard
+- Enterprise page: /enterprise
+- Security architecture: /security
 
 Best,
 {{your_name}}</div>

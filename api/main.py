@@ -1048,7 +1048,7 @@ def security_page():
 
 @app.get("/pilot", response_class=HTMLResponse, include_in_schema=False)
 def pilot_page():
-    """Serve the pilot pricing and outbound page."""
+    """Serve the security evaluation program page."""
     html_path = DASHBOARD_DIR / "pilot.html"
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("pilot.html"))

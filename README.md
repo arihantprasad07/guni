@@ -45,7 +45,7 @@ Guni is built for teams shipping:
 - agentic browsers
 - browser automation products
 - AI operators using Playwright, browser-use, or LangChain
-- internal copilots that log in, submit forms, or move money/data on the web
+- internal copilots that log in, submit forms, or handle sensitive web workflows
 
 If your product clicks, types, fills forms, or follows instructions from untrusted pages, Guni is relevant.
 
@@ -144,7 +144,7 @@ Current product packaging:
 - `Starter`: hosted API, dashboard, audit history, and optional LLM reasoning
 - `Pilot / enterprise`: design-partner deployments, custom rules, workflow review, integration help
 
-If you are pitching prospects right now, sell a paid pilot first.
+For early enterprise evaluations, start with a scoped implementation and security review.
 
 ## Sales-ready positioning
 

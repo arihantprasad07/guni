@@ -16,7 +16,7 @@ I have been following what your team is building around browser automation and a
 
 We built Guni because browser agents are exposed to prompt injection, phishing, deceptive UI, and goal hijacking directly inside the DOM. Guni sits between the page and the action layer and returns an `ALLOW`, `CONFIRM`, or `BLOCK` decision before the agent clicks.
 
-We can run a short paid pilot on one high-risk workflow and show:
+We can run a short evaluation on one high-risk workflow and show:
 
 - what gets blocked
 - what needs tuning
@@ -37,4 +37,4 @@ Best,
 - Which browser workflows are highest-risk today?
 - Are you self-hosting or using a managed browser layer?
 - Where would a malicious page do the most damage: auth, payments, admin, or data extraction?
-- Do you want a hosted pilot first or a self-hosted evaluation?
+- Do you want a hosted evaluation or a self-hosted review?
