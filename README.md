@@ -207,4 +207,5 @@ test_api.py         In-process API tests
 - Enterprise page: https://guni.up.railway.app/enterprise
 - Security architecture: https://guni.up.railway.app/security
 - Pilot program: https://guni.up.railway.app/pilot
-- API docs: https://guni.up.railway.app/docs
+- Docs hub: https://guni.up.railway.app/docs
+- API reference: https://guni.up.railway.app/api-docs

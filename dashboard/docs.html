@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Guni docs hub for integration guides, hosted API setup, and technical API reference."/>
+<title>Docs - Guni</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.docs-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:1rem}
+.docs-stack{display:grid;gap:1rem}
+.docs-card{background:rgba(7,7,10,0.78);border:1px solid var(--border2)}
+.docs-card .body{padding:1.4rem}
+.docs-list{display:grid;gap:10px;margin-top:1rem}
+.docs-item{padding:0.9rem 1rem;border:1px solid var(--border);background:var(--bg2)}
+.docs-item strong{display:block;font-size:12px;margin-bottom:0.35rem}
+.docs-item span{font-size:12px;color:var(--muted3);line-height:1.7}
+.mini-code{margin-top:1rem}
+@media (max-width: 960px){.docs-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
+    <a href="/">Home</a>
+    <a href="/demo">Demo</a>
+    <a href="/integrate">Integrate</a>
+    <a href="/portal">Portal</a>
+    <a href="/security">Security</a>
+  </div>
+  <div class="g-nav-right">
+    <a class="g-btn g-btn-outline g-btn-sm" href="/api-docs">API reference</a>
+    <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Sign up</a>
+  </div>
+</nav>
+
+<main style="padding:calc(56px + 1.5rem) 0 3rem">
+  <div class="g-wrap">
+    <section class="g-section" style="padding-top:0">
+      <div class="g-eyebrow">Docs</div>
+      <h1 class="g-title-md" style="margin-bottom:0.8rem">Everything you need to<br><span class="g-accent">ship Guni safely.</span></h1>
+      <p class="g-subtitle" style="max-width:760px;margin-bottom:2rem">Use this page for product and integration guidance. The raw endpoint reference lives separately at <a href="/api-docs">/api-docs</a>.</p>
+
+      <div class="docs-grid">
+        <div class="docs-stack">
+          <div class="docs-card">
+            <div class="body">
+              <div class="g-card-title">Quick start</div>
+              <div class="mini-code">
+                <div class="g-code-block">
+                  <div class="g-code-header"><span class="g-code-lang">python</span></div>
+                  <pre class="g-pre">import requests
+
+response = requests.post(
+    "https://guni.up.railway.app/scan",
+    headers={"X-API-Key": "guni_live_..."},
+    json={"html": page_html, "goal": "Login to website"},
+    timeout=10,
+)
+
+print(response.json()["decision"])</pre>
+                </div>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:1rem">
+                <a class="g-btn g-btn-primary" href="/integrate">Open integration guide</a>
+                <a class="g-btn g-btn-outline" href="/api-docs">Open API reference</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="docs-card">
+            <div class="body">
+              <div class="g-card-title">Documentation map</div>
+              <div class="docs-list">
+                <div class="docs-item"><strong>Integration guide</strong><span>Framework-specific examples for Playwright, browser-use, LangChain, REST, and WebSocket.</span></div>
+                <div class="docs-item"><strong>Security architecture</strong><span>Customer-facing overview of what Guni protects, how evidence is returned, and where policy decisions happen.</span></div>
+                <div class="docs-item"><strong>Portal and billing</strong><span>Account sessions, API keys, billing state, audit events, and plan controls all flow through the portal.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-stack">
+          <div class="docs-card">
+            <div class="body">
+              <div class="g-card-title">Hosted API</div>
+              <div class="docs-list">
+                <div class="docs-item"><strong>Auth</strong><span>Production requests require a valid <code>X-API-Key</code>. Public demo mode is separate from customer usage.</span></div>
+                <div class="docs-item"><strong>Plans</strong><span>Free is self-hosted. Plus unlocks hosted API access. Pro is for production workflows and deeper rollout support.</span></div>
+                <div class="docs-item"><strong>Reference</strong><span>Use <a href="/api-docs">/api-docs</a> for the OpenAPI explorer and endpoint schemas.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="docs-card">
+            <div class="body">
+              <div class="g-card-title">Useful links</div>
+              <div class="docs-list">
+                <div class="docs-item"><strong><a href="/demo">Live demo</a></strong><span>Public scanner and threat visibility.</span></div>
+                <div class="docs-item"><strong><a href="/portal">Portal</a></strong><span>Signed account area for API keys, billing, usage, and admin controls.</span></div>
+                <div class="docs-item"><strong><a href="/security">Security</a></strong><span>Customer-facing trust and architecture details.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="g-footer">
+  <div class="g-footer-logo">guni</div>
+  <div class="g-footer-links">
+    <a href="/demo">Demo</a>
+    <a href="/integrate">Integrate</a>
+    <a href="/api-docs">API reference</a>
+    <a href="/security">Security</a>
+    <a href="/portal">Portal</a>
+  </div>
+  <div class="g-footer-copy">&copy; 2026 Guni</div>
+</footer>
+</body>
+</html>

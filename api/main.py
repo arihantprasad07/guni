@@ -58,6 +58,8 @@ Add `X-API-Key: your-key` header. In local/demo mode, no key needed.
     version=__version__,
     contact={"name": "Guni", "url": "https://github.com/arihantprasad07/guni"},
     license_info={"name": "MIT"},
+    docs_url="/api-docs",
+    redoc_url=None,
 )
 
 app.add_middleware(
@@ -152,7 +154,7 @@ def _require_session_user(request: Request, roles: set[str] | None = None) -> di
 
 def _is_api_json_path(path: str) -> bool:
     excluded = {
-        "/docs", "/redoc", "/openapi.json",
+        "/docs", "/api-docs", "/redoc", "/openapi.json",
         "/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset",
         "/portal", "/about", "/dashboard", "/demo", "/integrate", "/threats", "/changelog",
         "/enterprise", "/security", "/pilot",
@@ -1317,6 +1319,15 @@ def integrate():
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("integrate.html"))
     return HTMLResponse(content="<h1>Integration Guide</h1>")
+
+
+@app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+def docs_page():
+    """Serve the branded docs hub."""
+    html_path = DASHBOARD_DIR / "docs.html"
+    if html_path.exists():
+        return HTMLResponse(content=_read_dashboard_html("docs.html"))
+    return HTMLResponse(content="<h1>Docs</h1><p><a href='/api-docs'>Open API reference</a></p>")
 
 
 @app.get("/enterprise", response_class=HTMLResponse, include_in_schema=False)
