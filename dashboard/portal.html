@@ -254,14 +254,14 @@
             <div class="box-body">
               <table class="table">
                 <tbody>
-                  <tr><th>Plan</th><td id="billing-plan">free</td></tr>
+                  <tr><th>Plan</th><td id="billing-plan">Free</td></tr>
                   <tr><th>Status</th><td id="billing-status">inactive</td></tr>
                   <tr><th>Last payment</th><td id="billing-last-payment">-</td></tr>
                   <tr><th>Cancel at period end</th><td id="billing-cancel-at-period-end">No</td></tr>
                 </tbody>
               </table>
               <div class="action-row" style="margin-top:1rem">
-                <button class="g-btn g-btn-primary" id="billing-starter-btn" type="button">Checkout Starter</button>
+                <button class="g-btn g-btn-primary" id="billing-starter-btn" type="button">Checkout Plus</button>
                 <button class="g-btn g-btn-outline" id="billing-pro-btn" type="button">Checkout Pro</button>
                 <button class="g-btn g-btn-outline" id="billing-cancel-btn" type="button">Cancel renewal</button>
                 <button class="g-btn g-btn-outline" id="billing-resume-btn" type="button">Resume renewal</button>
@@ -315,6 +315,13 @@ const API = window.location.origin;
 let authUser = null;
 let currentKey = "";
 
+function displayPlan(plan) {
+  const normalized = String(plan || "free").toLowerCase();
+  if (normalized === "starter") return "Plus";
+  if (normalized === "pro") return "Pro";
+  return "Free";
+}
+
 function unwrap(payload) {
   if (payload && typeof payload === "object" && "success" in payload && "data" in payload) {
     return payload.data || {};
@@ -355,10 +362,10 @@ async function hydrateSession() {
     currentKey = authUser.api_key || "";
     document.getElementById("user-email").textContent = authUser.email;
     document.getElementById("user-role").textContent = authUser.role || "owner";
-    document.getElementById("user-plan").textContent = (authUser.plan || "free").toUpperCase();
+    document.getElementById("user-plan").textContent = displayPlan(authUser.plan).toUpperCase();
     document.getElementById("user-org").textContent = authUser.organization?.name || "No organization";
     document.getElementById("api-key-display").textContent = currentKey || "No key issued yet";
-    document.getElementById("settings-plan").textContent = authUser.plan || "-";
+    document.getElementById("settings-plan").textContent = displayPlan(authUser.plan);
     document.getElementById("settings-role").textContent = authUser.role || "-";
     document.getElementById("settings-verified").textContent = authUser.verified ? "Yes" : "No";
 
@@ -521,7 +528,7 @@ async function loadAdmin() {
   body.innerHTML = data.keys.map((item) => `
     <tr>
       <td>${esc(item.email)}</td>
-      <td>${esc(item.plan)}</td>
+      <td>${esc(displayPlan(item.plan))}</td>
       <td>${esc(item.scans_used)}</td>
       <td>${esc(item.scans_limit)}</td>
       <td>${item.active ? "Yes" : "No"}</td>
@@ -540,7 +547,7 @@ async function loadBilling() {
   const data = unwrap(await response.json());
   const subscription = data.subscription || {};
 
-  document.getElementById("billing-plan").textContent = subscription.plan || data.plan || "free";
+  document.getElementById("billing-plan").textContent = displayPlan(subscription.plan || data.plan || "free");
   document.getElementById("billing-status").textContent = subscription.status || "inactive";
   document.getElementById("billing-last-payment").textContent = subscription.last_payment_at || "-";
   document.getElementById("billing-cancel-at-period-end").textContent = subscription.cancel_at_period_end ? "Yes" : "No";

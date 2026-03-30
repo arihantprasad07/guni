@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Sign up — Guni</title>
+<title>Sign up - Guni</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem var(--pad)}
-.auth-card{width:100%;max-width:420px}
+.auth-card{width:100%;max-width:520px}
 .auth-logo{font-family:var(--display);font-size:28px;font-weight:800;color:var(--amber);letter-spacing:-0.04em;margin-bottom:2rem;display:block;text-decoration:none}
 .auth-logo em{color:var(--muted2);font-style:normal;font-weight:400;font-size:18px}
 .auth-title{font-family:var(--display);font-size:1.8rem;font-weight:700;margin-bottom:0.5rem;letter-spacing:-0.03em}
@@ -21,14 +21,15 @@
 .auth-footer{margin-top:1.5rem;font-size:12px;color:var(--muted2);text-align:center}
 .auth-footer a{color:var(--amber);text-decoration:none}
 .auth-footer a:hover{text-decoration:underline}
-.plan-select{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:0.5rem}
+.plan-select{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0.5rem}
 .plan-opt{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;cursor:pointer;transition:all 0.15s;text-align:left}
 .plan-opt:hover{border-color:var(--amber2)}
 .plan-opt.selected{border-color:var(--amber);background:var(--amber3)}
 .plan-opt input{display:none}
 .plan-name{font-size:13px;color:var(--text);font-family:var(--display);font-weight:600}
-.plan-price{font-size:11px;color:var(--muted2);margin-top:2px}
+.plan-price{font-size:11px;color:var(--muted2);margin-top:2px;line-height:1.5}
 .plan-opt.selected .plan-name{color:var(--amber)}
+@media (max-width: 640px){.plan-select{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="g-page">
@@ -39,7 +40,6 @@
     <p class="auth-sub">Start protecting your AI agents from prompt injection, phishing, and goal hijacking.</p>
 
     <div class="auth-form">
-
       <div class="field">
         <label class="g-field-label">Plan</label>
         <div class="plan-select">
@@ -50,8 +50,13 @@
           </label>
           <label class="plan-opt" id="plan-starter" onclick="selectPlan('starter')">
             <input type="radio" name="plan" value="starter"/>
-            <div class="plan-name">Starter</div>
-            <div class="plan-price">Hosted evaluation · LLM layer · 1,000 scans</div>
+            <div class="plan-name">Plus</div>
+            <div class="plan-price">Hosted API · LLM layer · 1,000 scans</div>
+          </label>
+          <label class="plan-opt" id="plan-pro" onclick="selectPlan('pro')">
+            <input type="radio" name="plan" value="pro"/>
+            <div class="plan-name">Pro</div>
+            <div class="plan-price">Production workflows · Priority support</div>
           </label>
         </div>
       </div>
@@ -75,7 +80,6 @@
       <div class="ok" id="ok"></div>
 
       <button class="g-btn g-btn-primary" style="padding:13px;font-size:13px" onclick="signup()">Create account</button>
-
     </div>
 
     <div class="auth-footer">
@@ -91,14 +95,15 @@ function selectPlan(plan) {
   selectedPlan = plan;
   document.getElementById('plan-free').classList.toggle('selected', plan === 'free');
   document.getElementById('plan-starter').classList.toggle('selected', plan === 'starter');
+  document.getElementById('plan-pro').classList.toggle('selected', plan === 'pro');
 }
 
 async function signup() {
-  const email    = document.getElementById('email').value.trim();
+  const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  const confirm  = document.getElementById('confirm').value;
-  const err      = document.getElementById('err');
-  const ok       = document.getElementById('ok');
+  const confirm = document.getElementById('confirm').value;
+  const err = document.getElementById('err');
+  const ok = document.getElementById('ok');
 
   err.classList.remove('show');
   ok.classList.remove('show');
@@ -108,7 +113,8 @@ async function signup() {
   if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.classList.add('show'); return; }
 
   const btn = event.target;
-  btn.disabled = true; btn.textContent = 'Creating account...';
+  btn.disabled = true;
+  btn.textContent = 'Creating account...';
 
   try {
     const r = await fetch('/auth/signup', {
@@ -117,23 +123,31 @@ async function signup() {
       body: JSON.stringify({ email, password, plan: selectedPlan }),
     });
     const payload = await r.json();
-    const d = payload && payload.data ? payload.data : payload;
-    if (!r.ok) { err.textContent = payload.error || payload.detail || 'Something went wrong.'; err.classList.add('show'); return; }
+    if (!r.ok) {
+      err.textContent = payload.error || payload.detail || 'Something went wrong.';
+      err.classList.add('show');
+      return;
+    }
 
     if (selectedPlan === 'starter') {
-      ok.textContent = '✓ Account created! Check your email to verify. Your Starter evaluation can be activated after review.';
+      ok.textContent = 'Account created. Check your email to verify. Your Plus access can be activated after review.';
       ok.classList.add('show');
       setTimeout(() => window.location.href = '/pilot', 3000);
+    } else if (selectedPlan === 'pro') {
+      ok.textContent = 'Account created. Check your email to verify. We will follow up to activate your Pro workspace.';
+      ok.classList.add('show');
+      setTimeout(() => window.location.href = '/enterprise', 3000);
     } else {
-      ok.textContent = '✓ Account created! Check your email to verify your account.';
+      ok.textContent = 'Account created. Check your email to verify your account.';
       ok.classList.add('show');
       setTimeout(() => window.location.href = '/signin', 3000);
     }
-  } catch(e) {
+  } catch (e) {
     err.textContent = 'Could not connect. Try again.';
     err.classList.add('show');
   } finally {
-    btn.disabled = false; btn.textContent = 'Create account';
+    btn.disabled = false;
+    btn.textContent = 'Create account';
   }
 }
 
