@@ -10,12 +10,10 @@ Tables:
 """
 
 import sqlite3
-import os
 import time
 import json
-from pathlib import Path
 
-DB_PATH = os.environ.get("GUNI_DB_PATH", "/tmp/guni.db")
+from runtime_config import DB_PATH
 
 
 def get_conn() -> sqlite3.Connection:

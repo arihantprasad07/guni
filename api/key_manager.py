@@ -6,14 +6,12 @@ Keys are stored in a JSON file (upgradeable to a database later).
 Format: guni_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 """
 
-import os
 import json
 import secrets
 import time
-from pathlib import Path
 
+from runtime_config import KEYS_PATH
 
-KEYS_PATH = os.environ.get("GUNI_KEYS_PATH", "/tmp/guni_keys.json")
 KEY_PREFIX = "guni_live_"
 
 PLAN_LIMITS = {

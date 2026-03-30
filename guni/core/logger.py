@@ -8,15 +8,13 @@ In development: defaults to guni_audit.log in the working directory.
 
 import time
 import json
-import os
+
+from runtime_config import AUDIT_LOG_PATH
 
 
 class GuniLogger:
     def __init__(self, log_path: str = None):
-        self.log_path = (
-            log_path
-            or os.environ.get("GUNI_LOG_PATH", "guni_audit.log")
-        )
+        self.log_path = log_path or AUDIT_LOG_PATH
 
     def log(self, result: dict):
         entry = {

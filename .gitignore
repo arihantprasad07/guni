@@ -16,6 +16,8 @@ build/
 # Logs
 *.log
 guni_audit.log
+logs.json
+logs.txt
 
 # OS
 .DS_Store
@@ -30,3 +32,7 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Local app state
+.guni/
+guni_waitlist.json

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="guni",
-    version="1.0.0",
+    version="2.2.0",
     packages=find_packages(),
     install_requires=[
         "beautifulsoup4>=4.12.0",

@@ -31,6 +31,7 @@ from api.models import (
 from api.auth import verify_api_key
 from api.rate_limit import check_rate_limit
 from guni import scan, __version__
+from runtime_config import AUDIT_LOG_PATH, EVENT_LOG_PATH, WAITLIST_PATH
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EVENT_LOG_PATH = "logs.json"
 EVENT_LOG_LOCK = threading.Lock()
 
 
@@ -225,8 +225,7 @@ async def log_requests(request: Request, call_next):
     log_event(action, url, str(response.status_code))
     return response
 
-LOG_PATH      = os.environ.get("GUNI_LOG_PATH", "guni_audit.log")
-WAITLIST_PATH = os.environ.get("GUNI_WAITLIST_PATH", "guni_waitlist.json")
+LOG_PATH = AUDIT_LOG_PATH
 DASHBOARD_DIR = Path(__file__).parent.parent / "dashboard"
 
 # Serve CSS and static assets from dashboard folder

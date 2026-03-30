@@ -17,5 +17,5 @@ Quick start:
 
 from guni.scanner import scan, GuniScanner
 
-__version__ = "1.0.0"
+__version__ = "2.2.0"
 __all__ = ["scan", "GuniScanner"]
