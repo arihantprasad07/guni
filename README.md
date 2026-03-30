@@ -1,5 +1,3 @@
-<div align="center">
-
 # Guni
 
 **Security middleware for agentic browsers and web agents.**
@@ -13,8 +11,6 @@ Detect prompt injection, phishing, clickjacking, redirect abuse, and goal hijack
 [![CI](https://img.shields.io/badge/ci-github_actions-brightgreen.svg)](./.github/workflows/ci.yml)
 
 ![Guni Demo](https://raw.githubusercontent.com/arihantprasad07/guni/main/assets/demo.gif)
-
-</div>
 
 ## Why this exists
 

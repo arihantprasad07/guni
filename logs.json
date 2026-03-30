@@ -1,8 +1,0 @@
-[
-  {
-    "timestamp": "2026-03-30T16:37:12",
-    "action": "GET /health",
-    "url": "http://testserver/health",
-    "decision": "200"
-  }
-]
