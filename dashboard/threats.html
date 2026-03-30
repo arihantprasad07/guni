@@ -306,18 +306,13 @@ function renderFeed(d) {
   countUp('total-blocked', totalBlocked, currentTotalBlocked);
   currentTotalScans = totalScans;
   currentTotalBlocked = totalBlocked;
-  const globalRate = totalScans ? Math.round((totalBlocked / totalScans) * 100) : 0;
-  document.getElementById('block-rate').textContent = globalRate + '%';
 
   // 24h
   countUp('h24-scans', last24hScans, current24hScans);
   countUp('h24-blocked', last24hBlocked, current24hBlocked);
   current24hScans = last24hScans;
   current24hBlocked = last24hBlocked;
-  const h24rate = last24hScans
-    ? Math.round((last24hBlocked / last24hScans) * 100)
-    : 0;
-  document.getElementById('h24-rate').textContent = h24rate + '%';
+  refreshDerivedRates();
 
   // Top threat
   const top = d.top_threat && d.top_threat !== 'none' ? d.top_threat : 'injection';
@@ -368,10 +363,15 @@ function renderFeed(d) {
 function countUp(id, target, startValue) {
   const el = document.getElementById(id);
   if (!el) return;
-  if (!target) { el.textContent = '0'; return; }
+  if (!target) {
+    el.textContent = '0';
+    refreshDerivedRates();
+    return;
+  }
   let cur = typeof startValue === 'number' ? startValue : 0;
   if (cur === target) {
     el.textContent = target.toLocaleString();
+    refreshDerivedRates();
     return;
   }
   const direction = target >= cur ? 1 : -1;
@@ -381,9 +381,31 @@ function countUp(id, target, startValue) {
       ? Math.min(cur + step, target)
       : Math.max(cur - step, target);
     el.textContent = cur.toLocaleString();
+    refreshDerivedRates();
     if (cur >= target) clearInterval(t);
     if (cur <= target && direction < 0) clearInterval(t);
   }, 40);
+}
+
+function parseCount(id) {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  const raw = (el.textContent || '').replace(/,/g, '').trim();
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function refreshDerivedRates() {
+  const totalScans = parseCount('total-scans');
+  const totalBlocked = parseCount('total-blocked');
+  const last24hScans = parseCount('h24-scans');
+  const last24hBlocked = parseCount('h24-blocked');
+
+  const globalRate = totalScans ? Math.round((totalBlocked / totalScans) * 100) : 0;
+  const h24Rate = last24hScans ? Math.round((last24hBlocked / last24hScans) * 100) : 0;
+
+  document.getElementById('block-rate').textContent = globalRate + '%';
+  document.getElementById('h24-rate').textContent = h24Rate + '%';
 }
 
 function setLiveState(source) {
