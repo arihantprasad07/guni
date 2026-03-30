@@ -56,7 +56,7 @@ Add `X-API-Key: your-key` header. In local/demo mode, no key needed.
 60 requests per minute per key (configurable via `GUNI_RATE_LIMIT`).
 """,
     version=__version__,
-    contact={"name": "Guni", "url": "https://github.com/yourusername/guni"},
+    contact={"name": "Guni", "url": "https://github.com/arihantprasad07/guni"},
     license_info={"name": "MIT"},
 )
 

@@ -1,33 +1,33 @@
 # Outbound Material
 
-Use these messages when reaching out to early prospects such as agentic-browser teams, browser automation startups, or internal AI platform teams.
+Use these notes for targeted outreach to agentic-browser teams, browser automation startups, and internal AI platform groups.
 
 ## Short cold DM
 
-Hi {{name}} — I built Guni, a security layer for browser agents. It scans the page before the agent executes and blocks prompt injection, phishing forms, deceptive UI, and goal hijacking. If you are open, I would love to show a short pilot tailored to one of your browser workflows.
+Hi {{name}} - I built Guni, a security layer for browser agents. It evaluates the page before execution and helps block prompt injection, phishing forms, deceptive UI, and goal hijacking. If useful, I can share a short workflow-specific evaluation.
 
 ## Cold email
 
-Subject: protecting browser agents from hostile pages
+Subject: browser-agent security evaluation
 
 Hi {{name}},
 
-I have been following what your team is building around browser automation and agentic workflows.
+I have been following your work on browser automation and agentic workflows.
 
-We built Guni because browser agents are exposed to prompt injection, phishing, deceptive UI, and goal hijacking directly inside the DOM. Guni sits between the page and the action layer and returns an `ALLOW`, `CONFIRM`, or `BLOCK` decision before the agent clicks.
+Guni sits between the page and the action layer. It evaluates the DOM before execution and returns an `ALLOW`, `CONFIRM`, or `BLOCK` decision with evidence. That helps teams reduce prompt injection, phishing, redirect abuse, deceptive UI, and goal hijacking risk in live browser flows.
 
-We can run a short evaluation on one high-risk workflow and show:
+If helpful, we can run a focused evaluation on one higher-risk workflow and share:
 
-- what gets blocked
-- what needs tuning
-- what the latency impact looks like
+- blocked or flagged scenarios
+- evidence returned by the policy layer
+- latency and rollout observations
 
 Useful links:
 
 - Live dashboard: `/dashboard`
 - Enterprise page: `/enterprise`
 - Security architecture: `/security`
-- Pilot page: `/pilot`
+- Evaluation page: `/pilot`
 
 Best,
 {{your_name}}
