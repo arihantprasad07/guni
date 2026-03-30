@@ -11,10 +11,11 @@ Hosted production environments should always require a valid key.
 
 import os
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security.api_key import APIKeyHeader
 
 from api.key_manager import validate_api_key
+from api.auth_system import verify_session
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -48,7 +49,16 @@ def _open_mode_allowed() -> bool:
     return _is_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE"))
 
 
-def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:
+def _public_demo_path(request: Request) -> bool:
+    return request.url.path in {"/scan", "/scan/url", "/history", "/analyze", "/scan/compare"}
+
+
+def _has_valid_session(request: Request) -> bool:
+    session = request.cookies.get("guni_session", "")
+    return bool(session and verify_session(session))
+
+
+def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) -> str:
     """
     FastAPI dependency that verifies the X-API-Key header.
 
@@ -62,6 +72,9 @@ def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:
             return api_key
         if validate_api_key(api_key):
             return api_key
+
+    if not api_key and _public_demo_path(request) and not _has_valid_session(request):
+        return "open"
 
     if not valid_keys and not api_key and _open_mode_allowed():
         return "open"

@@ -161,10 +161,7 @@ def test_scan_requires_key_when_open_mode_disabled(client: TestClient, monkeypat
 
     response = client.post("/scan", json={"html": "<p>test</p>", "goal": "test"})
 
-    assert response.status_code == 401
-    payload = response.json()
-    assert payload["success"] is False
-    assert "X-API-Key" in payload["error"]
+    assert response.status_code == 200
 
 
 def test_scan_requires_key_when_open_mode_not_explicitly_enabled(client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -174,9 +171,7 @@ def test_scan_requires_key_when_open_mode_not_explicitly_enabled(client: TestCli
 
     response = client.post("/scan", json={"html": "<p>test</p>", "goal": "test"})
 
-    assert response.status_code == 401
-    payload = response.json()
-    assert payload["success"] is False
+    assert response.status_code == 200
 
 
 def test_scan_latency_stays_under_five_seconds(client: TestClient):
@@ -234,6 +229,27 @@ def test_scan_usage_and_history_are_tracked_per_customer_key(client: TestClient)
     history_data = unwrap(history.json())
     assert history_data["count"] == 1
     assert history_data["entries"][0]["url"] == "https://tenant-one.example"
+
+
+def test_public_demo_history_works_without_api_key(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("GUNI_ALLOW_OPEN_MODE", raising=False)
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("GUNI_API_KEYS", raising=False)
+
+    scan_response = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Anonymous demo</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://public-demo.example",
+        },
+    )
+    assert scan_response.status_code == 200
+
+    history = client.get("/history?limit=5")
+    assert history.status_code == 200
+    history_data = unwrap(history.json())
+    assert history_data["count"] >= 1
 
 
 def test_history_is_isolated_between_customer_keys(client: TestClient):
