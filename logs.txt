@@ -1,0 +1,14 @@
+{"timestamp": "2026-03-30T16:19:30", "action": "GET /health", "url": "http://testserver/health", "decision": "200"}
+{"timestamp": "2026-03-30T16:32:22", "action": "GET /health", "url": "http://testserver/health", "decision": "200"}
+{"timestamp": "2026-03-30T16:32:22", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}
+{"timestamp": "2026-03-30T16:32:22", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "422"}
+{"timestamp": "2026-03-30T16:32:34", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "422"}
+{"timestamp": "2026-03-30T16:32:55", "action": "GET /health", "url": "http://testserver/health", "decision": "200"}
+{"timestamp": "2026-03-30T16:32:55", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}
+{"timestamp": "2026-03-30T16:32:55", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "422"}
+{"timestamp": "2026-03-30T16:32:55", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "422"}
+{"timestamp": "2026-03-30T16:32:55", "action": "GET /dashboard", "url": "http://testserver/dashboard", "decision": "200"}
+{"timestamp": "2026-03-30T16:35:51", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}
+{"timestamp": "2026-03-30T16:35:51", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}
+{"timestamp": "2026-03-30T16:35:51", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}
+{"timestamp": "2026-03-30T16:35:51", "action": "POST /analyze", "url": "http://testserver/analyze", "decision": "200"}

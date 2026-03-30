@@ -71,6 +71,16 @@ textarea::placeholder,input::placeholder{color:var(--muted)}
 .scan-btn:hover{background:var(--amber2)}
 .scan-btn:disabled{background:var(--muted);cursor:not-allowed}
 .scan-note{font-size:11px;color:var(--muted);flex:1}
+.mini-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:1.25rem}
+@media(max-width:700px){.mini-grid{grid-template-columns:1fr}}
+.analyze-box{margin-top:1.25rem;background:var(--bg3);border:1px solid var(--border);padding:1.25rem}
+.analyze-result{margin-top:1rem;padding:1rem;border:1px solid var(--border);background:var(--bg2);display:none}
+.analyze-result.show{display:block;animation:fadeUp 0.3s ease}
+.analyze-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:5px 12px;margin-bottom:0.75rem}
+.analyze-badge.safe{color:var(--green);border:1px solid rgba(0,232,135,0.25);background:rgba(0,232,135,0.08)}
+.analyze-badge.risky{color:var(--warn);border:1px solid rgba(255,170,0,0.28);background:rgba(255,170,0,0.1)}
+.analyze-badge.blocked{color:var(--red);border:1px solid rgba(255,61,61,0.3);background:rgba(255,61,61,0.12)}
+.analyze-reason{font-size:12px;color:var(--muted2);line-height:1.7}
 
 /* Result panel */
 .result{margin-top:1.25rem;background:var(--bg3);border:1px solid var(--border);padding:1.25rem;display:none}
@@ -201,6 +211,29 @@ pre{padding:1.25rem 1.5rem;overflow-x:auto;font-size:12px;line-height:1.8;color:
           <button class="scan-btn" id="scan-btn" onclick="runScan()">Run scan</button>
           <span class="scan-note" id="scan-note">Scanning against Guni API</span>
         </div>
+
+        <div class="analyze-box">
+          <div style="font-size:10px;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px">Quick action analysis</div>
+          <div class="mini-grid">
+            <div>
+              <div class="field-label">Action</div>
+              <input type="text" id="an-action" placeholder="submit login form" value="submit login form"/>
+            </div>
+            <div>
+              <div class="field-label">URL</div>
+              <input type="text" id="an-url" placeholder="https://example.com/login" value="https://example.com/login"/>
+            </div>
+            <div>
+              <div class="field-label">Data</div>
+              <input type="text" id="an-data" placeholder="optional payload"/>
+            </div>
+          </div>
+          <div class="scan-row">
+            <button class="scan-btn" id="analyze-btn" onclick="runAnalyze()">Analyze action</button>
+            <span class="scan-note" id="analyze-note">Checks the current action against the demo safety rules</span>
+          </div>
+          <div id="analyze-result" class="analyze-result"></div>
+        </div>
       </div>
     </div>
 
@@ -301,6 +334,10 @@ function hideResult(){
   document.getElementById('result-panel').classList.remove('show');
 }
 
+function hideAnalyzeResult(){
+  document.getElementById('analyze-result').classList.remove('show');
+}
+
 function barColor(cat){
   if(['injection','phishing','goal_mismatch','csrf','clickjacking'].includes(cat))return 'danger';
   if(['deception','scripts'].includes(cat))return 'warn';
@@ -336,6 +373,42 @@ async function runScan(){
     showOffline();
   }finally{
     btn.disabled=false;btn.textContent='Run scan';
+  }
+}
+
+async function runAnalyze(){
+  const action=document.getElementById('an-action').value.trim();
+  const url=document.getElementById('an-url').value.trim();
+  const data=document.getElementById('an-data').value.trim();
+  const btn=document.getElementById('analyze-btn');
+  const note=document.getElementById('analyze-note');
+
+  if(!action||!url){
+    note.textContent='Add both action and URL first.';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.innerHTML='<span class="spin"></span>';
+  note.textContent='Analyzing...';
+  hideAnalyzeResult();
+
+  try{
+    const res=await fetch(API+'/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,url,data:data||null})
+    });
+    if(!res.ok)throw new Error('API error '+res.status);
+    const d=await res.json();
+    showAnalyzeResult(d);
+    note.textContent='Analysis complete.';
+  }catch(e){
+    note.textContent='Could not reach /analyze.';
+    showAnalyzeError();
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Analyze action';
   }
 }
 
@@ -379,6 +452,28 @@ function showOffline(){
   const panel=document.getElementById('result-panel');
   panel.innerHTML=`<div class="result-top"><span class="decision BLOCK">API OFFLINE</span></div>
     <div class="ev-list"><div class="ev">Start: uvicorn api.main:app --reload --port 8000</div></div>`;
+  panel.classList.add('show');
+}
+
+function showAnalyzeResult(d){
+  const panel=document.getElementById('analyze-result');
+  const payload=d&&d.data?d.data:d;
+  const decision=String(payload.decision||'allow').toLowerCase();
+  const tone=decision==='block'?'blocked':decision;
+  const confidence=typeof payload.confidence==='number'
+    ?`Confidence: ${(payload.confidence*100).toFixed(0)}%`
+    :'';
+  panel.innerHTML=`
+    <div class="analyze-badge ${tone}">${esc(decision)}</div>
+    <div class="analyze-reason">${esc(payload.reason||'No reason provided.')}${confidence?'<br/><br/>'+esc(confidence):''}</div>`;
+  panel.classList.add('show');
+}
+
+function showAnalyzeError(){
+  const panel=document.getElementById('analyze-result');
+  panel.innerHTML=`
+    <div class="analyze-badge blocked">offline</div>
+    <div class="analyze-reason">Start the API and try the action analysis again.</div>`;
   panel.classList.add('show');
 }
 

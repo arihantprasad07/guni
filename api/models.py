@@ -45,6 +45,13 @@ class ScanURLRequest(BaseModel):
     }
 
 
+class AnalyzeRequest(BaseModel):
+    """POST /analyze — evaluate a planned action"""
+    action: str = Field(..., description="Action the client wants to perform")
+    url:    str = Field(..., description="Target URL for the action")
+    data:   Optional[str] = Field(None, description="Optional submitted data")
+
+
 # ── Responses ─────────────────────────────────────────────────────────────────
 
 class ThreatItem(BaseModel):
@@ -93,6 +100,12 @@ class ScanResponse(BaseModel):
             }
         }
     }
+
+
+class AnalyzeResponse(BaseModel):
+    decision: str = Field(..., description="allow | risky | block")
+    confidence: float = Field(..., description="Deterministic confidence score from 0.0 to 1.0")
+    reason: str = Field(..., description="Why the action received this status")
 
 
 class HealthResponse(BaseModel):

@@ -8,9 +8,13 @@ Then open: http://localhost:8000/docs
 
 import os
 import json
+import time
+import threading
 from pathlib import Path
+from urllib.parse import urlparse
 from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,11 +22,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import WebSocket, WebSocketDisconnect, Request
 from api.realtime import websocket_scan_endpoint
 from api.models import (
-    ScanRequest, ScanURLRequest,
+    ScanRequest, ScanURLRequest, AnalyzeRequest,
     ScanResponse, HealthResponse,
     HistoryResponse, HistoryEntry,
     LLMAnalysis, ThreatItem,
-    ErrorResponse,
+    ErrorResponse, AnalyzeResponse,
 )
 from api.auth import verify_api_key
 from api.rate_limit import check_rate_limit
@@ -61,6 +65,165 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+EVENT_LOG_PATH = "logs.json"
+EVENT_LOG_LOCK = threading.Lock()
+
+
+def log_event(action: str, url: str, decision: str):
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "action": action,
+        "url": url,
+        "decision": decision,
+    }
+    try:
+        with EVENT_LOG_LOCK:
+            entries = []
+            if os.path.exists(EVENT_LOG_PATH):
+                try:
+                    with open(EVENT_LOG_PATH, "r", encoding="utf-8") as f:
+                        entries = json.load(f)
+                        if not isinstance(entries, list):
+                            entries = []
+                except Exception:
+                    entries = []
+
+            entries.append(entry)
+
+            with open(EVENT_LOG_PATH, "w", encoding="utf-8") as f:
+                json.dump(entries, f, indent=2)
+    except OSError:
+        pass
+
+
+def _json_payload(success: bool, data=None, error: str | None = None):
+    return {
+        "success": success,
+        "data": data if data is not None else {},
+        "error": error,
+    }
+
+
+def _is_api_json_path(path: str) -> bool:
+    excluded = {
+        "/docs", "/redoc", "/openapi.json",
+        "/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset",
+        "/portal", "/about", "/dashboard", "/integrate", "/threats", "/changelog",
+    }
+    if path in excluded:
+        return False
+    return not path.startswith("/static")
+
+
+def _validation_error_message(exc: RequestValidationError) -> str:
+    errors = exc.errors()
+    if not errors:
+        return "Invalid request."
+
+    for err in errors:
+        err_type = err.get("type", "")
+        loc = err.get("loc", ())
+        if err_type == "json_invalid":
+            return "Request body contains invalid JSON."
+        if "body" in loc and err_type == "missing":
+            return "Request JSON body is required."
+
+    first = errors[0]
+    field = ".".join(str(part) for part in first.get("loc", ()) if part != "body")
+    detail = first.get("msg", "Invalid request.")
+    if field:
+        return f"{field}: {detail}"
+    return detail
+
+
+async def _read_json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Request body contains invalid JSON.")
+
+    if body is None:
+        raise HTTPException(status_code=400, detail="Request JSON body is required.")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Request JSON body must be an object.")
+    return body
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    if not _is_api_json_path(request.url.path):
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(
+        status_code=422,
+        content=_json_payload(False, {}, _validation_error_message(exc)),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if not _is_api_json_path(request.url.path):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_json_payload(False, {}, str(exc.detail)),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    if not _is_api_json_path(request.url.path):
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    return JSONResponse(
+        status_code=500,
+        content=_json_payload(False, {}, "Internal server error"),
+    )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    action = f"{request.method} {request.url.path}"
+    url = str(request.url)
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        log_event(action, url, "500")
+        raise
+
+    if _is_api_json_path(request.url.path):
+        content_type = response.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = b""
+            async for chunk in response.body_iterator:
+                body += chunk
+
+            try:
+                payload = json.loads(body.decode("utf-8") or "{}")
+            except Exception:
+                payload = {}
+
+            if (
+                isinstance(payload, dict)
+                and {"success", "data", "error"}.issubset(payload.keys())
+            ):
+                wrapped_payload = payload
+            else:
+                wrapped_payload = _json_payload(
+                    response.status_code < 400,
+                    payload,
+                    None if response.status_code < 400 else "Request failed",
+                )
+
+            response = JSONResponse(
+                status_code=response.status_code,
+                content=wrapped_payload,
+                headers={k: v for k, v in response.headers.items() if k.lower() != "content-length"},
+                background=response.background,
+            )
+
+    log_event(action, url, str(response.status_code))
+    return response
 
 LOG_PATH      = os.environ.get("GUNI_LOG_PATH", "guni_audit.log")
 WAITLIST_PATH = os.environ.get("GUNI_WAITLIST_PATH", "guni_waitlist.json")
@@ -354,6 +517,56 @@ def _get_anthropic_key() -> str:
     return os.environ.get("ANTHROPIC_API_KEY", "")
 
 
+def _analyze_action(action: str, url: str, data: str | None = None) -> AnalyzeResponse:
+    trusted_domains = ["google.com", "github.com"]
+    action_text = (action or "").strip().lower()
+    url_text = (url or "").strip().lower()
+    data_text = (data or "").strip().lower()
+
+    parsed = urlparse(url_text if "://" in url_text else f"https://{url_text}")
+    domain = (parsed.netloc or parsed.path or "").split(":")[0].lower().strip(".")
+
+    def is_trusted(current_domain: str) -> bool:
+        return any(
+            current_domain == trusted or current_domain.endswith(f".{trusted}")
+            for trusted in trusted_domains
+        )
+
+    sensitive_keywords = ("password", "otp", "token")
+    combined_text = " ".join(part for part in (action_text, data_text) if part)
+
+    if any(keyword in combined_text for keyword in sensitive_keywords):
+        return AnalyzeResponse(
+            decision="block",
+            confidence=0.98,
+            reason=f"Blocked because sensitive input was detected for domain '{domain or 'unknown'}'.",
+        )
+
+    risk_reasons = []
+    confidence = 0.2
+
+    if not domain or not is_trusted(domain):
+        risk_reasons.append(f"domain '{domain or 'unknown'}' is not trusted")
+        confidence = max(confidence, 0.78)
+
+    if "form" in action_text or "submit" in action_text:
+        risk_reasons.append("form submission increases risk")
+        confidence = max(confidence, 0.86 if risk_reasons else 0.72)
+
+    if risk_reasons:
+        return AnalyzeResponse(
+            decision="risky",
+            confidence=confidence,
+            reason="Marked risky because " + " and ".join(risk_reasons) + ".",
+        )
+
+    return AnalyzeResponse(
+        decision="allow",
+        confidence=0.96,
+        reason=f"Allowed because domain '{domain}' is trusted and no sensitive input was detected.",
+    )
+
+
 def _build_response(raw: dict) -> ScanResponse:
     """Convert scanner dict → typed ScanResponse."""
     llm_data = raw.get("llm_analysis")
@@ -447,6 +660,12 @@ def scan_html(
         llm     = body.llm,
     )
     return _build_response(raw)
+
+
+@app.post("/analyze", response_model=AnalyzeResponse, tags=["Scanning"])
+def analyze_action(body: AnalyzeRequest):
+    """Analyze an action using simple URL and payload safety checks."""
+    return _analyze_action(body.action, body.url, body.data)
 
 
 @app.post(
@@ -730,7 +949,7 @@ def scan_compare(
     import asyncio
 
     async def _run():
-        body = await request.json()
+        body = await _read_json_body(request)
         html_a = body.get("html_a", "")
         html_b = body.get("html_b", "")
         goal   = body.get("goal", "browse website")
@@ -816,4 +1035,3 @@ async def ws_scan(websocket: WebSocket, goal: str = "browse website"):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
-

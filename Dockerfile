@@ -18,14 +18,7 @@ COPY requirements.txt .
 
 # Install Python dependencies
 # Note: playwright browsers NOT installed — API doesn't need browser execution
-RUN pip install --no-cache-dir \
-    beautifulsoup4>=4.12.0 \
-    lxml>=4.9.0 \
-    fastapi>=0.110.0 \
-    "uvicorn[standard]>=0.27.0" \
-    pydantic>=2.0.0 \
-    httpx>=0.27.0 \
-    python-dotenv>=1.0.0
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project
 COPY . .
@@ -41,4 +34,4 @@ ENV GUNI_LOG_PATH=/tmp/guni_audit.log
 EXPOSE 8000
 
 # Start the API server using Python to read PORT env var
-CMD ["python", "-c", "import os,uvicorn; uvicorn.run('api.main:app', host='0.0.0.0', port=int(os.environ.get('PORT', 8000)))"]
+CMD ["sh", "-c", "gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}"]
