@@ -250,6 +250,8 @@ def test_public_demo_history_works_without_api_key(client: TestClient, monkeypat
     assert history.status_code == 200
     history_data = unwrap(history.json())
     assert history_data["count"] >= 1
+    urls = [item["url"] for item in history_data["entries"]]
+    assert "https://public-demo.example" in urls
 
 
 def test_history_is_isolated_between_customer_keys(client: TestClient):
@@ -274,6 +276,89 @@ def test_history_is_isolated_between_customer_keys(client: TestClient):
 
     assert history_a["count"] == 1
     assert history_b["count"] == 0
+
+
+def test_public_demo_history_does_not_include_customer_scans(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    customer_key = generate_api_key(email="private@example.com", plan="starter", scans_limit=5)["key"]
+
+    anon_scan = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Anon</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://anon.example",
+        },
+    )
+    assert anon_scan.status_code == 200
+
+    private_scan = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Private</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://private.example",
+        },
+        headers={"X-API-Key": customer_key},
+    )
+    assert private_scan.status_code == 200
+
+    history = client.get("/history?limit=20")
+    assert history.status_code == 200
+    history_data = unwrap(history.json())
+    urls = [entry["url"] for entry in history_data["entries"]]
+    assert "https://anon.example" in urls
+    assert "https://private.example" not in urls
+
+
+def test_scan_url_requires_auth_when_unsigned(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("GUNI_ALLOW_OPEN_MODE", raising=False)
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("GUNI_API_KEYS", raising=False)
+
+    response = client.post("/scan/url", json={"url": "https://example.com", "goal": "Read page"})
+    assert response.status_code == 401
+
+
+def test_session_can_access_history_without_pasted_api_key(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "session-user@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    user = db_get_user_by_email("session-user@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "session-user@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    scan_response = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Session-owned</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://session-owned.example",
+        },
+    )
+    assert scan_response.status_code == 200
+
+    history = client.get("/history?limit=10")
+    assert history.status_code == 200
+    history_data = unwrap(history.json())
+    urls = [entry["url"] for entry in history_data["entries"]]
+    assert "https://session-owned.example" in urls
 
 
 def test_custom_rules_affect_scan_results(client: TestClient):

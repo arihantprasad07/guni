@@ -875,7 +875,7 @@ def get_history(
         from api.database import db_get_history
 
         raw_entries = db_get_history(
-            api_key if api_key != "open" else None,
+            api_key,
             limit=limit,
         )
         entries = [

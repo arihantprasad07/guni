@@ -50,12 +50,35 @@ def _open_mode_allowed() -> bool:
 
 
 def _public_demo_path(request: Request) -> bool:
-    return request.url.path in {"/scan", "/scan/url", "/history", "/analyze", "/scan/compare"}
+    return request.url.path in {"/scan", "/history", "/analyze"}
 
 
 def _has_valid_session(request: Request) -> bool:
     session = request.cookies.get("guni_session", "")
     return bool(session and verify_session(session))
+
+
+def _session_api_key(request: Request) -> str | None:
+    session = request.cookies.get("guni_session", "")
+    email = verify_session(session) if session else None
+    if not email:
+        return None
+
+    try:
+        from api.database import db_get_user_by_email
+
+        user = db_get_user_by_email(email)
+    except Exception:
+        return None
+
+    if not user:
+        return None
+
+    key = user.get("api_key")
+    if not key:
+        return None
+
+    return key if validate_api_key(key) else None
 
 
 def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) -> str:
@@ -73,7 +96,11 @@ def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) ->
         if validate_api_key(api_key):
             return api_key
 
-    if not api_key and _public_demo_path(request) and not _has_valid_session(request):
+    session_key = _session_api_key(request)
+    if session_key:
+        return session_key
+
+    if not api_key and _public_demo_path(request):
         return "open"
 
     if not valid_keys and not api_key and _open_mode_allowed():
