@@ -256,6 +256,7 @@
 
 <script>
 const API=window.location.origin;
+const FORMSPREE_ENDPOINT='https://formspree.io/f/xeepgkzd';
 const TERM=[
   {c:'p',t:'$ guni scan --url https://target.com --goal "Login to website"'},
   {c:'c',t:'  [01] Parsing DOM...                              0.0002s'},
@@ -309,10 +310,28 @@ async function joinWL(eId,bId,sId,rId){
   const btn=document.getElementById(bId);
   btn.disabled=true;btn.textContent='...';
   try{
-    const r=await fetch(API+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    const payload=await r.json();
-    const d=payload&&payload.data?payload.data:payload;
-    if(!r.ok) throw new Error(payload.error||'Could not join waitlist');
+    const formspreeResponse=await fetch(FORMSPREE_ENDPOINT,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Accept':'application/json'
+      },
+      body:JSON.stringify({
+        email,
+        source:'guni landing page',
+        page:window.location.href
+      })
+    });
+    const formspreePayload=await formspreeResponse.json().catch(()=>({}));
+    if(!formspreeResponse.ok) throw new Error(formspreePayload.error||'Could not join waitlist');
+
+    let d={message:"You're on the list."};
+    try{
+      const r=await fetch(API+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+      const payload=await r.json().catch(()=>({}));
+      d=payload&&payload.data?payload.data:(payload||d);
+    }catch(e){}
+
     const success=document.getElementById(sId);
     success.innerHTML=`&#10003; ${d.message||"You're on the list."} Position: #${d.position||'--'}`;
     success.classList.add('show');
