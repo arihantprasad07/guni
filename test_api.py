@@ -23,6 +23,7 @@ if TEST_DATA_DIR.exists():
 TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
 os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com"
+os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
 
 for module_name in [
     "runtime_config",
@@ -151,6 +152,19 @@ def test_scan_response_contains_expected_fields(client: TestClient):
         "url",
     }
     assert required.issubset(data.keys())
+
+
+def test_scan_requires_key_when_open_mode_disabled(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "false")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.delenv("GUNI_API_KEYS", raising=False)
+
+    response = client.post("/scan", json={"html": "<p>test</p>", "goal": "test"})
+
+    assert response.status_code == 401
+    payload = response.json()
+    assert payload["success"] is False
+    assert "X-API-Key" in payload["error"]
 
 
 def test_scan_latency_stays_under_five_seconds(client: TestClient):

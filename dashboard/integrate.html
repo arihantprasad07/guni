@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="How to integrate Guni into your AI browser agent — Playwright, browser-use, LangChain, REST API."/>
-<title>Integration Guide — Guni</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="How to integrate Guni into your AI browser agent - Playwright, browser-use, LangChain, REST API."/>
+<title>Integration Guide - Guni</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -14,7 +15,6 @@
 .int-panel{display:none}.int-panel.show{display:block}
 .step{display:grid;grid-template-columns:32px 1fr;gap:14px;margin-bottom:1.5rem;align-items:start}
 .step-num{width:30px;height:30px;border-radius:50%;background:var(--amber3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--amber);flex-shrink:0;font-family:var(--display);font-weight:700;margin-top:2px}
-.step-body{}
 .step-title{font-size:14px;font-weight:600;font-family:var(--display);margin-bottom:5px;color:var(--text)}
 .step-desc{font-size:13px;color:var(--muted2);line-height:1.7;margin-bottom:8px}
 .decision-table{width:100%;border-collapse:collapse;font-size:12px;margin:1rem 0}
@@ -27,7 +27,6 @@
 </style>
 </head>
 <body class="g-page">
-
 <nav class="g-nav">
   <a class="g-logo" href="/">guni<em>.dev</em></a>
   <div class="g-nav-links">
@@ -35,275 +34,109 @@
   </div>
   <a class="g-btn g-btn-outline g-btn-sm" href="/signin" style="margin-right:6px">Sign in</a><a class="g-btn g-btn-primary g-btn-sm" href="/signup">Sign up</a>
 </nav>
-
 <div class="g-wrap">
 <section class="g-section">
   <div class="g-eyebrow">Integration guide</div>
   <h1 class="g-title-md" style="margin-bottom:0.75rem">Add Guni to your<br><span class="g-accent">agent in 3 lines.</span></h1>
   <p class="g-subtitle" style="margin-bottom:2.5rem">Works with Playwright, browser-use, LangChain, or any framework that fetches HTML. Choose your integration method below.</p>
-
-  <!-- How it works -->
   <div class="g-card" style="margin-bottom:2.5rem">
     <div class="g-card-header"><div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div><span class="g-card-title">how Guni works in your agent</span></div>
     <div class="g-card-body">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:1.5rem">
-        <div style="background:var(--bg3);padding:1.25rem"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">YOUR AGENT</div><div style="font-size:12px;color:var(--muted2)">Navigates to a URL, gets HTML back from the page</div></div>
-        <div style="background:var(--bg3);padding:1.25rem;border-left:1px solid var(--border)"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">GUNI SCANS</div><div style="font-size:12px;color:var(--muted2)">8-vector analysis in ~0.001s. Returns ALLOW / CONFIRM / BLOCK</div></div>
-        <div style="background:var(--bg3);padding:1.25rem;border-left:1px solid var(--border)"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">AGENT ACTS</div><div style="font-size:12px;color:var(--muted2)">If ALLOW → proceed. If BLOCK → stop. If CONFIRM → flag &amp; log.</div></div>
+        <div style="background:var(--bg3);padding:1.25rem"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">YOUR AGENT</div><div style="font-size:12px;color:var(--muted2)">Navigates to a URL and reads the page HTML.</div></div>
+        <div style="background:var(--bg3);padding:1.25rem;border-left:1px solid var(--border)"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">GUNI SCANS</div><div style="font-size:12px;color:var(--muted2)">8-vector analysis in about 0.001s. Returns ALLOW, CONFIRM, or BLOCK.</div></div>
+        <div style="background:var(--bg3);padding:1.25rem;border-left:1px solid var(--border)"><div style="font-size:11px;color:var(--amber);margin-bottom:6px">AGENT ACTS</div><div style="font-size:12px;color:var(--muted2)">If ALLOW, proceed. If BLOCK, stop. If CONFIRM, flag and log.</div></div>
       </div>
       <table class="decision-table">
         <thead><tr><th>Risk score</th><th>Decision</th><th>What to do in your agent</th></tr></thead>
         <tbody>
-          <tr><td><span class="g-tag g-tag-red">≥ 70</span></td><td><span class="g-decision BLOCK">BLOCK</span></td><td>Stop. Don't execute. Go back or abort the task.</td></tr>
-          <tr><td><span class="g-tag g-tag-amber">40–69</span></td><td><span class="g-decision CONFIRM">CONFIRM</span></td><td>Log the warning. Proceed carefully. Notify user.</td></tr>
-          <tr><td><span class="g-tag g-tag-green">&lt; 40</span></td><td><span class="g-decision ALLOW">ALLOW</span></td><td>Safe to proceed with planned action.</td></tr>
+          <tr><td><span class="g-tag g-tag-red">&ge; 70</span></td><td><span class="g-decision BLOCK">BLOCK</span></td><td>Stop. Do not execute. Go back or abort the task.</td></tr>
+          <tr><td><span class="g-tag g-tag-amber">40-69</span></td><td><span class="g-decision CONFIRM">CONFIRM</span></td><td>Log the warning. Proceed carefully. Notify the user.</td></tr>
+          <tr><td><span class="g-tag g-tag-green">&lt; 40</span></td><td><span class="g-decision ALLOW">ALLOW</span></td><td>Safe to proceed with the planned action.</td></tr>
         </tbody>
       </table>
     </div>
   </div>
-
-  <!-- Integration tabs -->
   <div class="int-tabs">
-    <button class="int-tab active" onclick="switchTab('playwright')">Playwright</button>
-    <button class="int-tab" onclick="switchTab('browseruse')">browser-use</button>
-    <button class="int-tab" onclick="switchTab('langchain')">LangChain</button>
-    <button class="int-tab" onclick="switchTab('rest')">REST API</button>
-    <button class="int-tab" onclick="switchTab('websocket')">WebSocket</button>
+    <button class="int-tab active" onclick="switchTab(event,'playwright')">Playwright</button>
+    <button class="int-tab" onclick="switchTab(event,'browseruse')">browser-use</button>
+    <button class="int-tab" onclick="switchTab(event,'langchain')">LangChain</button>
+    <button class="int-tab" onclick="switchTab(event,'rest')">REST API</button>
+    <button class="int-tab" onclick="switchTab(event,'websocket')">WebSocket</button>
   </div>
-
-  <!-- Playwright -->
   <div class="int-panel show" id="tab-playwright">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Install</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span><button class="g-code-copy" onclick="cp(this,'pip install -e git+https://github.com/arihantprasad07/guni.git#egg=guni')">Copy</button></div><pre class="g-pre">pip install -e git+https://github.com/arihantprasad07/guni.git#egg=guni</pre></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">Add the safe_goto wrapper</div>
-        <div class="step-desc">One function wraps every navigation in your agent. Copy this exactly.</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-playwright').textContent)">Copy</button></div><pre class="g-pre" id="code-playwright"><span class="sk">from</span> <span class="sa">guni</span> <span class="sk">import</span> GuniScanner
+    <div class="step"><div class="step-num">1</div><div><div class="step-title">Install</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span><button class="g-code-copy" onclick="cp(this,'pip install -e git+https://github.com/arihantprasad07/guni.git#egg=guni')">Copy</button></div><pre class="g-pre">pip install -e git+https://github.com/arihantprasad07/guni.git#egg=guni</pre></div></div></div>
+    <div class="step"><div class="step-num">2</div><div><div class="step-title">Add the safe_goto wrapper</div><div class="step-desc">One function wraps every navigation in your agent.</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-playwright').textContent)">Copy</button></div><pre class="g-pre" id="code-playwright"><span class="sk">from</span> <span class="sa">guni</span> <span class="sk">import</span> GuniScanner
 <span class="sk">from</span> playwright.sync_api <span class="sk">import</span> sync_playwright
 
-<span class="sc"># Create scanner once with your agent's goal</span>
 scanner = GuniScanner(goal=<span class="ss">"Book a train ticket"</span>)
 
 <span class="sk">def</span> <span class="sf">safe_goto</span>(page, url: str) -> bool:
-    <span class="ss">"""Navigate safely. Returns False if blocked."""</span>
     page.goto(url)
     result = scanner.scan(html=page.content(), url=url)
-
     <span class="sk">if</span> result[<span class="ss">"decision"</span>] == <span class="ss">"BLOCK"</span>:
-        print(<span class="ss">f"[GUNI] BLOCKED: {url} — Risk {result['risk']}/100"</span>)
-        <span class="sk">for</span> cat, items <span class="sk">in</span> result[<span class="ss">"evidence"</span>].items():
-            <span class="sk">for</span> item <span class="sk">in</span> items:
-                print(<span class="ss">f"  [{cat}] {item}"</span>)
+        print(<span class="ss">f"[GUNI] BLOCKED: {url} - Risk {result['risk']}/100"</span>)
         page.go_back()
         <span class="sk">return False</span>
-
     <span class="sk">if</span> result[<span class="ss">"decision"</span>] == <span class="ss">"CONFIRM"</span>:
-        print(<span class="ss">f"[GUNI] WARNING: {url} — Risk {result['risk']}/100"</span>)
-
-    <span class="sk">return True</span>  <span class="sc"># ALLOW — safe to proceed</span></pre></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <div class="step-title">Replace page.goto() with safe_goto()</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span></div><pre class="g-pre"><span class="sk">with</span> sync_playwright() <span class="sk">as</span> p:
-    browser = p.chromium.launch()
-    page    = browser.new_page()
-
-    <span class="sc"># Before: page.goto("https://target.com")</span>
-    <span class="sc"># After:</span>
-    <span class="sk">if</span> <span class="sf">safe_goto</span>(page, <span class="ss">"https://target.com"</span>):
-        <span class="sc"># Your agent logic here</span>
-        page.click(<span class="ss">"button#submit"</span>)
-        <span class="sc"># ...</span></pre></div>
-        <div class="tip-box"><p><strong>That's it.</strong> Every page your agent visits is now scanned. Malicious pages are blocked before any action is taken. Average overhead: 0.001 seconds per page.</p></div>
-      </div>
-    </div>
+        print(<span class="ss">f"[GUNI] WARNING: {url} - Risk {result['risk']}/100"</span>)
+    <span class="sk">return True</span></pre></div></div></div>
+    <div class="step"><div class="step-num">3</div><div><div class="step-title">Replace page.goto() with safe_goto()</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span></div><pre class="g-pre"><span class="sk">if</span> safe_goto(page, <span class="ss">"https://target.com"</span>):
+    page.click(<span class="ss">"button#submit"</span>)</pre></div><div class="tip-box"><p><strong>That is it.</strong> Every page your agent visits is now scanned before an action is taken.</p></div></div></div>
   </div>
-
-  <!-- browser-use -->
   <div class="int-panel" id="tab-browseruse">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Install</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span></div><pre class="g-pre">pip install guni browser-use langchain-anthropic</pre></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">Wrap your agent with Guni protection</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-bu').textContent)">Copy</button></div><pre class="g-pre" id="code-bu"><span class="sk">from</span> <span class="sa">guni</span> <span class="sk">import</span> GuniScanner
+    <div class="step"><div class="step-num">1</div><div><div class="step-title">Install</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span></div><pre class="g-pre">pip install guni browser-use langchain-anthropic</pre></div></div></div>
+    <div class="step"><div class="step-num">2</div><div><div class="step-title">Wrap your agent with Guni protection</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-bu').textContent)">Copy</button></div><pre class="g-pre" id="code-bu"><span class="sk">from</span> <span class="sa">guni</span> <span class="sk">import</span> GuniScanner
 <span class="sk">from</span> browser_use <span class="sk">import</span> Agent
-<span class="sk">from</span> langchain_anthropic <span class="sk">import</span> ChatAnthropic
-<span class="sk">import</span> asyncio
-
-<span class="sk">async def</span> <span class="sf">run_secure_agent</span>(task: str):
-    scanner = GuniScanner(goal=task)
-    llm     = ChatAnthropic(model=<span class="ss">"claude-3-5-sonnet-20241022"</span>)
-    agent   = Agent(task=task, llm=llm)
-
-    original_step = agent.step
-
-    <span class="sk">async def</span> <span class="sf">secure_step</span>(*args, **kwargs):
-        <span class="sk">if</span> <span class="sf">hasattr</span>(agent, <span class="ss">'browser'</span>) <span class="sk">and</span> agent.browser:
-            page   = <span class="sk">await</span> agent.browser.get_current_page()
-            result = scanner.scan(
-                html=<span class="sk">await</span> page.content(),
-                url=page.url
-            )
-            <span class="sk">if</span> result[<span class="ss">"decision"</span>] == <span class="ss">"BLOCK"</span>:
-                <span class="sk">return</span> <span class="ss">f"Blocked by Guni: {page.url}"</span>
-        <span class="sk">return await</span> original_step(*args, **kwargs)
-
-    agent.step = secure_step
-    <span class="sk">return await</span> agent.run()
-
-asyncio.run(run_secure_agent(<span class="ss">"Book cheapest flight Delhi to Mumbai"</span>))</pre></div>
-      </div>
-    </div>
+<span class="sk">from</span> langchain_anthropic <span class="sk">import</span> ChatAnthropic</pre></div></div></div>
   </div>
-
-  <!-- LangChain -->
   <div class="int-panel" id="tab-langchain">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Use SecureBrowserTool as a drop-in replacement</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-lc').textContent)">Copy</button></div><pre class="g-pre" id="code-lc"><span class="sk">from</span> examples.langchain_integration <span class="sk">import</span> SecureBrowserTool
-<span class="sk">from</span> langchain.agents <span class="sk">import</span> initialize_agent, AgentType
-<span class="sk">from</span> langchain_anthropic <span class="sk">import</span> ChatAnthropic
-
-llm   = ChatAnthropic(model=<span class="ss">"claude-3-5-sonnet-20241022"</span>)
-tools = [SecureBrowserTool(goal=<span class="ss">"Find laptop deals"</span>)]
-agent = initialize_agent(
-    tools, llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION
-)
-
-<span class="sc"># SecureBrowserTool automatically blocks malicious pages</span>
-result = agent.run(<span class="ss">"Find the cheapest MacBook Pro on Amazon"</span>)</pre></div>
-      </div>
-    </div>
+    <div class="step"><div class="step-num">1</div><div><div class="step-title">Use SecureBrowserTool as a drop-in replacement</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-lc').textContent)">Copy</button></div><pre class="g-pre" id="code-lc"><span class="sk">from</span> examples.langchain_integration <span class="sk">import</span> SecureBrowserTool
+<span class="sk">from</span> langchain.agents <span class="sk">import</span> initialize_agent, AgentType</pre></div></div></div>
   </div>
-
-  <!-- REST API -->
   <div class="int-panel" id="tab-rest">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">No installation — call the hosted API</div>
-        <div class="step-desc">Works from any language. Get your API key at guni.up.railway.app</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-rest').textContent)">Copy</button></div><pre class="g-pre" id="code-rest"><span class="sk">import</span> requests
+    <div class="step"><div class="step-num">1</div><div><div class="step-title">Use the hosted API after signup</div><div class="step-desc">Hosted access is issued after signup, evaluation approval, or a paid plan.</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-rest').textContent)">Copy</button></div><pre class="g-pre" id="code-rest"><span class="sk">import</span> requests
 
-<span class="sk">def</span> <span class="sf">scan_page</span>(html: str, goal: str) -> dict:
+<span class="sk">def</span> <span class="sf">scan_page</span>(html: str, goal: str, api_key: str) -> dict:
     r = requests.post(
         <span class="ss">"https://guni.up.railway.app/scan"</span>,
         json={<span class="ss">"html"</span>: html, <span class="ss">"goal"</span>: goal},
-        headers={<span class="ss">"X-API-Key"</span>: <span class="ss">"guni_live_..."</span>},
+        headers={<span class="ss">"X-API-Key"</span>: api_key},
         timeout=<span class="sn">10</span>,
     )
-    <span class="sk">return</span> r.json()
-
-result = <span class="sf">scan_page</span>(page_html, <span class="ss">"Login to website"</span>)
-
-<span class="sk">if</span> result[<span class="ss">"decision"</span>] == <span class="ss">"BLOCK"</span>:
-    <span class="sk">raise</span> Exception(<span class="ss">f"Threat: {result['evidence']}"</span>)</pre></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">Node.js / JavaScript</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">javascript</span></div><pre class="g-pre"><span class="sk">const</span> res = <span class="sk">await</span> fetch(<span class="ss">"https://guni.up.railway.app/scan"</span>, {
-  method: <span class="ss">"POST"</span>,
-  headers: {
-    <span class="ss">"Content-Type"</span>: <span class="ss">"application/json"</span>,
-    <span class="ss">"X-API-Key"</span>: <span class="ss">"guni_live_..."</span>,
-  },
-  body: JSON.stringify({ html: pageHTML, goal: <span class="ss">"Book a flight"</span> }),
-});
-<span class="sk">const</span> result = <span class="sk">await</span> res.json();
-<span class="sk">if</span> (result.decision === <span class="ss">"BLOCK"</span>) <span class="sk">throw new</span> Error(<span class="ss">"Threat detected"</span>);</pre></div>
-      </div>
-    </div>
+    r.raise_for_status()
+    <span class="sk">return</span> r.json()</pre></div></div></div>
   </div>
-
-  <!-- WebSocket -->
   <div class="int-panel" id="tab-websocket">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Real-time scanning as agent browses</div>
-        <div class="step-desc">Best for high-frequency agents. One persistent connection, stream pages as they load.</div>
-        <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-ws').textContent)">Copy</button></div><pre class="g-pre" id="code-ws"><span class="sk">import</span> asyncio, json, websockets
-
-<span class="sk">async def</span> <span class="sf">secure_agent</span>():
-    uri = <span class="ss">"wss://guni.up.railway.app/ws/scan?goal=Book+a+flight"</span>
-
-    <span class="sk">async with</span> websockets.connect(uri) <span class="sk">as</span> ws:
-        <span class="sk">async def</span> <span class="sf">check_page</span>(html, url):
-            <span class="sk">await</span> ws.send(json.dumps({<span class="ss">"html"</span>: html, <span class="ss">"url"</span>: url}))
-            resp = json.loads(<span class="sk">await</span> ws.recv())
-            <span class="sc"># skip "scanning" status message</span>
-            <span class="sk">while</span> resp.get(<span class="ss">"type"</span>) == <span class="ss">"scanning"</span>:
-                resp = json.loads(<span class="sk">await</span> ws.recv())
-            <span class="sk">return</span> resp
-
-        <span class="sc"># In your agent loop:</span>
-        result = <span class="sk">await</span> <span class="sf">check_page</span>(page_html, current_url)
-        <span class="sk">if</span> result.get(<span class="ss">"decision"</span>) == <span class="ss">"BLOCK"</span>:
-            print(<span class="ss">f"BLOCKED: {current_url}"</span>)
-            <span class="sk">return</span>
-
-asyncio.run(<span class="sf">secure_agent</span>())</pre></div>
-      </div>
-    </div>
+    <div class="step"><div class="step-num">1</div><div><div class="step-title">Real-time scanning as your agent browses</div><div class="step-desc">Best for high-frequency agents. Keep one connection open and stream pages as they load.</div><div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">python</span><button class="g-code-copy" onclick="cp(this,document.getElementById('code-ws').textContent)">Copy</button></div><pre class="g-pre" id="code-ws"><span class="sk">async with</span> websockets.connect(uri, extra_headers={
+    <span class="ss">"X-API-Key"</span>: <span class="ss">"guni_live_..."</span>,
+}) <span class="sk">as</span> ws:
+    ...</pre></div></div></div>
   </div>
-
-  <!-- Run demo -->
   <div style="margin-top:3rem;background:var(--bg2);border:1px solid var(--border2);padding:1.5rem">
     <div style="font-size:11px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.75rem">Try it now</div>
-    <p style="font-size:13px;color:var(--muted2);margin-bottom:1rem;line-height:1.7">Run the full agent demo — 6 attack scenarios, real threat detection, live terminal output.</p>
-    <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span></div><pre class="g-pre"><span class="sc"># Quick demo (no browser needed)</span>
-python examples/agent_demo.py
-
-<span class="sc"># With real Playwright browser</span>
+    <p style="font-size:13px;color:var(--muted2);margin-bottom:1rem;line-height:1.7">Run the full agent demo - 6 attack scenarios, real threat detection, live terminal output.</p>
+    <div class="g-code-block"><div class="g-code-header"><span class="g-code-lang">bash</span></div><pre class="g-pre">python examples/agent_demo.py
 python examples/agent_demo.py --browser
-
-<span class="sc"># See integration template</span>
 python examples/agent_demo.py --template</pre></div>
   </div>
-
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2rem">
-    <a class="g-btn g-btn-primary g-btn-lg" href="/#waitlist">Get API key</a>
+    <a class="g-btn g-btn-primary g-btn-lg" href="/signup">Request hosted access</a>
     <a class="g-btn g-btn-outline g-btn-lg" href="/docs">Full API docs</a>
     <a class="g-btn g-btn-outline g-btn-lg" href="https://github.com/arihantprasad07/guni" target="_blank">GitHub</a>
   </div>
-
 </section>
 </div>
-
 <footer class="g-footer">
   <div class="g-footer-logo">guni</div>
   <div class="g-footer-links"><a href="/">Home</a><a href="/dashboard">Dashboard</a><a href="/docs">API docs</a><a href="/about">About</a></div>
   <div class="g-footer-copy">&copy; 2026 Guni</div>
 </footer>
-
 <script>
-function switchTab(name){
+function switchTab(event, name){
   document.querySelectorAll('.int-tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.int-panel').forEach(p=>p.classList.remove('show'));
-  event.target.classList.add('active');
+  event.currentTarget.classList.add('active');
   document.getElementById('tab-'+name).classList.add('show');
 }
 function cp(btn,text){
