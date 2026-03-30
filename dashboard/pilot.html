@@ -80,27 +80,34 @@
 
     <div class="g-card" style="margin-top:1rem">
       <div class="g-card-body">
-        <div class="g-eyebrow">Evaluation message template</div>
-        <div class="template">Subject: browser-agent security evaluation
-
-Hi {{name}},
-
-I have been following your work on browser automation and agentic workflows.
-
-We built Guni to help teams inspect a page before the browser agent executes on it. Guni evaluates prompt injection, phishing, deceptive UI, redirect abuse, and goal hijacking, then returns an ALLOW, CONFIRM, or BLOCK decision with evidence.
-
-If useful, we can run a focused evaluation on one of your higher-risk browser workflows and share:
-- the blocked scenarios
-- the evidence returned by the policy layer
-- the latency and rollout considerations
-
-Useful links:
-- Dashboard: /dashboard
-- Enterprise page: /enterprise
-- Security architecture: /security
-
-Best,
-{{your_name}}</div>
+        <div class="g-eyebrow">What the evaluation includes</div>
+        <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:0.25rem">
+          <div class="card" style="background:var(--bg2)">
+            <div class="card-body">
+              <div class="g-tag g-tag-amber">Technical review</div>
+              <div class="list">
+                <div>Workflow mapping for higher-risk browser actions</div>
+                <div>Threat simulation across prompt injection, phishing, redirects, and deceptive UI</div>
+                <div>Evidence review with policy decision analysis</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="background:var(--bg2)">
+            <div class="card-body">
+              <div class="g-tag g-tag-blue">Delivery outcome</div>
+              <div class="list">
+                <div>Summary of blocked or flagged execution paths</div>
+                <div>Latency and rollout observations</div>
+                <div>Recommended next scope for broader deployment</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:1rem">
+          <a class="g-btn g-btn-primary" href="mailto:hello@guni.dev?subject=Guni%20Security%20Evaluation">Request evaluation</a>
+          <a class="g-btn g-btn-outline" href="/security">Review security architecture</a>
+          <a class="g-btn g-btn-outline" href="/dashboard">Open dashboard</a>
+        </div>
       </div>
     </div>
   </div>
