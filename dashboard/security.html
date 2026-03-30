@@ -80,7 +80,7 @@
           <div class="label">Auth and controls</div>
           <div class="list">
             <div class="item"><strong>Session-backed portal</strong><span>The customer portal now requires account session authentication instead of trusting a pasted API key in the browser.</span></div>
-            <div class="item"><strong>Role gating</strong><span>Admin-only operations such as full key inventory are restricted to authenticated admin accounts.</span></div>
+            <div class="item"><strong>Role gating</strong><span>Admin-only operations such as full key inventory, rotation, revocation, and audit review are restricted to authenticated admin accounts.</span></div>
             <div class="item"><strong>API protection</strong><span>Production deployments should require `X-API-Key` on the hosted API and a strong `GUNI_SESSION_SECRET`.</span></div>
           </div>
         </div>
@@ -91,7 +91,7 @@
       <div class="card-body">
         <div class="label">Current trust posture</div>
         <div class="list">
-          <div class="item"><strong>Included today</strong><span>CI-backed API tests, isolated runtime storage, role-aware portal access, deployment guidance, and customer-facing security documentation.</span></div>
+          <div class="item"><strong>Included today</strong><span>CI-backed API tests, isolated runtime storage, role-aware portal access, org-scoped audit events, key lifecycle controls, deployment guidance, and customer-facing security documentation.</span></div>
           <div class="item"><strong>Still maturing</strong><span>Formal penetration testing, enterprise SSO, signed audit exports, and deeper tenant isolation.</span></div>
           <div class="item"><strong>Recommended rollout</strong><span>Start with a focused evaluation on high-risk browser workflows, then expand after measuring latency, block rate, and false positives.</span></div>
         </div>

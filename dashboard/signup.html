@@ -50,8 +50,8 @@
           </label>
           <label class="plan-opt" id="plan-starter" onclick="selectPlan('starter')">
             <input type="radio" name="plan" value="starter"/>
-            <div class="plan-name">Starter <span style="color:var(--green);font-size:10px">$9/mo</span></div>
-            <div class="plan-price">LLM layer · 1,000 scans</div>
+            <div class="plan-name">Starter</div>
+            <div class="plan-price">Hosted evaluation · LLM layer · 1,000 scans</div>
           </label>
         </div>
       </div>
@@ -121,9 +121,9 @@ async function signup() {
     if (!r.ok) { err.textContent = payload.error || payload.detail || 'Something went wrong.'; err.classList.add('show'); return; }
 
     if (selectedPlan === 'starter') {
-      ok.textContent = '✓ Account created! Check your email to verify. Then complete payment for Starter plan.';
+      ok.textContent = '✓ Account created! Check your email to verify. Your Starter evaluation can be activated after review.';
       ok.classList.add('show');
-      setTimeout(() => window.location.href = '/#pricing', 3000);
+      setTimeout(() => window.location.href = '/pilot', 3000);
     } else {
       ok.textContent = '✓ Account created! Check your email to verify your account.';
       ok.classList.add('show');

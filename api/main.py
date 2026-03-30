@@ -114,6 +114,17 @@ def _ensure_parent_dir(file_path: str) -> None:
     Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _request_is_secure(request: Request) -> bool:
+    proto = request.headers.get("x-forwarded-proto", "")
+    return request.url.scheme == "https" or proto.lower() == "https"
+
+
+def _default_org_name(email: str) -> str:
+    local_part = email.split("@", 1)[0].replace(".", " ").replace("_", " ").strip()
+    cleaned = " ".join(chunk for chunk in local_part.split() if chunk)
+    return f"{cleaned.title() or 'Customer'} Team"
+
+
 def _admin_emails() -> set[str]:
     raw = os.environ.get("GUNI_ADMIN_EMAILS", "")
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
@@ -332,6 +343,7 @@ class SignupRequest(BaseModel):
     email:    str
     password: str
     plan:     str = "free"
+    company:  str | None = None
 
 class SigninRequest(BaseModel):
     email:    str
@@ -348,7 +360,12 @@ class NewPasswordRequest(BaseModel):
 @app.post("/auth/signup", tags=["Auth"])
 async def auth_signup(body: SignupRequest, request: Request):
     from api.auth_system import hash_password, generate_token, send_verification_email
-    from api.database import db_create_user, db_get_user_by_email
+    from api.database import (
+        db_create_organization,
+        db_create_user,
+        db_get_user_by_email,
+        db_log_audit_event,
+    )
     email = body.email.lower().strip()
     plan = (body.plan or "free").lower().strip()
     if not email or "@" not in email:
@@ -362,21 +379,43 @@ async def auth_signup(body: SignupRequest, request: Request):
     pw_hash = hash_password(body.password)
     token   = generate_token()
     role    = "admin" if email in _admin_emails() else "owner"
-    user    = db_create_user(email, pw_hash, token, plan=plan, role=role)
+    org_name = (body.company or "").strip() or _default_org_name(email)
+    org = db_create_organization(org_name)
+    user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
+    db_log_audit_event(
+        actor_email=email,
+        org_id=org["id"],
+        action="auth.signup",
+        target_type="user",
+        target_id=email,
+        metadata={"plan": plan, "role": role},
+    )
     base_url = str(request.base_url).rstrip("/")
     try:
         send_verification_email(email, token, base_url)
     except Exception:
         pass
-    return {"success": True, "message": "Account created. Check your email to verify.", "email": email, "plan": plan, "role": role}
+    return {
+        "success": True,
+        "message": "Account created. Check your email to verify.",
+        "email": email,
+        "plan": plan,
+        "role": role,
+        "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]},
+    }
 
 
 @app.post("/auth/signin", tags=["Auth"])
-async def auth_signin(body: SigninRequest):
+async def auth_signin(body: SigninRequest, request: Request):
     from api.auth_system import verify_password, create_session
-    from api.database import db_get_user_by_email, db_update_user_login
+    from api.database import (
+        db_get_user_by_email,
+        db_log_audit_event,
+        db_update_user_login,
+        db_validate_key,
+    )
     from api.key_manager import generate_api_key, PLAN_LIMITS
     email = body.email.lower().strip()
     user  = db_get_user_by_email(email)
@@ -385,22 +424,43 @@ async def auth_signin(body: SigninRequest):
     if not user.get("verified"):
         raise HTTPException(status_code=403, detail="Please verify your email first")
     api_key = user.get("api_key")
-    if not api_key:
+    if not api_key or not db_validate_key(api_key):
         plan    = user.get("plan", "free")
         limit   = PLAN_LIMITS.get(plan, 0)
-        kd      = generate_api_key(email=email, plan=plan, scans_limit=limit)
+        kd      = generate_api_key(
+            email=email,
+            plan=plan,
+            scans_limit=limit,
+            org_id=user.get("org_id"),
+        )
         api_key = kd["key"]
     db_update_user_login(email, api_key)
     session  = create_session(email)
+    db_log_audit_event(
+        actor_email=email,
+        org_id=user.get("org_id"),
+        action="auth.signin",
+        target_type="user",
+        target_id=email,
+        metadata={"role": user.get("role", "owner"), "plan": user.get("plan", "free")},
+    )
     response = JSONResponse({
         "success": True,
         "email": email,
         "plan": user.get("plan", "free"),
         "role": user.get("role", "owner"),
         "api_key": api_key,
-        "session": session
+        "session": session,
+        "org_id": user.get("org_id"),
     })
-    response.set_cookie("guni_session", session, max_age=7*24*3600, httponly=True, samesite="lax")
+    response.set_cookie(
+        "guni_session",
+        session,
+        max_age=7 * 24 * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=_request_is_secure(request),
+    )
     return response
 
 
@@ -436,18 +496,34 @@ async def auth_reset_password(body: NewPasswordRequest):
 
 @app.get("/auth/me", tags=["Auth"])
 async def auth_me(request: Request):
+    from api.database import db_get_organization
+
     user = _require_session_user(request)
+    org = db_get_organization(user["org_id"]) if user.get("org_id") else None
     return {
         "email": user["email"],
         "plan": user.get("plan", "free"),
         "role": user.get("role", "owner"),
         "api_key": user.get("api_key"),
-        "verified": bool(user.get("verified"))
+        "verified": bool(user.get("verified")),
+        "org_id": user.get("org_id"),
+        "organization": org,
     }
 
 
 @app.post("/auth/signout", tags=["Auth"])
-async def auth_signout():
+async def auth_signout(request: Request):
+    from api.database import db_log_audit_event
+
+    user = _session_user(request)
+    if user:
+        db_log_audit_event(
+            actor_email=user["email"],
+            org_id=user.get("org_id"),
+            action="auth.signout",
+            target_type="user",
+            target_id=user["email"],
+        )
     response = JSONResponse({"success": True})
     response.delete_cookie("guni_session")
     return response
@@ -914,11 +990,26 @@ def generate_key(body: KeyRequest, request: Request):
     Generate an API key for a customer (admin use).
     Requires an authenticated admin session.
     """
-    _require_session_user(request, {"admin"})
+    actor = _require_session_user(request, {"admin"})
     from api.key_manager import generate_api_key, PLAN_LIMITS
+    from api.database import db_log_audit_event
+
     plan  = body.plan.lower()
     limit = PLAN_LIMITS.get(plan, 1000)
-    data  = generate_api_key(email=body.email, plan=plan, scans_limit=limit)
+    data  = generate_api_key(
+        email=body.email,
+        plan=plan,
+        scans_limit=limit,
+        org_id=actor.get("org_id"),
+    )
+    db_log_audit_event(
+        actor_email=actor["email"],
+        org_id=actor.get("org_id"),
+        action="keys.generate",
+        target_type="api_key",
+        target_id=data["key"],
+        metadata={"customer_email": body.email, "plan": plan},
+    )
     return data
 
 
@@ -932,9 +1023,60 @@ def get_key_usage(api_key: str = Depends(verify_api_key)):
 @app.get("/keys/list", tags=["Keys"], include_in_schema=False)
 def list_all_keys(request: Request):
     """List all API keys (admin only)."""
-    _require_session_user(request, {"admin"})
+    user = _require_session_user(request, {"admin"})
     from api.key_manager import list_keys
-    return {"keys": list_keys()}
+    return {"keys": list_keys(org_id=user.get("org_id"))}
+
+
+@app.post("/keys/{key}/revoke", tags=["Keys"], include_in_schema=False)
+def revoke_customer_key(key: str, request: Request):
+    """Revoke a customer API key (admin only)."""
+    actor = _require_session_user(request, {"admin"})
+    from api.database import db_log_audit_event
+    from api.key_manager import revoke_key
+
+    if not revoke_key(key):
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    db_log_audit_event(
+        actor_email=actor["email"],
+        org_id=actor.get("org_id"),
+        action="keys.revoke",
+        target_type="api_key",
+        target_id=key,
+    )
+    return {"success": True, "revoked_key": key}
+
+
+@app.post("/keys/{key}/rotate", tags=["Keys"], include_in_schema=False)
+def rotate_customer_key(key: str, request: Request):
+    """Rotate a customer API key (admin only)."""
+    actor = _require_session_user(request, {"admin"})
+    from api.database import db_log_audit_event
+    from api.key_manager import rotate_key
+
+    rotated = rotate_key(key)
+    if not rotated:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    db_log_audit_event(
+        actor_email=actor["email"],
+        org_id=actor.get("org_id"),
+        action="keys.rotate",
+        target_type="api_key",
+        target_id=rotated["key"],
+        metadata={"previous_key": key},
+    )
+    return rotated
+
+
+@app.get("/audit/events", tags=["Audit"], include_in_schema=False)
+def get_audit_events(request: Request, limit: int = 50):
+    """Return recent organization audit events for the signed-in admin."""
+    user = _require_session_user(request, {"admin"})
+    from api.database import db_get_audit_events
+
+    return {"events": db_get_audit_events(user["org_id"], limit=limit)}
 
 
 @app.get("/history/export", tags=["Audit"])

@@ -188,6 +188,8 @@ Current trust signals:
 - deterministic API test coverage in CI
 - self-hostable architecture
 - runtime data isolation from the repo root
+- session-backed portal access with admin-only key lifecycle actions
+- organization audit events for sensitive admin activity
 - enterprise-facing product and integration pages for buyer review
 
 ## Project structure

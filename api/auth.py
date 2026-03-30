@@ -12,6 +12,8 @@ import os
 from fastapi import Security, HTTPException, status
 from fastapi.security.api_key import APIKeyHeader
 
+from api.key_manager import validate_api_key
+
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -31,14 +33,17 @@ def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:
     """
     valid_keys = _load_valid_keys()
 
-    if not valid_keys:
+    if api_key:
+        if api_key in valid_keys:
+            return api_key
+        if validate_api_key(api_key):
+            return api_key
+
+    if not valid_keys and not api_key:
         # Open mode — no keys configured, allow all (local dev / demo)
         return "open"
 
-    if not api_key or api_key not in valid_keys:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key. Provide X-API-Key header.",
-        )
-
-    return api_key
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing API key. Provide X-API-Key header.",
+    )

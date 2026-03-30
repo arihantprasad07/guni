@@ -21,7 +21,7 @@ if TEST_DATA_DIR.exists():
     shutil.rmtree(TEST_DATA_DIR)
 TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
-os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com"
+os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com"
 
 for module_name in [
     "runtime_config",
@@ -208,9 +208,13 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
             "email": "admin@example.com",
             "password": "strong-pass-123",
             "plan": "starter",
+            "company": "Aera",
         },
     )
     assert signup.status_code == 200
+
+    signup_data = unwrap(signup.json())
+    assert signup_data["organization"]["name"] == "Aera"
 
     from api.database import db_verify_user
     from api.database import db_get_user_by_email
@@ -234,6 +238,7 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     me_data = unwrap(me.json())
     assert me_data["role"] == "admin"
     assert me_data["verified"] is True
+    assert me_data["organization"]["name"] == "Aera"
 
 
 def test_admin_key_inventory_requires_admin_session(client: TestClient):
@@ -262,3 +267,58 @@ def test_admin_key_inventory_requires_admin_session(client: TestClient):
 
     authorized = client.get("/keys/list")
     assert authorized.status_code == 200
+
+
+def test_admin_key_lifecycle_and_audit_feed(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "admin3@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Guni",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    user = db_get_user_by_email("admin3@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "admin3@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    generated = client.post(
+        "/keys/generate",
+        json={"email": "customer@example.com", "plan": "starter"},
+    )
+    assert generated.status_code == 200
+    generated_data = unwrap(generated.json())
+    assert generated_data["email"] == "customer@example.com"
+    original_key = generated_data["key"]
+
+    listed = client.get("/keys/list")
+    assert listed.status_code == 200
+    listed_data = unwrap(listed.json())
+    assert any(item["key"] == original_key for item in listed_data["keys"])
+
+    rotated = client.post(f"/keys/{original_key}/rotate")
+    assert rotated.status_code == 200
+    rotated_data = unwrap(rotated.json())
+    assert rotated_data["key"] != original_key
+
+    revoked = client.post(f"/keys/{rotated_data['key']}/revoke")
+    assert revoked.status_code == 200
+
+    audit = client.get("/audit/events?limit=20")
+    assert audit.status_code == 200
+    audit_data = unwrap(audit.json())
+    actions = [event["action"] for event in audit_data["events"]]
+    assert "keys.generate" in actions
+    assert "keys.rotate" in actions
+    assert "keys.revoke" in actions

@@ -26,15 +26,24 @@ def init_db():
     """Create all tables if they don't exist."""
     with get_conn() as conn:
         conn.executescript("""
+        CREATE TABLE IF NOT EXISTS organizations (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL,
+            slug         TEXT UNIQUE NOT NULL,
+            created_at   TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS api_keys (
             key          TEXT PRIMARY KEY,
+            org_id       INTEGER,
             email        TEXT NOT NULL,
             plan         TEXT NOT NULL DEFAULT 'starter',
             scans_limit  INTEGER NOT NULL DEFAULT 1000,
             scans_used   INTEGER NOT NULL DEFAULT 0,
             created_at   TEXT NOT NULL,
             last_used    TEXT,
-            active       INTEGER NOT NULL DEFAULT 1
+            active       INTEGER NOT NULL DEFAULT 1,
+            revoked_at   TEXT
         );
 
         CREATE TABLE IF NOT EXISTS scans (
@@ -68,15 +77,104 @@ def init_db():
             created_at   TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor_email  TEXT,
+            org_id       INTEGER,
+            action       TEXT NOT NULL,
+            target_type  TEXT NOT NULL,
+            target_id    TEXT,
+            metadata     TEXT,
+            created_at   TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_scans_key ON scans(api_key);
         CREATE INDEX IF NOT EXISTS idx_scans_ts  ON scans(timestamp);
         CREATE INDEX IF NOT EXISTS idx_keys_email ON api_keys(email);
+        CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id, created_at);
         """)
+
+        key_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(api_keys)").fetchall()
+        }
+        if "org_id" not in key_columns:
+            conn.execute("ALTER TABLE api_keys ADD COLUMN org_id INTEGER")
+        if "revoked_at" not in key_columns:
+            conn.execute("ALTER TABLE api_keys ADD COLUMN revoked_at TEXT")
 
 
 # ── Key operations ─────────────────────────────────────────────────────────
 
-def db_create_key(key: str, email: str, plan: str, scans_limit: int) -> dict:
+def _slugify_org(name: str) -> str:
+    cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in name).strip("-")
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned or f"org-{int(time.time())}"
+
+
+def db_create_organization(name: str) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    base_slug = _slugify_org(name)
+    slug = base_slug
+
+    with get_conn() as conn:
+        suffix = 2
+        while conn.execute("SELECT 1 FROM organizations WHERE slug=?", (slug,)).fetchone():
+            slug = f"{base_slug}-{suffix}"
+            suffix += 1
+
+        cursor = conn.execute(
+            "INSERT INTO organizations (name,slug,created_at) VALUES (?,?,?)",
+            (name, slug, now)
+        )
+        org_id = cursor.lastrowid
+
+    return db_get_organization(org_id)
+
+
+def db_get_organization(org_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM organizations WHERE id=?", (org_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def db_log_audit_event(actor_email: str | None, org_id: int | None, action: str,
+                       target_type: str, target_id: str = "", metadata: dict | None = None):
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO audit_events (actor_email,org_id,action,target_type,target_id,metadata,created_at) VALUES (?,?,?,?,?,?,?)",
+            (
+                actor_email,
+                org_id,
+                action,
+                target_type,
+                target_id,
+                json.dumps(metadata or {}),
+                now,
+            )
+        )
+
+
+def db_get_audit_events(org_id: int, limit: int = 50) -> list:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM audit_events WHERE org_id=? ORDER BY created_at DESC LIMIT ?",
+            (org_id, min(limit, 100))
+        ).fetchall()
+        events = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["metadata"] = json.loads(item.get("metadata") or "{}")
+            except Exception:
+                item["metadata"] = {}
+            events.append(item)
+        return events
+
+
+def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int | None = None) -> dict:
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     with get_conn() as conn:
         # Check existing active key for this email
@@ -87,9 +185,9 @@ def db_create_key(key: str, email: str, plan: str, scans_limit: int) -> dict:
             return dict(row)
 
         conn.execute(
-            "INSERT OR IGNORE INTO api_keys (key,email,plan,scans_limit,scans_used,created_at,active) "
-            "VALUES (?,?,?,?,0,?,1)",
-            (key, email, plan, scans_limit, now)
+            "INSERT OR IGNORE INTO api_keys (key,org_id,email,plan,scans_limit,scans_used,created_at,active) "
+            "VALUES (?,?,?,?,?,0,?,1)",
+            (key, org_id, email, plan, scans_limit, now)
         )
 
     result = db_get_key(key)
@@ -152,19 +250,74 @@ def db_get_usage(key: str) -> dict:
             "created_at":      row["created_at"],
             "last_used":       row["last_used"],
             "email":           row["email"],
+            "org_id":          row["org_id"],
+            "revoked_at":      row["revoked_at"],
         }
 
 
-def db_list_keys() -> list:
+def db_list_keys(org_id: int | None = None) -> list:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM api_keys ORDER BY created_at DESC").fetchall()
+        if org_id is None:
+            rows = conn.execute(
+                "SELECT * FROM api_keys ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM api_keys WHERE org_id=? ORDER BY created_at DESC",
+                (org_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
 def db_revoke_key(key: str) -> bool:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
     with get_conn() as conn:
-        conn.execute("UPDATE api_keys SET active=0 WHERE key=?", (key,))
-        return True
+        result = conn.execute(
+            "UPDATE api_keys SET active=0, revoked_at=? WHERE key=?",
+            (now, key),
+        )
+        conn.execute(
+            "UPDATE users SET api_key=NULL WHERE api_key=?",
+            (key,),
+        )
+        return result.rowcount > 0
+
+
+def db_rotate_key(key: str, new_key: str) -> dict | None:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM api_keys WHERE key=?",
+            (key,),
+        ).fetchone()
+        if not row:
+            return None
+
+        data = dict(row)
+        conn.execute(
+            "UPDATE api_keys SET active=0, revoked_at=? WHERE key=?",
+            (now, key),
+        )
+        conn.execute(
+            "INSERT INTO api_keys (key,org_id,email,plan,scans_limit,scans_used,created_at,last_used,active,revoked_at) "
+            "VALUES (?,?,?,?,?,?,?,?,1,NULL)",
+            (
+                new_key,
+                data.get("org_id"),
+                data["email"],
+                data["plan"],
+                data["scans_limit"],
+                data.get("scans_used", 0),
+                now,
+                data.get("last_used"),
+            ),
+        )
+        conn.execute(
+            "UPDATE users SET api_key=? WHERE api_key=? OR email=?",
+            (new_key, key, data["email"]),
+        )
+
+    return db_get_key(new_key)
 
 
 # ── Scan history ───────────────────────────────────────────────────────────
@@ -402,6 +555,7 @@ def init_users_table():
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS users (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id       INTEGER,
             email        TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             plan         TEXT NOT NULL DEFAULT 'free',
@@ -422,16 +576,25 @@ def init_users_table():
             row["name"]
             for row in conn.execute("PRAGMA table_info(users)").fetchall()
         }
+        if "org_id" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN org_id INTEGER")
         if "role" not in columns:
             conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'")
 
-def db_create_user(email: str, password_hash: str, verify_token: str, plan: str = "free", role: str = "owner") -> dict | None:
+def db_create_user(
+    email: str,
+    password_hash: str,
+    verify_token: str,
+    plan: str = "free",
+    role: str = "owner",
+    org_id: int | None = None,
+) -> dict | None:
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     try:
         with get_conn() as conn:
             conn.execute(
-                "INSERT INTO users (email,password_hash,plan,role,verify_token,created_at) VALUES (?,?,?,?,?,?)",
-                (email.lower().strip(), password_hash, plan, role, verify_token, now)
+                "INSERT INTO users (org_id,email,password_hash,plan,role,verify_token,created_at) VALUES (?,?,?,?,?,?,?)",
+                (org_id, email.lower().strip(), password_hash, plan, role, verify_token, now)
             )
         return db_get_user_by_email(email)
     except Exception:
@@ -510,6 +673,15 @@ def db_set_user_role(email: str, role: str) -> bool:
         result = conn.execute(
             "UPDATE users SET role=? WHERE email=?",
             (role, email.lower().strip())
+        )
+        return result.rowcount > 0
+
+
+def db_set_user_org(email: str, org_id: int) -> bool:
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE users SET org_id=? WHERE email=?",
+            (org_id, email.lower().strip()),
         )
         return result.rowcount > 0
 

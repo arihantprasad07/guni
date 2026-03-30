@@ -56,8 +56,11 @@
 .key-box{word-break:break-all;padding:12px;border:1px solid var(--border2);background:var(--bg3);color:var(--amber)}
 .admin-only{display:none}
 .admin-only.show{display:block}
+.admin-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:1rem}
+.stack{display:grid;gap:1rem}
+.action-row{display:flex;gap:8px;flex-wrap:wrap}
 @media (max-width: 900px){
-  .section-grid,.field-grid{grid-template-columns:1fr}
+  .section-grid,.field-grid,.admin-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -96,6 +99,7 @@
           <span>Signed in as</span>
           <strong id="user-email">customer@guni.dev</strong>
           <div class="role-pill" id="user-role">owner</div>
+          <span id="user-org" style="font-size:12px;color:var(--muted2)">-</span>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <span class="g-tag g-tag-amber" id="user-plan">FREE</span>
@@ -243,15 +247,27 @@
       </section>
 
       <section class="panel admin-only" id="panel-admin">
-        <div class="box">
-          <div class="box-head"><span class="box-title">Admin key inventory</span></div>
-          <div class="box-body table-wrap">
-            <table class="table">
-              <thead>
-                <tr><th>Email</th><th>Plan</th><th>Used</th><th>Limit</th><th>Active</th></tr>
-              </thead>
-              <tbody id="admin-body"><tr><td colspan="5">Loading...</td></tr></tbody>
-            </table>
+        <div class="admin-grid">
+          <div class="stack">
+            <div class="box">
+              <div class="box-head"><span class="box-title">Admin key inventory</span></div>
+              <div class="box-body table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr><th>Email</th><th>Plan</th><th>Used</th><th>Limit</th><th>Active</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody id="admin-body"><tr><td colspan="6">Loading...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="box">
+            <div class="box-head"><span class="box-title">Audit events</span></div>
+            <div class="box-body">
+              <div id="audit-list" style="display:grid;gap:8px">
+                <div class="note">Loading...</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -305,6 +321,7 @@ async function hydrateSession() {
     document.getElementById("user-email").textContent = authUser.email;
     document.getElementById("user-role").textContent = authUser.role || "owner";
     document.getElementById("user-plan").textContent = (authUser.plan || "free").toUpperCase();
+    document.getElementById("user-org").textContent = authUser.organization?.name || "No organization";
     document.getElementById("api-key-display").textContent = currentKey || "No key issued yet";
     document.getElementById("settings-plan").textContent = authUser.plan || "-";
     document.getElementById("settings-role").textContent = authUser.role || "-";
@@ -317,7 +334,7 @@ async function hydrateSession() {
     showPortal();
     await Promise.all([loadOverview(), loadHistory(), loadRules(), loadAlerts()]);
     if (authUser.role === "admin") {
-      await loadAdmin();
+      await Promise.all([loadAdmin(), loadAudit()]);
     }
   } catch (error) {
     showGate("Could not load the portal right now.");
@@ -462,7 +479,7 @@ async function loadAdmin() {
   const body = document.getElementById("admin-body");
 
   if (!Array.isArray(data.keys) || !data.keys.length) {
-    body.innerHTML = '<tr><td colspan="5">No customer keys yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6">No customer keys yet.</td></tr>';
     return;
   }
 
@@ -473,8 +490,53 @@ async function loadAdmin() {
       <td>${esc(item.scans_used)}</td>
       <td>${esc(item.scans_limit)}</td>
       <td>${item.active ? "Yes" : "No"}</td>
+      <td>
+        <div class="action-row">
+          <button class="g-btn g-btn-outline" type="button" onclick="rotateCustomerKey('${esc(item.key)}')" ${item.active ? "" : "disabled"}>Rotate</button>
+          <button class="g-btn g-btn-outline" type="button" onclick="revokeCustomerKey('${esc(item.key)}')" ${item.active ? "" : "disabled"}>Revoke</button>
+        </div>
+      </td>
     </tr>
   `).join("");
+}
+
+async function loadAudit() {
+  const response = await fetch(`${API}/audit/events?limit=20`, { credentials: "include" });
+  const data = unwrap(await response.json());
+  const list = document.getElementById("audit-list");
+
+  if (!Array.isArray(data.events) || !data.events.length) {
+    list.innerHTML = '<div class="note">No audit events yet.</div>';
+    return;
+  }
+
+  list.innerHTML = data.events.map((event) => `
+    <div class="box" style="padding:0.8rem 1rem">
+      <strong style="display:block;font-size:12px">${esc(event.action)}</strong>
+      <span class="note">${esc(event.actor_email || "system")} | ${esc(event.created_at || "-")}</span>
+      <div class="note" style="margin-top:6px">${esc(event.target_type || "-")}: ${esc(event.target_id || "-")}</div>
+    </div>
+  `).join("");
+}
+
+async function revokeCustomerKey(key) {
+  const response = await fetch(`${API}/keys/${encodeURIComponent(key)}/revoke`, {
+    method: "POST",
+    credentials: "include"
+  });
+  if (response.ok) {
+    await Promise.all([loadAdmin(), loadAudit()]);
+  }
+}
+
+async function rotateCustomerKey(key) {
+  const response = await fetch(`${API}/keys/${encodeURIComponent(key)}/rotate`, {
+    method: "POST",
+    credentials: "include"
+  });
+  if (response.ok) {
+    await Promise.all([loadAdmin(), loadAudit()]);
+  }
 }
 
 async function signOut() {
