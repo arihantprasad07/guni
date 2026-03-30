@@ -65,7 +65,7 @@ def print_result(page_name, result):
     print(f"\n  {'Page':<16} {page_name}")
     print(f"  {'Risk Score':<16} {result['risk']}%  ({severity(result['risk'])})")
     print(f"  {'Decision':<16} {color_decision(result['decision'])}")
-    print(f"  {'Latency':<16} {result['latency']:.4f}s")
+    print(f"  {'Latency':<16} {result['total_latency']:.4f}s")
 
     print(f"\n  {'Breakdown':}")
     for k, v in result["breakdown"].items():

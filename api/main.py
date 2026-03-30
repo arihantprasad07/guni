@@ -9,6 +9,7 @@ Then open: http://localhost:8000/docs
 import os
 import json
 import time
+import asyncio
 import threading
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,7 +17,7 @@ from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import WebSocket, WebSocketDisconnect, Request
@@ -793,11 +794,12 @@ def scan_html(
         )
 
     raw = scan(
-        html    = body.html,
-        goal    = body.goal,
-        url     = body.url,
-        api_key = _get_anthropic_key(),
-        llm     = body.llm,
+        html        = body.html,
+        goal        = body.goal,
+        url         = body.url,
+        llm_api_key = _get_anthropic_key(),
+        tracking_key= api_key,
+        llm         = body.llm,
     )
     return _build_response(raw)
 
@@ -843,11 +845,12 @@ def scan_url(
         )
 
     raw = scan(
-        html    = html,
-        goal    = body.goal,
-        url     = body.url,
-        api_key = _get_anthropic_key(),
-        llm     = body.llm,
+        html        = html,
+        goal        = body.goal,
+        url         = body.url,
+        llm_api_key = _get_anthropic_key(),
+        tracking_key= api_key,
+        llm         = body.llm,
     )
     return _build_response(raw)
 
@@ -868,33 +871,53 @@ def get_history(
     """
     limit = min(limit, 100)
 
-    if not os.path.exists(LOG_PATH):
-        return HistoryResponse(count=0, entries=[])
+    try:
+        from api.database import db_get_history
 
-    with open(LOG_PATH, "r") as f:
-        lines = f.readlines()
+        raw_entries = db_get_history(
+            api_key if api_key != "open" else None,
+            limit=limit,
+        )
+        entries = [
+            HistoryEntry(
+                timestamp=item.get("timestamp", ""),
+                url=item.get("url", ""),
+                goal=item.get("goal", ""),
+                risk=item.get("risk", 0),
+                decision=item.get("decision", ""),
+                latency=item.get("latency", item.get("total_latency", 0)),
+            )
+            for item in raw_entries
+        ]
+        return HistoryResponse(count=len(entries), entries=entries)
+    except Exception:
+        if not os.path.exists(LOG_PATH):
+            return HistoryResponse(count=0, entries=[])
 
-    entries = []
-    for line in reversed(lines):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-            entries.append(HistoryEntry(
-                timestamp = data.get("timestamp", ""),
-                url       = data.get("url", ""),
-                goal      = data.get("goal", ""),
-                risk      = data.get("risk", 0),
-                decision  = data.get("decision", ""),
-                latency   = data.get("latency", 0),
-            ))
-        except Exception:
-            continue
-        if len(entries) >= limit:
-            break
+        with open(LOG_PATH, "r") as f:
+            lines = f.readlines()
 
-    return HistoryResponse(count=len(entries), entries=entries)
+        entries = []
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                entries.append(HistoryEntry(
+                    timestamp = data.get("timestamp", ""),
+                    url       = data.get("url", ""),
+                    goal      = data.get("goal", ""),
+                    risk      = data.get("risk", 0),
+                    decision  = data.get("decision", ""),
+                    latency   = data.get("latency", 0),
+                ))
+            except Exception:
+                continue
+            if len(entries) >= limit:
+                break
+
+        return HistoryResponse(count=len(entries), entries=entries)
 
 
 # ── Dev entrypoint ────────────────────────────────────────────────────────────
@@ -1298,7 +1321,7 @@ def scan_compare(
             raise HTTPException(status_code=422, detail="html_a and html_b required")
 
         from guni import GuniScanner
-        scanner = GuniScanner(goal=goal, api_key=_get_anthropic_key())
+        scanner = GuniScanner(goal=goal, llm_api_key=_get_anthropic_key(), tracking_key=api_key)
         result_a = scanner.scan(html=html_a, url="page_a")
         result_b = scanner.scan(html=html_b, url="page_b")
 
@@ -1374,6 +1397,61 @@ def threat_feed():
             "threat_counts": {}, "top_threat": "none",
             "hourly_trend": [], "error": str(e),
         }
+
+
+@app.get("/threats/stream", tags=["Threat Intelligence"])
+async def threat_feed_stream(request: Request, once: bool = False):
+    """
+    Live threat intelligence stream using Server-Sent Events.
+    Pushes the latest aggregate feed whenever it changes and sends a small
+    heartbeat regularly so clients can show connection health.
+    """
+    async def event_generator():
+        last_payload = None
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            try:
+                from api.database import db_get_threat_feed
+
+                payload = db_get_threat_feed()
+            except Exception as e:
+                payload = {
+                    "total_scans": 0,
+                    "total_blocked": 0,
+                    "block_rate": 0,
+                    "last_24h_scans": 0,
+                    "last_24h_blocked": 0,
+                    "threat_counts": {},
+                    "top_threat": "none",
+                    "hourly_trend": [],
+                    "error": str(e),
+                }
+
+            payload_json = json.dumps(payload, sort_keys=True)
+            if payload_json != last_payload:
+                yield f"event: snapshot\ndata: {payload_json}\n\n"
+                last_payload = payload_json
+                if once:
+                    break
+            else:
+                yield f"event: heartbeat\ndata: {int(time.time())}\n\n"
+                if once:
+                    break
+
+            await asyncio.sleep(3)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/threats", response_class=HTMLResponse, include_in_schema=False)

@@ -13,7 +13,7 @@ import json
 import base64
 
 
-SESSION_SECRET = os.environ.get("GUNI_SESSION_SECRET", "guni-dev-secret-change-in-prod")
+SESSION_SECRET = os.environ.get("GUNI_SESSION_SECRET") or secrets.token_urlsafe(32)
 SESSION_EXPIRY = 7 * 24 * 3600  # 7 days
 
 

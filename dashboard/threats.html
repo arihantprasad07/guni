@@ -33,6 +33,10 @@ nav{position:sticky;top:0;z-index:50;height:52px;display:flex;align-items:center
 .nav-links a:hover{color:var(--amber)}
 @media(max-width:600px){.nav-links{display:none}}
 .live-badge{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--green)}
+.live-badge.is-polling{color:var(--amber)}
+.live-badge.is-polling .live-dot{background:var(--amber)}
+.live-badge.is-offline{color:var(--red)}
+.live-badge.is-offline .live-dot{background:var(--red)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
 @keyframes blink{0%,90%,100%{opacity:1}95%{opacity:0.2}}
 
@@ -129,7 +133,7 @@ footer{border-top:1px solid var(--border);padding:1.5rem clamp(1rem,3vw,2rem);di
     <a href="/about">About</a>
     <a href="/changelog">Changelog</a>
   </div>
-  <div class="live-badge"><div class="live-dot"></div>Live feed</div>
+  <div class="live-badge" id="live-badge"><div class="live-dot"></div><span id="live-label">Live feed</span></div>
 </nav>
 
 <div class="wrap">
@@ -238,11 +242,19 @@ footer{border-top:1px solid var(--border);padding:1.5rem clamp(1rem,3vw,2rem);di
 
 <footer>
   <div class="foot-logo">guni</div>
-  <div class="foot-copy">&copy; 2026 Guni &middot; Data updates every 60 seconds</div>
+  <div class="foot-copy" id="foot-copy">&copy; 2026 Guni &middot; Waiting for live stream</div>
 </footer>
 
 <script>
 const API = window.location.origin;
+const STREAM_URL = API + '/threats/stream';
+let feedStream = null;
+let fallbackPoll = null;
+let lastSnapshotKey = '';
+let currentTotalScans = null;
+let currentTotalBlocked = null;
+let current24hScans = null;
+let current24hBlocked = null;
 
 const THREAT_META = {
   injection:    { label: 'Prompt injection',    color: '#ff3d3d', desc: 'Malicious instructions embedded in pages trying to override agent behavior. The most dangerous attack vector — works on any LLM-powered agent.' },
@@ -259,23 +271,40 @@ async function loadFeed() {
   try {
     const r = await fetch(API + '/threats/feed');
     const d = await r.json();
-    renderFeed(d);
-    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
-    document.getElementById('update-spinner').innerHTML = '';
+    applyFeedSnapshot(d, 'poll');
   } catch(e) {
     document.getElementById('last-updated').textContent = 'API offline';
+    setLiveState('offline');
   }
+}
+
+function applyFeedSnapshot(d, source) {
+  const snapshotKey = JSON.stringify(d || {});
+  if (snapshotKey === lastSnapshotKey) {
+    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+    return;
+  }
+
+  lastSnapshotKey = snapshotKey;
+  renderFeed(d);
+  document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+  document.getElementById('update-spinner').innerHTML = '';
+  setLiveState(source);
 }
 
 function renderFeed(d) {
   // Big stats
-  countUp('total-scans',  d.total_scans   || 0);
-  countUp('total-blocked', d.total_blocked || 0);
+  countUp('total-scans',  d.total_scans   || 0, currentTotalScans);
+  countUp('total-blocked', d.total_blocked || 0, currentTotalBlocked);
+  currentTotalScans = d.total_scans || 0;
+  currentTotalBlocked = d.total_blocked || 0;
   document.getElementById('block-rate').textContent   = (d.block_rate || 0) + '%';
 
   // 24h
-  countUp('h24-scans',   d.last_24h_scans   || 0);
-  countUp('h24-blocked', d.last_24h_blocked || 0);
+  countUp('h24-scans',   d.last_24h_scans   || 0, current24hScans);
+  countUp('h24-blocked', d.last_24h_blocked || 0, current24hBlocked);
+  current24hScans = d.last_24h_scans || 0;
+  current24hBlocked = d.last_24h_blocked || 0;
   const h24rate = d.last_24h_scans
     ? Math.round(d.last_24h_blocked / d.last_24h_scans * 100)
     : 0;
@@ -327,17 +356,94 @@ function renderFeed(d) {
   }
 }
 
-function countUp(id, target) {
+function countUp(id, target, startValue) {
   const el = document.getElementById(id);
   if (!el) return;
   if (!target) { el.textContent = '0'; return; }
-  let cur = 0;
-  const step = Math.ceil(target / 30);
+  let cur = typeof startValue === 'number' ? startValue : 0;
+  if (cur === target) {
+    el.textContent = target.toLocaleString();
+    return;
+  }
+  const direction = target >= cur ? 1 : -1;
+  const step = Math.max(1, Math.ceil(Math.abs(target - cur) / 20));
   const t = setInterval(() => {
-    cur = Math.min(cur + step, target);
+    cur = direction > 0
+      ? Math.min(cur + step, target)
+      : Math.max(cur - step, target);
     el.textContent = cur.toLocaleString();
     if (cur >= target) clearInterval(t);
+    if (cur <= target && direction < 0) clearInterval(t);
   }, 40);
+}
+
+function setLiveState(source) {
+  const badge = document.getElementById('live-badge');
+  const label = document.getElementById('live-label');
+  const foot = document.getElementById('foot-copy');
+
+  badge.classList.remove('is-polling', 'is-offline');
+
+  if (source === 'stream') {
+    label.textContent = 'Live stream';
+    foot.innerHTML = '&copy; 2026 Guni &middot; Streaming updates every few seconds';
+    return;
+  }
+
+  if (source === 'poll') {
+    badge.classList.add('is-polling');
+    label.textContent = 'Polling fallback';
+    foot.innerHTML = '&copy; 2026 Guni &middot; Polling every 15 seconds';
+    return;
+  }
+
+  badge.classList.add('is-offline');
+  label.textContent = 'Feed offline';
+  foot.innerHTML = '&copy; 2026 Guni &middot; Waiting to reconnect';
+}
+
+function startPolling() {
+  if (fallbackPoll) return;
+  setLiveState('poll');
+  loadFeed();
+  fallbackPoll = setInterval(loadFeed, 15000);
+}
+
+function stopPolling() {
+  if (!fallbackPoll) return;
+  clearInterval(fallbackPoll);
+  fallbackPoll = null;
+}
+
+function connectThreatStream() {
+  if (!window.EventSource) {
+    startPolling();
+    return;
+  }
+
+  if (feedStream) {
+    feedStream.close();
+  }
+
+  feedStream = new EventSource(STREAM_URL);
+
+  feedStream.addEventListener('snapshot', (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      stopPolling();
+      applyFeedSnapshot(payload, 'stream');
+    } catch (_) {}
+  });
+
+  feedStream.addEventListener('heartbeat', () => {
+    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+    setLiveState('stream');
+  });
+
+  feedStream.onerror = () => {
+    setLiveState('offline');
+    startPolling();
+  };
 }
 
 function copyLink() {
@@ -348,9 +454,8 @@ function copyLink() {
   });
 }
 
-// Load on start, refresh every 60 seconds
+connectThreatStream();
 loadFeed();
-setInterval(loadFeed, 60000);
 </script>
 </body>
 </html>

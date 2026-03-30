@@ -45,9 +45,7 @@ def _is_production_environment() -> bool:
 
 
 def _open_mode_allowed() -> bool:
-    if _is_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE")):
-        return True
-    return not _is_production_environment()
+    return _is_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE"))
 
 
 def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:

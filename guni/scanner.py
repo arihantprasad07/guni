@@ -26,9 +26,17 @@ def scan(
     goal:    str  = "browse website",
     url:     str  = "",
     api_key: str  = None,
+    llm_api_key: str = None,
+    tracking_key: str = None,
     llm:     bool = False,
 ) -> dict:
-    scanner = GuniScanner(goal=goal, api_key=api_key, llm=llm)
+    scanner = GuniScanner(
+        goal=goal,
+        api_key=api_key,
+        llm_api_key=llm_api_key,
+        tracking_key=tracking_key,
+        llm=llm,
+    )
     return scanner.scan(html=html, url=url)
 
 
@@ -43,12 +51,71 @@ class GuniScanner:
         print(result["risk"])        # 0-100
     """
 
-    def __init__(self, goal="browse website", api_key=None, llm=False):
-        self.goal     = goal
-        self.api_key  = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-        self._api_key = api_key  # customer key for usage tracking
-        self.llm      = llm
-        self.logger   = GuniLogger()
+    def __init__(self, goal="browse website", api_key=None, llm_api_key=None, tracking_key=None, llm=False):
+        self.goal        = goal
+        self.api_key     = llm_api_key or api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self._api_key    = tracking_key
+        self.llm         = llm
+        self.logger      = GuniLogger()
+
+    def _load_custom_rules(self) -> list[dict]:
+        if not self._api_key or self._api_key == "open":
+            return []
+        try:
+            from api.database import db_get_rules
+            return db_get_rules(self._api_key)
+        except Exception:
+            return []
+
+    def _apply_custom_rules(self, parsed: dict) -> tuple[dict[str, list[str]], dict[str, int]]:
+        rules = self._load_custom_rules()
+        if not rules:
+            return {}, {}
+
+        searchable_parts = [parsed.get("visible_text", "")]
+        searchable_parts.extend(
+            el.get("text", "") for el in parsed.get("hidden_elements", [])
+        )
+        searchable_parts.extend(
+            form.get("text", "") for form in parsed.get("forms", [])
+        )
+        searchable_parts.extend(parsed.get("buttons", []))
+        searchable_parts.extend(parsed.get("scripts", []))
+        searchable_text = "\n".join(part.lower() for part in searchable_parts if part)
+
+        findings_by_category: dict[str, list[str]] = {}
+        weight_overrides: dict[str, int] = {}
+        valid_categories = {
+            "injection",
+            "phishing",
+            "deception",
+            "scripts",
+            "goal_mismatch",
+            "clickjacking",
+            "csrf",
+            "redirect",
+        }
+
+        for rule in rules:
+            pattern = (rule.get("pattern") or "").strip()
+            category = (rule.get("rule_type") or "injection").strip().lower()
+            if not pattern or category not in valid_categories:
+                continue
+            if pattern.lower() not in searchable_text:
+                continue
+
+            findings_by_category.setdefault(category, []).append(
+                f"Custom rule matched '{pattern}'"
+            )
+            try:
+                weight_overrides[category] = max(
+                    weight_overrides.get(category, 0),
+                    int(rule.get("weight") or 0),
+                )
+            except Exception:
+                pass
+
+        return findings_by_category, weight_overrides
 
     def scan(self, html: str, url: str = "") -> dict:
         start = time.perf_counter()
@@ -78,10 +145,20 @@ class GuniScanner:
             "redirect":      redirect,
         }
 
+        custom_rule_findings, custom_rule_weights = self._apply_custom_rules(parsed)
+        for category, items in custom_rule_findings.items():
+            evidence.setdefault(category, []).extend(items)
+
         heuristic_risk, breakdown = calculate_risk(
             injection, phishing, deception, scripts,
             goal_issues, clickjacking, csrf, redirect
         )
+
+        if custom_rule_weights:
+            for category, weight in custom_rule_weights.items():
+                if evidence.get(category):
+                    breakdown[category] = max(breakdown.get(category, 0), weight)
+            heuristic_risk = min(100, sum(breakdown.values()))
 
         # ── Layer 2: LLM reasoning ──
         llm_analysis  = None
