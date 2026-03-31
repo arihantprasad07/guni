@@ -705,6 +705,7 @@ def test_owner_email_bypasses_verification_requirement(client: TestClient):
     assert signin.status_code == 200
     signin_data = unwrap(signin.json())
     assert signin_data["is_owner"] is True
+    assert signin_data["role"] == "owner"
 
     portal = client.get("/portal", follow_redirects=False)
     assert portal.status_code == 302
@@ -715,6 +716,7 @@ def test_owner_email_bypasses_verification_requirement(client: TestClient):
     me_data = unwrap(me.json())
     assert me_data["is_owner"] is True
     assert me_data["verified"] is True
+    assert me_data["role"] == "owner"
 
 
 def test_resend_verification_refreshes_token_for_unverified_user(client: TestClient):

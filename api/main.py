@@ -170,13 +170,23 @@ def _require_session_user(request: Request, roles: set[str] | None = None) -> di
     user = _session_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if roles and user.get("role", "owner") not in roles:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if roles:
+        current_role = "owner" if _is_owner_user(user) else user.get("role", "owner")
+        if current_role == "owner" and "admin" in roles:
+            return user
+        if current_role not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
     return user
 
 
 def _is_owner_user(user: dict | None) -> bool:
     return bool(user and user.get("email", "").lower() in _owner_emails())
+
+
+def _display_role(user: dict | None) -> str:
+    if _is_owner_user(user):
+        return "owner"
+    return (user or {}).get("role", "owner")
 
 
 def _require_owner_user(request: Request) -> dict:
@@ -518,7 +528,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         raise HTTPException(status_code=422, detail="Invalid plan")
     pw_hash = hash_password(body.password)
     token   = generate_token()
-    role    = "admin" if email in _admin_emails() else "owner"
+    role    = "owner" if email in _owner_emails() else ("admin" if email in _admin_emails() else "owner")
     org_name = (body.company or "").strip() or _default_org_name(email)
     org = db_create_organization(org_name)
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
@@ -533,7 +543,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         action="auth.signup",
         target_type="user",
         target_id=email,
-        metadata={"plan": plan, "role": role},
+        metadata={"plan": plan, "role": _display_role(user)},
     )
     base_url = str(request.base_url).rstrip("/")
     if email not in _owner_emails():
@@ -543,7 +553,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.",
         "email": email,
         "plan": plan,
-        "role": role,
+        "role": _display_role(user),
         "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]},
     }
 
@@ -583,13 +593,13 @@ async def auth_signin(body: SigninRequest, request: Request):
         action="auth.signin",
         target_type="user",
         target_id=email,
-        metadata={"role": user.get("role", "owner"), "plan": user.get("plan", "free")},
+        metadata={"role": _display_role(user), "plan": user.get("plan", "free")},
     )
     response = JSONResponse({
         "success": True,
         "email": email,
         "plan": user.get("plan", "free"),
-        "role": user.get("role", "owner"),
+        "role": _display_role(user),
         "api_key": api_key,
         "session": session,
         "org_id": user.get("org_id"),
@@ -658,7 +668,7 @@ async def auth_me(request: Request):
     return {
         "email": user["email"],
         "plan": user.get("plan", "free"),
-        "role": user.get("role", "owner"),
+        "role": _display_role(user),
         "api_key": user.get("api_key"),
         "verified": bool(user.get("verified")),
         "org_id": user.get("org_id"),

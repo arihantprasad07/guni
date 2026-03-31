@@ -158,7 +158,7 @@ function issueTone(item) {
 async function loadOwnerSummary() {
   const response = await fetch(`${API}/owner/summary?limit=12`, { credentials: "include" });
   if (!response.ok) {
-    window.location.href = "/portal";
+    window.location.href = "/signin";
     return;
   }
 
