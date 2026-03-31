@@ -17,6 +17,8 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+SMTP_TIMEOUT_SECONDS = float(os.environ.get("GUNI_SMTP_TIMEOUT", "10"))
+
 
 CONFIRMATION_HTML = """<!DOCTYPE html>
 <html>
@@ -129,7 +131,7 @@ def send_confirmation(to_email: str) -> bool:
         msg.attach(text)
         msg.attach(html)
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
             server.login(from_email, app_pass)
             server.sendmail(from_email, to_email, msg.as_string())
 
@@ -192,7 +194,7 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
         msg["To"]      = to_email
         msg.attach(MIMEText(f"Your Guni API key: {api_key}\nPlan: {plan} ({scans_limit} scans/month)", "plain"))
         msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
             server.login(from_email, app_pass)
             server.sendmail(from_email, to_email, msg.as_string())
         return True
@@ -215,7 +217,7 @@ def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> 
         if text:
             msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
             server.login(from_email, app_pass)
             server.sendmail(from_email, to_email, msg.as_string())
         return True

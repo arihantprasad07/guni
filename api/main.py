@@ -14,7 +14,7 @@ import threading
 from pathlib import Path
 from urllib.parse import urlparse
 from pydantic import BaseModel
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import BackgroundTasks, FastAPI, Depends, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -364,7 +364,7 @@ class BillingCheckoutRequest(BaseModel):
 
 
 @app.post("/auth/signup", tags=["Auth"])
-async def auth_signup(body: SignupRequest, request: Request):
+async def auth_signup(body: SignupRequest, request: Request, background_tasks: BackgroundTasks):
     from api.auth_system import hash_password, generate_token, send_verification_email
     from api.database import (
         db_create_organization,
@@ -399,10 +399,7 @@ async def auth_signup(body: SignupRequest, request: Request):
         metadata={"plan": plan, "role": role},
     )
     base_url = str(request.base_url).rstrip("/")
-    try:
-        send_verification_email(email, token, base_url)
-    except Exception:
-        pass
+    background_tasks.add_task(send_verification_email, email, token, base_url)
     return {
         "success": True,
         "message": "Account created. Check your email to verify.",
@@ -471,7 +468,7 @@ async def auth_signin(body: SigninRequest, request: Request):
 
 
 @app.post("/auth/reset-request", tags=["Auth"])
-async def auth_reset_request(body: ResetRequest, request: Request):
+async def auth_reset_request(body: ResetRequest, request: Request, background_tasks: BackgroundTasks):
     from api.auth_system import generate_token, send_reset_email
     from api.database import db_get_user_by_email, db_set_reset_token
     import time as _time
@@ -482,10 +479,7 @@ async def auth_reset_request(body: ResetRequest, request: Request):
         expiry = _time.strftime("%Y-%m-%dT%H:%M:%S", _time.gmtime(_time.time() + 3600))
         db_set_reset_token(email, token, expiry)
         base_url = str(request.base_url).rstrip("/")
-        try:
-            send_reset_email(email, token, base_url)
-        except Exception:
-            pass
+        background_tasks.add_task(send_reset_email, email, token, base_url)
     return {"success": True, "message": "If that email exists, a reset link has been sent."}
 
 
@@ -585,7 +579,7 @@ class WaitlistResponse(BaseModel):
     position: int
 
 @app.post("/waitlist", response_model=WaitlistResponse, tags=["Waitlist"])
-def join_waitlist(body: WaitlistRequest):
+def join_waitlist(body: WaitlistRequest, background_tasks: BackgroundTasks):
     """Add an email to the Guni waitlist."""
     email = body.email.strip().lower()
     if not email or "@" not in email:
@@ -624,12 +618,8 @@ def join_waitlist(body: WaitlistRequest):
     except OSError:
         pass  # Read-only filesystem (Railway) — still return success
 
-    # Send confirmation email (non-blocking — fails silently if not configured)
-    try:
-        from api.email_service import send_confirmation
-        send_confirmation(email)
-    except Exception:
-        pass
+    from api.email_service import send_confirmation
+    background_tasks.add_task(send_confirmation, email)
 
     return WaitlistResponse(
         success=True,
