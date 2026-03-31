@@ -1690,7 +1690,7 @@ def export_history_csv(
 
 
 @app.post("/scan/compare", tags=["Scanning"], summary="Compare two pages")
-def scan_compare(
+async def scan_compare(
     request: Request,
     api_key: str = Depends(verify_api_key),
 ):
@@ -1698,32 +1698,29 @@ def scan_compare(
     Scan two HTML pages and return a side-by-side comparison.
     Body: {"html_a": "...", "html_b": "...", "goal": "..."}
     """
-    import asyncio
+    body = await _read_json_body(request)
+    html_a = body.get("html_a", "")
+    html_b = body.get("html_b", "")
+    goal = body.get("goal", "browse website")
 
-    async def _run():
-        body = await _read_json_body(request)
-        html_a = body.get("html_a", "")
-        html_b = body.get("html_b", "")
-        goal   = body.get("goal", "browse website")
+    if not html_a or not html_b:
+        raise HTTPException(status_code=422, detail="html_a and html_b required")
 
-        if not html_a or not html_b:
-            raise HTTPException(status_code=422, detail="html_a and html_b required")
+    check_rate_limit(api_key)
+    _enforce_scan_quota(api_key, scans_needed=2)
 
-        _enforce_scan_quota(api_key, scans_needed=2)
+    from guni import GuniScanner
 
-        from guni import GuniScanner
-        scanner = GuniScanner(goal=goal, llm_api_key=_get_anthropic_key(), tracking_key=api_key)
-        result_a = scanner.scan(html=html_a, url="page_a")
-        result_b = scanner.scan(html=html_b, url="page_b")
+    scanner = GuniScanner(goal=goal, llm_api_key=_get_anthropic_key(), tracking_key=api_key)
+    result_a = scanner.scan(html=html_a, url="page_a")
+    result_b = scanner.scan(html=html_b, url="page_b")
 
-        return {
-            "page_a":   _build_response(result_a),
-            "page_b":   _build_response(result_b),
-            "safer":    "page_a" if result_a["risk"] <= result_b["risk"] else "page_b",
-            "risk_diff": abs(result_a["risk"] - result_b["risk"]),
-        }
-
-    return asyncio.get_event_loop().run_until_complete(_run())
+    return {
+        "page_a": _build_response(result_a),
+        "page_b": _build_response(result_b),
+        "safer": "page_a" if result_a["risk"] <= result_b["risk"] else "page_b",
+        "risk_diff": abs(result_a["risk"] - result_b["risk"]),
+    }
 
 
 @app.get("/integrate", response_class=HTMLResponse, include_in_schema=False)

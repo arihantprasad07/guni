@@ -13,6 +13,10 @@ import time
 
 import httpx
 
+from api.logging_utils import get_logger
+
+logger = get_logger("billing")
+
 
 PLAN_LIMITS = {
     "free": 0,
@@ -233,7 +237,7 @@ def apply_billing_event(data: dict) -> dict:
                 PLAN_LIMITS.get(context["plan"], 1000),
             )
         except Exception as exc:
-            print(f"[Guni] API key email failed: {exc}")
+            logger.warning("API key email failed after payment capture: %s", exc)
         return {
             "status": "provisioned",
             "email": email,

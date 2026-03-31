@@ -7,7 +7,10 @@ import json
 import urllib.request
 import urllib.error
 
+from api.logging_utils import get_logger
 from api.netutil import validate_public_url
+
+logger = get_logger("alerts")
 
 
 def validate_outbound_target(url: str) -> str:
@@ -48,7 +51,7 @@ def send_alert(api_key: str, result: dict):
             _send_webhook(config["webhook_url"], payload)
 
     except Exception as e:
-        print(f"[Guni] Alert send failed: {e}")
+        logger.warning("Alert send failed: %s", e)
 
 
 def _build_payload(result: dict) -> dict:
@@ -127,4 +130,4 @@ def _post_json(url: str, data: dict):
         )
         urllib.request.urlopen(req, timeout=5)
     except Exception as e:
-        print(f"[Guni] Webhook POST failed ({url[:40]}...): {e}")
+        logger.warning("Webhook POST failed for %s: %s", url[:40], e)

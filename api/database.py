@@ -14,6 +14,7 @@ import time
 from urllib.parse import urlparse
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.collection import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from runtime_config import DB_PATH, MONGO_DB_NAME, MONGO_URI
@@ -81,7 +82,7 @@ def _next_counter(name: str) -> int:
         {"_id": name},
         {"$inc": {"value": 1}},
         upsert=True,
-        return_document=True,
+        return_document=ReturnDocument.AFTER,
     )
     return int(doc["value"])
 

@@ -65,7 +65,7 @@ def create_session(email: str) -> str:
         "exp":   int(time.time()) + SESSION_EXPIRY,
         "iat":   int(time.time()),
     }
-    data      = base64.b64encode(json.dumps(payload).encode()).decode()
+    data = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     signature = hmac.new(
         SESSION_SECRET.encode(),
         data.encode(),
@@ -88,7 +88,8 @@ def verify_session(token: str) -> str | None:
         ).hexdigest()
         if not hmac.compare_digest(expected, signature):
             return None
-        payload = json.loads(base64.b64decode(data).decode())
+        padding = "=" * (-len(data) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(f"{data}{padding}").decode())
         if payload["exp"] < int(time.time()):
             return None
         return payload["email"]

@@ -26,7 +26,7 @@ class GuniLogger:
             "latency":   result.get("total_latency", result.get("latency", 0)),
         }
         try:
-            with open(self.log_path, "a") as f:
+            with open(self.log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
         except OSError:
             # Non-fatal — in read-only filesystems just skip logging

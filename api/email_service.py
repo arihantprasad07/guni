@@ -17,7 +17,10 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from api.logging_utils import get_logger
+
 SMTP_TIMEOUT_SECONDS = float(os.environ.get("GUNI_SMTP_TIMEOUT", "10"))
+logger = get_logger("email")
 
 
 def email_sender_configured() -> bool:
@@ -144,7 +147,7 @@ def send_confirmation(to_email: str) -> bool:
         return True
 
     except Exception as e:
-        print(f"[Guni] Email send failed: {e}")
+        logger.warning("Confirmation email send failed: %s", e)
         return False
 
 
@@ -205,7 +208,7 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
             server.sendmail(from_email, to_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"[Guni] API key email failed: {e}")
+        logger.warning("API key email failed: %s", e)
         return False
 
 
@@ -228,5 +231,5 @@ def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> 
             server.sendmail(from_email, to_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"[Guni] Email failed: {e}")
+        logger.warning("HTML email failed: %s", e)
         return False
