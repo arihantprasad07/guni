@@ -79,7 +79,7 @@
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
 
-      <button class="g-btn g-btn-primary" style="padding:13px;font-size:13px" onclick="signup()">Create account</button>
+      <button class="g-btn g-btn-primary" id="signup-btn" style="padding:13px;font-size:13px" onclick="signup(this)">Create account</button>
     </div>
 
     <div class="auth-footer">
@@ -98,7 +98,19 @@ function selectPlan(plan) {
   document.getElementById('plan-pro').classList.toggle('selected', plan === 'pro');
 }
 
-async function signup() {
+function apiErrorMessage(payload, fallback) {
+  if (!payload) return fallback;
+  if (typeof payload === 'string') return payload;
+  if (payload.error) return payload.error;
+  if (typeof payload.detail === 'string') return payload.detail;
+  if (Array.isArray(payload.detail) && payload.detail.length) {
+    return payload.detail.map(item => item.msg || item.message || String(item)).join(', ');
+  }
+  if (payload.message) return payload.message;
+  return fallback;
+}
+
+async function signup(btnEl) {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const confirm = document.getElementById('confirm').value;
@@ -112,7 +124,7 @@ async function signup() {
   if (password.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.classList.add('show'); return; }
   if (password !== confirm) { err.textContent = 'Passwords do not match.'; err.classList.add('show'); return; }
 
-  const btn = event.target;
+  const btn = btnEl || document.getElementById('signup-btn');
   btn.disabled = true;
   btn.textContent = 'Creating account...';
 
@@ -122,9 +134,9 @@ async function signup() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, plan: selectedPlan }),
     });
-    const payload = await r.json();
+    const payload = await r.json().catch(() => null);
     if (!r.ok) {
-      err.textContent = payload.error || payload.detail || 'Something went wrong.';
+      err.textContent = apiErrorMessage(payload, 'Could not create account.');
       err.classList.add('show');
       return;
     }

@@ -52,7 +52,7 @@
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
 
-      <button class="g-btn g-btn-primary" style="padding:13px;font-size:13px" onclick="signin()">Sign in</button>
+      <button class="g-btn g-btn-primary" id="signin-btn" style="padding:13px;font-size:13px" onclick="signin(this)">Sign in</button>
 
     </div>
 
@@ -72,7 +72,19 @@ if (params.get('verified')) {
   msg.classList.add('show');
 }
 
-async function signin() {
+function apiErrorMessage(payload, fallback) {
+  if (!payload) return fallback;
+  if (typeof payload === 'string') return payload;
+  if (payload.error) return payload.error;
+  if (typeof payload.detail === 'string') return payload.detail;
+  if (Array.isArray(payload.detail) && payload.detail.length) {
+    return payload.detail.map(item => item.msg || item.message || String(item)).join(', ');
+  }
+  if (payload.message) return payload.message;
+  return fallback;
+}
+
+async function signin(btnEl) {
   const email    = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const err      = document.getElementById('err');
@@ -83,7 +95,7 @@ async function signin() {
 
   if (!email || !password) { err.textContent = 'Enter your email and password.'; err.classList.add('show'); return; }
 
-  const btn = event.target;
+  const btn = btnEl || document.getElementById('signin-btn');
   btn.disabled = true; btn.textContent = 'Signing in...';
 
   try {
@@ -97,7 +109,7 @@ async function signin() {
     const d = payload && payload.data ? payload.data : payload;
 
     if (!r.ok) {
-      err.textContent = payload.error || payload.detail || 'Invalid email or password.';
+      err.textContent = apiErrorMessage(payload, 'Invalid email or password.');
       err.classList.add('show');
       return;
     }
