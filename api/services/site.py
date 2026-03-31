@@ -36,9 +36,16 @@ def _decorate_dashboard_html(name: str, html: str) -> str:
         return html
 
     shell = _site_shell_assets(name)
-    html = html.replace("</head>", f"{shell['style']}</head>")
-    html = html.replace("</body>", f"{shell['script']}</body>")
+    html = _replace_last(html, "</head>", f"{shell['style']}</head>")
+    html = _replace_last(html, "</body>", f"{shell['script']}</body>")
     return html
+
+
+def _replace_last(source: str, needle: str, replacement: str) -> str:
+    head, sep, tail = source.rpartition(needle)
+    if not sep:
+        return source
+    return f"{head}{replacement}{tail}"
 
 
 def _site_shell_assets(name: str) -> dict[str, str]:
