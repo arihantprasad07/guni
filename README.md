@@ -169,7 +169,9 @@ Run tests:
 pytest -q test_api.py
 ```
 
-Runtime state is stored in `.guni/` by default so logs and local databases do not pollute the repo root.
+Runtime state is stored in MongoDB. Set `GUNI_MONGO_URI` for a real database, or
+use `GUNI_USE_MOCK_MONGO=true` for local test runs without a server. Files in `.guni/`
+are still used for logs and other non-database runtime state.
 
 ## Trust and deployment
 

@@ -24,6 +24,8 @@ if TEST_DATA_DIR.exists():
     shutil.rmtree(TEST_DATA_DIR)
 TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
+os.environ["GUNI_USE_MOCK_MONGO"] = "true"
+os.environ["GUNI_MONGO_DB_NAME"] = "guni_test"
 os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com,other-admin@example.com"
 os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
 os.environ["GUNI_SESSION_SECRET"] = "test-session-secret"

@@ -20,7 +20,9 @@ Set these in Railway:
 | Variable | Recommended value |
 |---|---|
 | `PORT` | Railway-provided |
-| `GUNI_DATA_DIR` | `/data/guni` or Railway volume path |
+| `GUNI_DATA_DIR` | `/data/guni` or Railway volume path for logs/non-DB state |
+| `GUNI_MONGO_URI` | MongoDB connection string |
+| `GUNI_MONGO_DB_NAME` | `guni` or your preferred database name |
 | `GUNI_RATE_LIMIT` | `60` or your preferred limit |
 | `GUNI_API_KEYS` | Comma-separated production keys if using protected mode |
 | `GUNI_SESSION_SECRET` | Long random secret |
@@ -42,9 +44,10 @@ Optional overrides:
 1. Push the repo to GitHub.
 2. Create a Railway project from the repo.
 3. Keep the included `Dockerfile` and `railway.toml`.
-4. Mount persistent storage if you want durable runtime state.
-5. Set the environment variables above.
-6. Verify `/health`, `/dashboard`, and `/enterprise` after deploy.
+4. Provision MongoDB and set `GUNI_MONGO_URI`.
+5. Mount persistent storage if you want durable logs or waitlist files.
+6. Set the environment variables above.
+7. Verify `/health`, `/dashboard`, and `/enterprise` after deploy.
 
 ## Verify the deploy
 
@@ -72,7 +75,8 @@ For pilots:
 For production customers:
 
 - require `X-API-Key`
-- store runtime data on a persistent volume
+- use a durable MongoDB deployment for application data
+- store runtime logs on a persistent volume if you want filesystem durability
 - rotate keys deliberately
 - set a strong `GUNI_SESSION_SECRET`
 - set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` if you want in-product checkout

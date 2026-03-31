@@ -1,149 +1,89 @@
 """
 Guni Database Layer
-SQLite-based persistent storage for API keys, scan history, and analytics.
-SQLite works on Railway with a volume mount, or falls back to /tmp for demo.
+MongoDB-backed persistent storage for API keys, scan history, and analytics.
 
-Tables:
-  api_keys   — customer keys, plans, usage
-  scans      — full scan history per key
-  alerts     — webhook alert config per key
+Use `GUNI_MONGO_URI` / `MONGO_URI` for production and `GUNI_USE_MOCK_MONGO=true`
+for local tests that should run without a real MongoDB server.
 """
 
-import sqlite3
-import time
+from __future__ import annotations
+
 import json
+import os
+import time
+from urllib.parse import urlparse
 
-from runtime_config import DB_PATH
+from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.errors import DuplicateKeyError
 
-
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    conn.execute("PRAGMA busy_timeout=30000;")
-    return conn
+from runtime_config import DB_PATH, MONGO_DB_NAME, MONGO_URI
 
 
-def init_db():
-    """Create all tables if they don't exist."""
-    with get_conn() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS organizations (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            name         TEXT NOT NULL,
-            slug         TEXT UNIQUE NOT NULL,
-            created_at   TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS api_keys (
-            key          TEXT PRIMARY KEY,
-            org_id       INTEGER,
-            email        TEXT NOT NULL,
-            plan         TEXT NOT NULL DEFAULT 'starter',
-            scans_limit  INTEGER NOT NULL DEFAULT 1000,
-            scans_used   INTEGER NOT NULL DEFAULT 0,
-            created_at   TEXT NOT NULL,
-            last_used    TEXT,
-            active       INTEGER NOT NULL DEFAULT 1,
-            revoked_at   TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS scans (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            api_key      TEXT,
-            url          TEXT,
-            goal         TEXT,
-            risk         INTEGER,
-            decision     TEXT,
-            breakdown    TEXT,
-            latency      REAL,
-            timestamp    TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS alerts (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            api_key      TEXT NOT NULL,
-            webhook_url  TEXT,
-            slack_url    TEXT,
-            on_block     INTEGER DEFAULT 1,
-            on_confirm   INTEGER DEFAULT 0,
-            created_at   TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS custom_rules (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            api_key      TEXT NOT NULL,
-            rule_type    TEXT NOT NULL,
-            pattern      TEXT NOT NULL,
-            weight       INTEGER DEFAULT 30,
-            created_at   TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS audit_events (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            actor_email  TEXT,
-            org_id       INTEGER,
-            action       TEXT NOT NULL,
-            target_type  TEXT NOT NULL,
-            target_id    TEXT,
-            metadata     TEXT,
-            created_at   TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS billing_subscriptions (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            org_id                 INTEGER,
-            email                  TEXT NOT NULL,
-            plan                   TEXT NOT NULL DEFAULT 'free',
-            status                 TEXT NOT NULL DEFAULT 'inactive',
-            billing_provider       TEXT NOT NULL DEFAULT 'razorpay',
-            provider_customer_id   TEXT,
-            provider_subscription_id TEXT,
-            provider_payment_id    TEXT,
-            provider_payment_link_id TEXT,
-            checkout_url           TEXT,
-            current_period_end     TEXT,
-            cancel_at_period_end   INTEGER NOT NULL DEFAULT 0,
-            last_payment_at        TEXT,
-            created_at             TEXT NOT NULL,
-            updated_at             TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS billing_events (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-            org_id             INTEGER,
-            email              TEXT,
-            event_type         TEXT NOT NULL,
-            status             TEXT,
-            provider           TEXT NOT NULL DEFAULT 'razorpay',
-            provider_event_id  TEXT,
-            provider_payment_id TEXT,
-            amount             INTEGER NOT NULL DEFAULT 0,
-            currency           TEXT NOT NULL DEFAULT 'INR',
-            payload            TEXT,
-            created_at         TEXT NOT NULL
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_scans_key ON scans(api_key);
-        CREATE INDEX IF NOT EXISTS idx_scans_ts  ON scans(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_keys_email ON api_keys(email);
-        CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id, created_at);
-        CREATE INDEX IF NOT EXISTS idx_billing_email ON billing_subscriptions(email);
-        CREATE INDEX IF NOT EXISTS idx_billing_org ON billing_subscriptions(org_id);
-        """)
-
-        key_columns = {
-            row["name"]
-            for row in conn.execute("PRAGMA table_info(api_keys)").fetchall()
-        }
-        if "org_id" not in key_columns:
-            conn.execute("ALTER TABLE api_keys ADD COLUMN org_id INTEGER")
-        if "revoked_at" not in key_columns:
-            conn.execute("ALTER TABLE api_keys ADD COLUMN revoked_at TEXT")
+_CLIENT = None
+_DB = None
 
 
-# ── Key operations ─────────────────────────────────────────────────────────
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _use_mock_mongo() -> bool:
+    return (os.environ.get("GUNI_USE_MOCK_MONGO", "") or "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+
+def _mongo_uri() -> str:
+    return MONGO_URI or f"mongodb://localhost:27017/{MONGO_DB_NAME}"
+
+
+def _default_db_name() -> str:
+    parsed = urlparse(_mongo_uri())
+    path_db = parsed.path.lstrip("/")
+    return path_db or MONGO_DB_NAME or "guni"
+
+
+def _collections():
+    db = get_db()
+    return {
+        "organizations": db.organizations,
+        "api_keys": db.api_keys,
+        "scans": db.scans,
+        "alerts": db.alerts,
+        "custom_rules": db.custom_rules,
+        "audit_events": db.audit_events,
+        "billing_subscriptions": db.billing_subscriptions,
+        "billing_events": db.billing_events,
+        "users": db.users,
+        "counters": db.counters,
+    }
+
+
+def get_db():
+    global _CLIENT, _DB
+    if _DB is not None:
+        return _DB
+
+    if _use_mock_mongo():
+        import mongomock
+
+        _CLIENT = mongomock.MongoClient()
+    else:
+        _CLIENT = MongoClient(_mongo_uri(), serverSelectionTimeoutMS=5000)
+
+    _DB = _CLIENT[_default_db_name()]
+    return _DB
+
+
+def _next_counter(name: str) -> int:
+    doc = _collections()["counters"].find_one_and_update(
+        {"_id": name},
+        {"$inc": {"value": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    return int(doc["value"])
+
 
 def _slugify_org(name: str) -> str:
     cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in name).strip("-")
@@ -152,251 +92,237 @@ def _slugify_org(name: str) -> str:
     return cleaned or f"org-{int(time.time())}"
 
 
+def _with_id(doc: dict | None, *, id_field: str = "id") -> dict | None:
+    if not doc:
+        return None
+    item = dict(doc)
+    item.pop("_id", None)
+    if id_field in item:
+        return item
+    return item
+
+
+def _docs_with_id(rows) -> list[dict]:
+    return [_with_id(row) for row in rows if row]
+
+
+def init_db():
+    cols = _collections()
+    cols["organizations"].create_index([("id", ASCENDING)], unique=True)
+    cols["organizations"].create_index([("slug", ASCENDING)], unique=True)
+    cols["api_keys"].create_index([("key", ASCENDING)], unique=True)
+    cols["api_keys"].create_index([("email", ASCENDING), ("active", ASCENDING)])
+    cols["scans"].create_index([("api_key", ASCENDING)])
+    cols["scans"].create_index([("timestamp", DESCENDING)])
+    cols["alerts"].create_index([("api_key", ASCENDING)], unique=True)
+    cols["custom_rules"].create_index([("id", ASCENDING)], unique=True)
+    cols["custom_rules"].create_index([("api_key", ASCENDING)])
+    cols["audit_events"].create_index([("id", ASCENDING)], unique=True)
+    cols["audit_events"].create_index([("org_id", ASCENDING), ("created_at", DESCENDING)])
+    cols["billing_subscriptions"].create_index([("email", ASCENDING)], unique=True)
+    cols["billing_subscriptions"].create_index([("org_id", ASCENDING)])
+    cols["billing_events"].create_index([("id", ASCENDING)], unique=True)
+    cols["billing_events"].create_index([("email", ASCENDING), ("created_at", DESCENDING)])
+    cols["billing_events"].create_index([("org_id", ASCENDING), ("created_at", DESCENDING)])
+    cols["users"].create_index([("email", ASCENDING)], unique=True)
+    cols["users"].create_index([("verify_token", ASCENDING)])
+    cols["users"].create_index([("reset_token", ASCENDING)])
+
+
 def db_create_organization(name: str) -> dict:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    now = _now()
     base_slug = _slugify_org(name)
     slug = base_slug
+    orgs = _collections()["organizations"]
+    suffix = 2
 
-    with get_conn() as conn:
-        suffix = 2
-        while conn.execute("SELECT 1 FROM organizations WHERE slug=?", (slug,)).fetchone():
-            slug = f"{base_slug}-{suffix}"
-            suffix += 1
+    while orgs.find_one({"slug": slug}):
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
 
-        cursor = conn.execute(
-            "INSERT INTO organizations (name,slug,created_at) VALUES (?,?,?)",
-            (name, slug, now)
-        )
-        org_id = cursor.lastrowid
-
+    org_id = _next_counter("organizations")
+    orgs.insert_one({
+        "_id": org_id,
+        "id": org_id,
+        "name": name,
+        "slug": slug,
+        "created_at": now,
+    })
     return db_get_organization(org_id)
 
 
 def db_get_organization(org_id: int) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute("SELECT * FROM organizations WHERE id=?", (org_id,)).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["organizations"].find_one({"id": org_id}))
 
 
-def db_log_audit_event(actor_email: str | None, org_id: int | None, action: str,
-                       target_type: str, target_id: str = "", metadata: dict | None = None):
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO audit_events (actor_email,org_id,action,target_type,target_id,metadata,created_at) VALUES (?,?,?,?,?,?,?)",
-            (
-                actor_email,
-                org_id,
-                action,
-                target_type,
-                target_id,
-                json.dumps(metadata or {}),
-                now,
-            )
-        )
+def db_log_audit_event(
+    actor_email: str | None,
+    org_id: int | None,
+    action: str,
+    target_type: str,
+    target_id: str = "",
+    metadata: dict | None = None,
+):
+    event_id = _next_counter("audit_events")
+    _collections()["audit_events"].insert_one({
+        "_id": event_id,
+        "id": event_id,
+        "actor_email": actor_email,
+        "org_id": org_id,
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "metadata": metadata or {},
+        "created_at": _now(),
+    })
 
 
 def db_get_audit_events(org_id: int, limit: int = 50) -> list:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audit_events WHERE org_id=? ORDER BY created_at DESC LIMIT ?",
-            (org_id, min(limit, 100))
-        ).fetchall()
-        events = []
-        for row in rows:
-            item = dict(row)
-            try:
-                item["metadata"] = json.loads(item.get("metadata") or "{}")
-            except Exception:
-                item["metadata"] = {}
-            events.append(item)
-        return events
-
-
-def _decode_json_field(value: str | None) -> dict:
-    try:
-        return json.loads(value or "{}")
-    except Exception:
-        return {}
+    rows = _collections()["audit_events"].find(
+        {"org_id": org_id}
+    ).sort("created_at", DESCENDING).limit(min(limit, 100))
+    return _docs_with_id(rows)
 
 
 def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int | None = None) -> dict:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        # Check existing active key for this email
-        row = conn.execute(
-            "SELECT * FROM api_keys WHERE email=? AND active=1", (email,)
-        ).fetchone()
-        if row:
-            return dict(row)
+    now = _now()
+    keys = _collections()["api_keys"]
+    email = email.lower().strip()
+    existing = keys.find_one({"email": email, "active": 1})
+    if existing:
+        return _with_id(existing)
 
-        conn.execute(
-            "INSERT OR IGNORE INTO api_keys (key,org_id,email,plan,scans_limit,scans_used,created_at,active) "
-            "VALUES (?,?,?,?,?,0,?,1)",
-            (key, org_id, email, plan, scans_limit, now)
-        )
+    doc = {
+        "_id": key,
+        "key": key,
+        "org_id": org_id,
+        "email": email,
+        "plan": plan,
+        "scans_limit": scans_limit,
+        "scans_used": 0,
+        "created_at": now,
+        "last_used": None,
+        "active": 1,
+        "revoked_at": None,
+    }
+    try:
+        keys.insert_one(doc)
+    except DuplicateKeyError:
+        pass
 
     result = db_get_key(key)
     if result is None:
-        # Key collision — fetch by email
-        with get_conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM api_keys WHERE email=? AND active=1", (email,)
-            ).fetchone()
-            return dict(row) if row else {"key": key, "email": email, "plan": plan}
+        existing = keys.find_one({"email": email, "active": 1})
+        return _with_id(existing) or {"key": key, "email": email, "plan": plan}
     return result
 
 
 def db_get_key(key: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM api_keys WHERE key=?", (key,)
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["api_keys"].find_one({"key": key}))
 
 
 def db_get_key_for_org(key: str, org_id: int | None) -> dict | None:
-    with get_conn() as conn:
-        if org_id is None:
-            row = conn.execute(
-                "SELECT * FROM api_keys WHERE key=? AND org_id IS NULL",
-                (key,),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT * FROM api_keys WHERE key=? AND org_id=?",
-                (key, org_id),
-            ).fetchone()
-        return dict(row) if row else None
+    query = {"key": key, "org_id": org_id}
+    if org_id is None:
+        query = {"key": key, "org_id": None}
+    return _with_id(_collections()["api_keys"].find_one(query))
 
 
 def db_validate_key(key: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM api_keys WHERE key=? AND active=1", (key,)
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["api_keys"].find_one({"key": key, "active": 1}))
 
 
 def db_increment_usage(key: str) -> bool:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT scans_used, scans_limit FROM api_keys WHERE key=?", (key,)
-        ).fetchone()
-        if not row:
-            return True
-        conn.execute(
-            "UPDATE api_keys SET scans_used=scans_used+1, last_used=? WHERE key=?",
-            (now, key)
-        )
-        return (row["scans_used"] + 1) <= row["scans_limit"]
+    keys = _collections()["api_keys"]
+    current = keys.find_one({"key": key})
+    if not current:
+        return True
+
+    keys.update_one(
+        {"key": key},
+        {"$inc": {"scans_used": 1}, "$set": {"last_used": _now()}},
+    )
+    return (int(current.get("scans_used", 0)) + 1) <= int(current.get("scans_limit", 0))
 
 
 def db_get_usage(key: str) -> dict:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM api_keys WHERE key=?", (key,)
-        ).fetchone()
-        if not row:
-            return {}
-        used  = row["scans_used"]
-        limit = row["scans_limit"]
-        return {
-            "scans_used":      used,
-            "scans_limit":     limit,
-            "scans_remaining": max(0, limit - used),
-            "plan":            row["plan"],
-            "active":          bool(row["active"]),
-            "created_at":      row["created_at"],
-            "last_used":       row["last_used"],
-            "email":           row["email"],
-            "org_id":          row["org_id"],
-            "revoked_at":      row["revoked_at"],
-        }
+    row = _collections()["api_keys"].find_one({"key": key})
+    if not row:
+        return {}
+    item = _with_id(row)
+    used = int(item["scans_used"])
+    limit = int(item["scans_limit"])
+    return {
+        "scans_used": used,
+        "scans_limit": limit,
+        "scans_remaining": max(0, limit - used),
+        "plan": item["plan"],
+        "active": bool(item["active"]),
+        "created_at": item["created_at"],
+        "last_used": item["last_used"],
+        "email": item["email"],
+        "org_id": item["org_id"],
+        "revoked_at": item["revoked_at"],
+    }
 
 
 def db_list_keys(org_id: int | None = None) -> list:
-    with get_conn() as conn:
-        if org_id is None:
-            rows = conn.execute(
-                "SELECT * FROM api_keys ORDER BY created_at DESC"
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM api_keys WHERE org_id=? ORDER BY created_at DESC",
-                (org_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+    query = {} if org_id is None else {"org_id": org_id}
+    rows = _collections()["api_keys"].find(query).sort("created_at", DESCENDING)
+    return _docs_with_id(rows)
 
 
 def db_revoke_key(key: str) -> bool:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE api_keys SET active=0, revoked_at=? WHERE key=?",
-            (now, key),
-        )
-        conn.execute(
-            "UPDATE users SET api_key=NULL WHERE api_key=?",
-            (key,),
-        )
-        return result.rowcount > 0
+    now = _now()
+    result = _collections()["api_keys"].update_one(
+        {"key": key},
+        {"$set": {"active": 0, "revoked_at": now}},
+    )
+    _collections()["users"].update_many({"api_key": key}, {"$set": {"api_key": None}})
+    return result.modified_count > 0
 
 
 def db_rotate_key(key: str, new_key: str) -> dict | None:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM api_keys WHERE key=?",
-            (key,),
-        ).fetchone()
-        if not row:
-            return None
+    keys = _collections()["api_keys"]
+    current = keys.find_one({"key": key})
+    if not current:
+        return None
 
-        data = dict(row)
-        conn.execute(
-            "UPDATE api_keys SET active=0, revoked_at=? WHERE key=?",
-            (now, key),
-        )
-        conn.execute(
-            "INSERT INTO api_keys (key,org_id,email,plan,scans_limit,scans_used,created_at,last_used,active,revoked_at) "
-            "VALUES (?,?,?,?,?,?,?,?,1,NULL)",
-            (
-                new_key,
-                data.get("org_id"),
-                data["email"],
-                data["plan"],
-                data["scans_limit"],
-                data.get("scans_used", 0),
-                now,
-                data.get("last_used"),
-            ),
-        )
-        conn.execute(
-            "UPDATE users SET api_key=? WHERE api_key=? OR email=?",
-            (new_key, key, data["email"]),
-        )
-
+    data = _with_id(current)
+    now = _now()
+    keys.update_one({"key": key}, {"$set": {"active": 0, "revoked_at": now}})
+    new_doc = {
+        "_id": new_key,
+        "key": new_key,
+        "org_id": data.get("org_id"),
+        "email": data["email"],
+        "plan": data["plan"],
+        "scans_limit": data["scans_limit"],
+        "scans_used": data.get("scans_used", 0),
+        "created_at": now,
+        "last_used": data.get("last_used"),
+        "active": 1,
+        "revoked_at": None,
+    }
+    keys.insert_one(new_doc)
+    _collections()["users"].update_many(
+        {"$or": [{"api_key": key}, {"email": data["email"]}]},
+        {"$set": {"api_key": new_key}},
+    )
     return db_get_key(new_key)
 
 
 def db_get_subscription_by_email(email: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM billing_subscriptions WHERE email=? ORDER BY updated_at DESC LIMIT 1",
-            (email.lower().strip(),),
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["billing_subscriptions"].find_one(
+        {"email": email.lower().strip()}
+    ))
 
 
 def db_get_subscription_by_org(org_id: int) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM billing_subscriptions WHERE org_id=? ORDER BY updated_at DESC LIMIT 1",
-            (org_id,),
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["billing_subscriptions"].find_one(
+        {"org_id": org_id},
+        sort=[("updated_at", DESCENDING)],
+    ))
 
 
 def db_upsert_subscription(
@@ -415,77 +341,34 @@ def db_upsert_subscription(
     cancel_at_period_end: bool = False,
     last_payment_at: str | None = None,
 ) -> dict:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    now = _now()
     email = email.lower().strip()
-    with get_conn() as conn:
-        existing = conn.execute(
-            "SELECT id FROM billing_subscriptions WHERE email=?",
-            (email,),
-        ).fetchone()
-        if existing:
-            conn.execute(
-                """
-                UPDATE billing_subscriptions
-                SET org_id=?,
-                    plan=?,
-                    status=?,
-                    billing_provider=?,
-                    provider_customer_id=?,
-                    provider_subscription_id=?,
-                    provider_payment_id=?,
-                    provider_payment_link_id=?,
-                    checkout_url=?,
-                    current_period_end=?,
-                    cancel_at_period_end=?,
-                    last_payment_at=?,
-                    updated_at=?
-                WHERE email=?
-                """,
-                (
-                    org_id,
-                    plan,
-                    status,
-                    billing_provider,
-                    provider_customer_id,
-                    provider_subscription_id,
-                    provider_payment_id,
-                    provider_payment_link_id,
-                    checkout_url,
-                    current_period_end,
-                    int(cancel_at_period_end),
-                    last_payment_at,
-                    now,
-                    email,
-                ),
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO billing_subscriptions (
-                    org_id,email,plan,status,billing_provider,
-                    provider_customer_id,provider_subscription_id,provider_payment_id,
-                    provider_payment_link_id,checkout_url,current_period_end,
-                    cancel_at_period_end,last_payment_at,created_at,updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    org_id,
-                    email,
-                    plan,
-                    status,
-                    billing_provider,
-                    provider_customer_id,
-                    provider_subscription_id,
-                    provider_payment_id,
-                    provider_payment_link_id,
-                    checkout_url,
-                    current_period_end,
-                    int(cancel_at_period_end),
-                    last_payment_at,
-                    now,
-                    now,
-                ),
-            )
+    existing = db_get_subscription_by_email(email)
+    sub_id = existing["id"] if existing else _next_counter("billing_subscriptions")
+    doc = {
+        "_id": sub_id,
+        "id": sub_id,
+        "org_id": org_id,
+        "email": email,
+        "plan": plan,
+        "status": status,
+        "billing_provider": billing_provider,
+        "provider_customer_id": provider_customer_id,
+        "provider_subscription_id": provider_subscription_id,
+        "provider_payment_id": provider_payment_id,
+        "provider_payment_link_id": provider_payment_link_id,
+        "checkout_url": checkout_url,
+        "current_period_end": current_period_end,
+        "cancel_at_period_end": int(cancel_at_period_end),
+        "last_payment_at": last_payment_at,
+        "created_at": existing.get("created_at", now) if existing else now,
+        "updated_at": now,
+    }
+    _collections()["billing_subscriptions"].replace_one(
+        {"email": email},
+        doc,
+        upsert=True,
+    )
     return db_get_subscription_by_email(email) or {"email": email, "plan": plan, "status": status}
 
 
@@ -501,368 +384,225 @@ def db_log_billing_event(
     currency: str = "INR",
     payload: dict | None = None,
 ) -> dict:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        cursor = conn.execute(
-            """
-            INSERT INTO billing_events (
-                org_id,email,event_type,status,provider_event_id,
-                provider_payment_id,amount,currency,payload,created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                org_id,
-                email.lower().strip() if email else None,
-                event_type,
-                status,
-                provider_event_id,
-                provider_payment_id,
-                amount,
-                currency,
-                json.dumps(payload or {}),
-                now,
-            ),
-        )
-        event_id = cursor.lastrowid
-        row = conn.execute(
-            "SELECT * FROM billing_events WHERE id=?",
-            (event_id,),
-        ).fetchone()
-    item = dict(row)
-    item["payload"] = _decode_json_field(item.get("payload"))
-    return item
+    event_id = _next_counter("billing_events")
+    doc = {
+        "_id": event_id,
+        "id": event_id,
+        "org_id": org_id,
+        "email": email.lower().strip() if email else None,
+        "event_type": event_type,
+        "status": status,
+        "provider": "razorpay",
+        "provider_event_id": provider_event_id,
+        "provider_payment_id": provider_payment_id,
+        "amount": amount,
+        "currency": currency,
+        "payload": payload or {},
+        "created_at": _now(),
+    }
+    _collections()["billing_events"].insert_one(doc)
+    return _with_id(doc)
 
 
 def db_get_billing_events(email: str | None = None, org_id: int | None = None, limit: int = 20) -> list:
-    with get_conn() as conn:
-        if org_id is not None:
-            rows = conn.execute(
-                "SELECT * FROM billing_events WHERE org_id=? ORDER BY created_at DESC LIMIT ?",
-                (org_id, min(limit, 100)),
-            ).fetchall()
-        elif email:
-            rows = conn.execute(
-                "SELECT * FROM billing_events WHERE email=? ORDER BY created_at DESC LIMIT ?",
-                (email.lower().strip(), min(limit, 100)),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM billing_events ORDER BY created_at DESC LIMIT ?",
-                (min(limit, 100),),
-            ).fetchall()
-    events = []
-    for row in rows:
-        item = dict(row)
-        item["payload"] = _decode_json_field(item.get("payload"))
-        events.append(item)
-    return events
+    query = {}
+    if org_id is not None:
+        query["org_id"] = org_id
+    elif email:
+        query["email"] = email.lower().strip()
+
+    rows = _collections()["billing_events"].find(query).sort("created_at", DESCENDING).limit(min(limit, 100))
+    return _docs_with_id(rows)
 
 
 def db_set_user_plan(email: str, plan: str) -> bool:
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE users SET plan=? WHERE email=?",
-            (plan, email.lower().strip()),
-        )
-        return result.rowcount > 0
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": {"plan": plan}},
+    )
+    return result.modified_count > 0
 
 
 def db_user_belongs_to_org(email: str, org_id: int | None) -> bool:
-    with get_conn() as conn:
-        if org_id is None:
-            row = conn.execute(
-                "SELECT 1 FROM users WHERE email=? AND org_id IS NULL",
-                (email.lower().strip(),),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT 1 FROM users WHERE email=? AND org_id=?",
-                (email.lower().strip(), org_id),
-            ).fetchone()
-        return bool(row)
+    return _collections()["users"].find_one({
+        "email": email.lower().strip(),
+        "org_id": org_id,
+    }) is not None
 
-
-# ── Scan history ───────────────────────────────────────────────────────────
 
 def db_log_scan(api_key: str, result: dict):
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO scans (api_key,url,goal,risk,decision,breakdown,latency,timestamp) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (
-                api_key or "anonymous",
-                result.get("url", ""),
-                result.get("goal", ""),
-                result.get("risk", 0),
-                result.get("decision", ""),
-                json.dumps(result.get("breakdown", {})),
-                result.get("total_latency", 0),
-                now,
-            )
-        )
+    scans = _collections()["scans"]
+    doc_id = _next_counter("scans")
+    scans.insert_one({
+        "_id": doc_id,
+        "id": doc_id,
+        "api_key": api_key or "anonymous",
+        "url": result.get("url", ""),
+        "goal": result.get("goal", ""),
+        "risk": result.get("risk", 0),
+        "decision": result.get("decision", ""),
+        "breakdown": result.get("breakdown", {}),
+        "latency": result.get("total_latency", 0),
+        "timestamp": _now(),
+    })
 
 
 def db_get_history(api_key: str = None, limit: int = 50) -> list:
-    with get_conn() as conn:
-        if api_key:
-            rows = conn.execute(
-                "SELECT * FROM scans WHERE api_key=? ORDER BY timestamp DESC LIMIT ?",
-                (api_key, limit)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM scans ORDER BY timestamp DESC LIMIT ?",
-                (limit,)
-            ).fetchall()
-        return [dict(r) for r in rows]
+    query = {"api_key": api_key} if api_key else {}
+    rows = _collections()["scans"].find(query).sort("timestamp", DESCENDING).limit(limit)
+    return _docs_with_id(rows)
 
 
 def db_get_analytics(api_key: str = None) -> dict:
-    """Get scan analytics — counts, trends, threat breakdown."""
-    with get_conn() as conn:
-        base = "WHERE api_key=?" if api_key else ""
-        args = (api_key,) if api_key else ()
+    query = {"api_key": api_key} if api_key else {}
+    scans = list(_collections()["scans"].find(query))
+    total = len(scans)
+    blocked = sum(1 for item in scans if item.get("decision") == "BLOCK")
+    confirmed = sum(1 for item in scans if item.get("decision") == "CONFIRM")
+    allowed = sum(1 for item in scans if item.get("decision") == "ALLOW")
+    avg_risk = (sum(float(item.get("risk", 0)) for item in scans) / total) if total else 0
+    avg_lat = (sum(float(item.get("latency", 0)) for item in scans) / total) if total else 0
 
-        total = conn.execute(
-            f"SELECT COUNT(*) as c FROM scans {base}", args
-        ).fetchone()["c"]
+    daily_counts: dict[str, dict] = {}
+    for item in scans:
+        day = (item.get("timestamp") or "")[:10]
+        if not day:
+            continue
+        daily = daily_counts.setdefault(day, {"day": day, "count": 0, "blocks": 0})
+        daily["count"] += 1
+        if item.get("decision") == "BLOCK":
+            daily["blocks"] += 1
 
-        blocked = conn.execute(
-            f"SELECT COUNT(*) as c FROM scans {base} {'AND' if api_key else 'WHERE'} decision='BLOCK'",
-            args
-        ).fetchone()["c"]
+    daily = sorted(daily_counts.values(), key=lambda item: item["day"], reverse=True)[:7]
+    return {
+        "total": total,
+        "blocked": blocked,
+        "confirmed": confirmed,
+        "allowed": allowed,
+        "avg_risk": round(avg_risk, 1),
+        "avg_latency_ms": round(avg_lat * 1000, 2),
+        "block_rate": round(blocked / total * 100, 1) if total else 0,
+        "daily": daily,
+    }
 
-        confirmed = conn.execute(
-            f"SELECT COUNT(*) as c FROM scans {base} {'AND' if api_key else 'WHERE'} decision='CONFIRM'",
-            args
-        ).fetchone()["c"]
-
-        allowed = conn.execute(
-            f"SELECT COUNT(*) as c FROM scans {base} {'AND' if api_key else 'WHERE'} decision='ALLOW'",
-            args
-        ).fetchone()["c"]
-
-        avg_risk = conn.execute(
-            f"SELECT AVG(risk) as r FROM scans {base}", args
-        ).fetchone()["r"] or 0
-
-        avg_lat = conn.execute(
-            f"SELECT AVG(latency) as l FROM scans {base}", args
-        ).fetchone()["l"] or 0
-
-        # Last 7 days daily counts
-        daily = conn.execute(
-            f"SELECT DATE(timestamp) as day, COUNT(*) as count, "
-            f"SUM(CASE WHEN decision='BLOCK' THEN 1 ELSE 0 END) as blocks "
-            f"FROM scans {base} "
-            f"GROUP BY DATE(timestamp) ORDER BY day DESC LIMIT 7",
-            args
-        ).fetchall()
-
-        return {
-            "total":     total,
-            "blocked":   blocked,
-            "confirmed": confirmed,
-            "allowed":   allowed,
-            "avg_risk":  round(avg_risk, 1),
-            "avg_latency_ms": round(avg_lat * 1000, 2),
-            "block_rate": round(blocked / total * 100, 1) if total else 0,
-            "daily":     [dict(r) for r in daily],
-        }
-
-
-# ── Custom rules ───────────────────────────────────────────────────────────
 
 def db_add_rule(api_key: str, rule_type: str, pattern: str, weight: int = 30):
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO custom_rules (api_key,rule_type,pattern,weight,created_at) VALUES (?,?,?,?,?)",
-            (api_key, rule_type, pattern, weight, now)
-        )
+    rule_id = _next_counter("custom_rules")
+    _collections()["custom_rules"].insert_one({
+        "_id": rule_id,
+        "id": rule_id,
+        "api_key": api_key,
+        "rule_type": rule_type,
+        "pattern": pattern,
+        "weight": weight,
+        "created_at": _now(),
+    })
 
 
 def db_get_rules(api_key: str) -> list:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM custom_rules WHERE api_key=?", (api_key,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+    rows = _collections()["custom_rules"].find({"api_key": api_key}).sort("id", ASCENDING)
+    return _docs_with_id(rows)
 
 
 def db_delete_rule(rule_id: int, api_key: str):
-    with get_conn() as conn:
-        conn.execute(
-            "DELETE FROM custom_rules WHERE id=? AND api_key=?", (rule_id, api_key)
-        )
+    _collections()["custom_rules"].delete_one({"id": rule_id, "api_key": api_key})
 
 
-# ── Alert config ───────────────────────────────────────────────────────────
-
-def db_set_alert(api_key: str, webhook_url: str = None, slack_url: str = None,
-                 on_block: bool = True, on_confirm: bool = False):
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        existing = conn.execute(
-            "SELECT id FROM alerts WHERE api_key=?", (api_key,)
-        ).fetchone()
-        if existing:
-            conn.execute(
-                "UPDATE alerts SET webhook_url=?,slack_url=?,on_block=?,on_confirm=? WHERE api_key=?",
-                (webhook_url, slack_url, int(on_block), int(on_confirm), api_key)
-            )
-        else:
-            conn.execute(
-                "INSERT INTO alerts (api_key,webhook_url,slack_url,on_block,on_confirm,created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (api_key, webhook_url, slack_url, int(on_block), int(on_confirm), now)
-            )
+def db_set_alert(
+    api_key: str,
+    webhook_url: str = None,
+    slack_url: str = None,
+    on_block: bool = True,
+    on_confirm: bool = False,
+):
+    existing = db_get_alert(api_key)
+    alert_id = existing["id"] if existing else _next_counter("alerts")
+    doc = {
+        "_id": alert_id,
+        "id": alert_id,
+        "api_key": api_key,
+        "webhook_url": webhook_url,
+        "slack_url": slack_url,
+        "on_block": int(on_block),
+        "on_confirm": int(on_confirm),
+        "created_at": existing.get("created_at", _now()) if existing else _now(),
+    }
+    _collections()["alerts"].replace_one({"api_key": api_key}, doc, upsert=True)
 
 
 def db_get_alert(api_key: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM alerts WHERE api_key=?", (api_key,)
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["alerts"].find_one({"api_key": api_key}))
 
-
-# Initialize DB on import
-try:
-    init_db()
-except Exception as e:
-    print(f"[Guni] DB init warning: {e}")
-
-
-# ── Threat intelligence feed ───────────────────────────────────────────────
 
 def db_get_threat_feed() -> dict:
-    """
-    Aggregate global threat stats across all scans for the public feed.
-    Returns counts, top patterns, recent threats.
-    """
-    with get_conn() as conn:
-        # Global totals
-        total = conn.execute("SELECT COUNT(*) as c FROM scans").fetchone()["c"]
-        blocked = conn.execute(
-            "SELECT COUNT(*) as c FROM scans WHERE decision='BLOCK'"
-        ).fetchone()["c"]
+    scans = list(_collections()["scans"].find({}))
+    total = len(scans)
+    blocked = sum(1 for item in scans if item.get("decision") == "BLOCK")
 
-        # Threat type breakdown from breakdown JSON
-        rows = conn.execute(
-            "SELECT breakdown FROM scans WHERE breakdown IS NOT NULL"
-        ).fetchall()
+    threat_counts = {
+        "injection": 0,
+        "phishing": 0,
+        "deception": 0,
+        "scripts": 0,
+        "goal_mismatch": 0,
+        "clickjacking": 0,
+        "csrf": 0,
+        "redirect": 0,
+    }
+    threat_priority = [
+        "clickjacking",
+        "phishing",
+        "injection",
+        "goal_mismatch",
+        "csrf",
+        "deception",
+        "redirect",
+        "scripts",
+    ]
 
-        threat_counts = {
-            "injection": 0, "phishing": 0, "deception": 0,
-            "scripts": 0, "goal_mismatch": 0,
-            "clickjacking": 0, "csrf": 0, "redirect": 0,
-        }
+    def primary_threat(breakdown: dict) -> str | None:
+        best_key = None
+        best_score = 0
+        for key in threat_priority:
+            score = int((breakdown or {}).get(key, 0) or 0)
+            if score > best_score:
+                best_key = key
+                best_score = score
+        return best_key if best_score > 0 else None
 
-        threat_priority = [
-            "clickjacking",
-            "phishing",
-            "injection",
-            "goal_mismatch",
-            "csrf",
-            "deception",
-            "redirect",
-            "scripts",
-        ]
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 86400))
+    hourly_counts: dict[str, dict] = {}
+    last24h = 0
+    last24h_blocked = 0
 
-        def primary_threat(breakdown: dict) -> str | None:
-            best_key = None
-            best_score = 0
-            for key in threat_priority:
-                score = int(breakdown.get(key, 0) or 0)
-                if score > best_score:
-                    best_key = key
-                    best_score = score
-            return best_key if best_score > 0 else None
+    for scan in scans:
+        top = primary_threat(scan.get("breakdown") or {})
+        if top:
+            threat_counts[top] += 1
 
-        for row in rows:
-            try:
-                bd = json.loads(row["breakdown"])
-                top = primary_threat(bd)
-                if top:
-                    threat_counts[top] += 1
-            except Exception:
-                pass
+        timestamp = scan.get("timestamp", "")
+        if timestamp >= cutoff:
+            last24h += 1
+            hour = timestamp[11:13]
+            hourly = hourly_counts.setdefault(hour, {"hour": hour, "total": 0, "blocks": 0})
+            hourly["total"] += 1
+            if scan.get("decision") == "BLOCK":
+                last24h_blocked += 1
+                hourly["blocks"] += 1
 
-        # Last 24h stats
-        import time as _time
-        cutoff = _time.strftime(
-            "%Y-%m-%dT%H:%M:%S",
-            _time.gmtime(_time.time() - 86400)
-        )
-        last24h = conn.execute(
-            "SELECT COUNT(*) as c FROM scans WHERE timestamp >= ?", (cutoff,)
-        ).fetchone()["c"]
-        last24h_blocked = conn.execute(
-            "SELECT COUNT(*) as c FROM scans WHERE timestamp >= ? AND decision='BLOCK'",
-            (cutoff,)
-        ).fetchone()["c"]
+    top_threat = max(threat_counts, key=threat_counts.get) if any(threat_counts.values()) else "none"
+    hourly = [hourly_counts[key] for key in sorted(hourly_counts.keys())]
+    return {
+        "total_scans": total,
+        "total_blocked": blocked,
+        "block_rate": round(blocked / total * 100, 1) if total else 0,
+        "last_24h_scans": last24h,
+        "last_24h_blocked": last24h_blocked,
+        "threat_counts": threat_counts,
+        "top_threat": top_threat,
+        "hourly_trend": hourly,
+    }
 
-        # Hourly trend (last 24 hours)
-        hourly = conn.execute(
-            "SELECT strftime('%H', timestamp) as hour, "
-            "COUNT(*) as total, "
-            "SUM(CASE WHEN decision='BLOCK' THEN 1 ELSE 0 END) as blocks "
-            "FROM scans WHERE timestamp >= ? "
-            "GROUP BY strftime('%H', timestamp) "
-            "ORDER BY hour",
-            (cutoff,)
-        ).fetchall()
-
-        # Top threat type
-        top_threat = max(threat_counts, key=threat_counts.get) if any(threat_counts.values()) else "none"
-
-        return {
-            "total_scans":      total,
-            "total_blocked":    blocked,
-            "block_rate":       round(blocked / total * 100, 1) if total else 0,
-            "last_24h_scans":   last24h,
-            "last_24h_blocked": last24h_blocked,
-            "threat_counts":    threat_counts,
-            "top_threat":       top_threat,
-            "hourly_trend":     [dict(r) for r in hourly],
-        }
-
-
-# ── User auth ──────────────────────────────────────────────────────────────
-
-def init_users_table():
-    """Create users table if not exists."""
-    with get_conn() as conn:
-        conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            org_id       INTEGER,
-            email        TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            plan         TEXT NOT NULL DEFAULT 'free',
-            role         TEXT NOT NULL DEFAULT 'owner',
-            api_key      TEXT,
-            verified     INTEGER NOT NULL DEFAULT 0,
-            verify_token TEXT,
-            reset_token  TEXT,
-            reset_expiry TEXT,
-            created_at   TEXT NOT NULL,
-            last_login   TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_verify ON users(verify_token);
-        CREATE INDEX IF NOT EXISTS idx_users_reset ON users(reset_token);
-        """)
-        columns = {
-            row["name"]
-            for row in conn.execute("PRAGMA table_info(users)").fetchall()
-        }
-        if "org_id" not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN org_id INTEGER")
-        if "role" not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'")
 
 def db_create_user(
     email: str,
@@ -872,105 +612,97 @@ def db_create_user(
     role: str = "owner",
     org_id: int | None = None,
 ) -> dict | None:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    users = _collections()["users"]
+    email = email.lower().strip()
+    user_id = _next_counter("users")
     try:
-        with get_conn() as conn:
-            conn.execute(
-                "INSERT INTO users (org_id,email,password_hash,plan,role,verify_token,created_at) VALUES (?,?,?,?,?,?,?)",
-                (org_id, email.lower().strip(), password_hash, plan, role, verify_token, now)
-            )
-        return db_get_user_by_email(email)
-    except Exception:
+        users.insert_one({
+            "_id": user_id,
+            "id": user_id,
+            "org_id": org_id,
+            "email": email,
+            "password_hash": password_hash,
+            "plan": plan,
+            "role": role,
+            "api_key": None,
+            "verified": 0,
+            "verify_token": verify_token,
+            "reset_token": None,
+            "reset_expiry": None,
+            "created_at": _now(),
+            "last_login": None,
+        })
+    except DuplicateKeyError:
         return None
+    return db_get_user_by_email(email)
 
 
 def db_get_user_by_email(email: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE email=?", (email.lower().strip(),)
-        ).fetchone()
-        return dict(row) if row else None
+    return _with_id(_collections()["users"].find_one({"email": email.lower().strip()}))
 
 
 def db_get_user_by_token(token: str, token_type: str = "verify") -> dict | None:
-    col = "verify_token" if token_type == "verify" else "reset_token"
-    with get_conn() as conn:
-        row = conn.execute(
-            f"SELECT * FROM users WHERE {col}=?", (token,)
-        ).fetchone()
-        return dict(row) if row else None
+    column = "verify_token" if token_type == "verify" else "reset_token"
+    return _with_id(_collections()["users"].find_one({column: token}))
 
 
 def db_verify_user(verify_token: str) -> bool:
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE users SET verified=1, verify_token=NULL WHERE verify_token=?",
-            (verify_token,)
-        )
-        return result.rowcount > 0
+    result = _collections()["users"].update_one(
+        {"verify_token": verify_token},
+        {"$set": {"verified": 1, "verify_token": None}},
+    )
+    return result.modified_count > 0
 
 
 def db_set_reset_token(email: str, token: str, expiry: str) -> bool:
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE users SET reset_token=?, reset_expiry=? WHERE email=?",
-            (token, expiry, email.lower().strip())
-        )
-        return result.rowcount > 0
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": {"reset_token": token, "reset_expiry": expiry}},
+    )
+    return result.modified_count > 0
 
 
 def db_reset_password(token: str, new_hash: str) -> bool:
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT reset_expiry FROM users WHERE reset_token=?", (token,)
-        ).fetchone()
-        if not row:
-            return False
-        if row["reset_expiry"] and row["reset_expiry"] < now:
-            return False
-        conn.execute(
-            "UPDATE users SET password_hash=?, reset_token=NULL, reset_expiry=NULL WHERE reset_token=?",
-            (new_hash, token)
-        )
-        return True
+    row = _collections()["users"].find_one({"reset_token": token})
+    if not row:
+        return False
+    now = _now()
+    if row.get("reset_expiry") and row["reset_expiry"] < now:
+        return False
+    _collections()["users"].update_one(
+        {"reset_token": token},
+        {"$set": {"password_hash": new_hash, "reset_token": None, "reset_expiry": None}},
+    )
+    return True
 
 
 def db_update_user_login(email: str, api_key: str = None):
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with get_conn() as conn:
-        if api_key:
-            conn.execute(
-                "UPDATE users SET last_login=?, api_key=? WHERE email=?",
-                (now, api_key, email.lower().strip())
-            )
-        else:
-            conn.execute(
-                "UPDATE users SET last_login=? WHERE email=?",
-                (now, email.lower().strip())
-            )
+    updates = {"last_login": _now()}
+    if api_key:
+        updates["api_key"] = api_key
+    _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": updates},
+    )
 
 
 def db_set_user_role(email: str, role: str) -> bool:
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE users SET role=? WHERE email=?",
-            (role, email.lower().strip())
-        )
-        return result.rowcount > 0
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": {"role": role}},
+    )
+    return result.modified_count > 0
 
 
 def db_set_user_org(email: str, org_id: int) -> bool:
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE users SET org_id=? WHERE email=?",
-            (org_id, email.lower().strip()),
-        )
-        return result.rowcount > 0
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": {"org_id": org_id}},
+    )
+    return result.modified_count > 0
 
 
-# Initialize users table on import
 try:
-    init_users_table()
+    init_db()
 except Exception as e:
-    print(f"[Guni] Users table init: {e}")
+    print(f"[Guni] DB init warning: {e}")

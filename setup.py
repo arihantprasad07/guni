@@ -14,6 +14,8 @@ setup(
         "httpx>=0.27.0",
         "python-dotenv>=1.0.0",
         "aiofiles>=23.0.0",
+        "pymongo>=4.16.0",
+        "mongomock>=4.3.0",
     ],
     python_requires=">=3.11",
 )

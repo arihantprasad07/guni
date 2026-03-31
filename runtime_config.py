@@ -43,6 +43,8 @@ DATA_DIR = Path(os.environ.get("GUNI_DATA_DIR", _default_data_dir())).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = os.environ.get("GUNI_DB_PATH", str(DATA_DIR / "guni.db"))
+MONGO_URI = os.environ.get("GUNI_MONGO_URI", os.environ.get("MONGO_URI", ""))
+MONGO_DB_NAME = os.environ.get("GUNI_MONGO_DB_NAME", "guni")
 KEYS_PATH = os.environ.get("GUNI_KEYS_PATH", str(DATA_DIR / "guni_keys.json"))
 AUDIT_LOG_PATH = os.environ.get("GUNI_LOG_PATH", str(DATA_DIR / "guni_audit.log"))
 WAITLIST_PATH = os.environ.get("GUNI_WAITLIST_PATH", str(DATA_DIR / "guni_waitlist.json"))
