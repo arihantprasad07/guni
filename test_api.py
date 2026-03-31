@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -592,6 +593,25 @@ def test_waitlist_join_and_count_work(client: TestClient):
 
     count_data = unwrap(count_response.json())
     assert count_data["count"] >= 1
+
+
+def test_waitlist_join_sends_confirmation_email(client: TestClient, monkeypatch):
+    delivered = []
+
+    def fake_send_confirmation(email: str) -> bool:
+        delivered.append(email)
+        return True
+
+    monkeypatch.setattr("api.email_service.send_confirmation", fake_send_confirmation)
+
+    email = f"notify-{uuid.uuid4().hex}@example.com"
+    response = client.post("/waitlist", json={"email": email})
+    assert response.status_code == 200
+
+    data = unwrap(response.json())
+    assert data["success"] is True
+    assert "Check your email" in data["message"]
+    assert delivered == [email]
 
 
 def test_runtime_data_dir_isolated_for_tests():
