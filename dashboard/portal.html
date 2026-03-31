@@ -59,6 +59,17 @@
 .admin-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:1rem}
 .stack{display:grid;gap:1rem}
 .action-row{display:flex;gap:8px;flex-wrap:wrap}
+.checklist{display:grid;gap:10px}
+.check-item{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:0.9rem 1rem;background:var(--bg2);border:1px solid var(--border)}
+.check-copy strong{display:block;font-size:12px;margin-bottom:4px}
+.check-copy span{display:block;font-size:12px;color:var(--muted3);line-height:1.7}
+.check-state{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--border2);color:var(--muted2);white-space:nowrap}
+.check-state.done{color:var(--green);border-color:rgba(0,217,126,0.25);background:rgba(0,217,126,0.08)}
+.quick-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.quick-link{padding:0.95rem 1rem;border:1px solid var(--border);background:var(--bg2);text-decoration:none}
+.quick-link strong{display:block;font-size:12px;color:var(--text);margin-bottom:4px}
+.quick-link span{display:block;font-size:12px;color:var(--muted3);line-height:1.7}
+.quick-link:hover{border-color:var(--amber2)}
 @media (max-width: 900px){
   .section-grid,.field-grid,.admin-grid{grid-template-columns:1fr}
 }
@@ -146,6 +157,69 @@
                 <span class="g-tag g-tag-green">Session-based access</span>
                 <span class="g-tag g-tag-blue">Wrapped API-aware client</span>
                 <span class="g-tag g-tag-amber">Admin panel gated by role</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="section-grid" style="margin-top:1rem">
+          <div class="box">
+            <div class="box-head">
+              <span class="box-title">Onboarding checklist</span>
+              <span class="note" id="checklist-progress">0 of 4 complete</span>
+            </div>
+            <div class="box-body">
+              <div class="checklist">
+                <div class="check-item">
+                  <div class="check-copy">
+                    <strong>Account ready</strong>
+                    <span>Use a verified or owner-approved account so the portal can unlock keys and billing safely.</span>
+                  </div>
+                  <span class="check-state" id="check-verified">Pending</span>
+                </div>
+                <div class="check-item">
+                  <div class="check-copy">
+                    <strong>API key issued</strong>
+                    <span>Use the server-issued key for production requests instead of demo mode or pasted browser state.</span>
+                  </div>
+                  <span class="check-state" id="check-key">Pending</span>
+                </div>
+                <div class="check-item">
+                  <div class="check-copy">
+                    <strong>First protected scan</strong>
+                    <span>Run at least one real scan so analytics, history, and policy decisions become meaningful.</span>
+                  </div>
+                  <span class="check-state" id="check-scan">Pending</span>
+                </div>
+                <div class="check-item">
+                  <div class="check-copy">
+                    <strong>Alert or paid rollout configured</strong>
+                    <span>Set a webhook, Slack destination, or enable a paid plan to move beyond a passive evaluation.</span>
+                  </div>
+                  <span class="check-state" id="check-rollout">Pending</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="box">
+            <div class="box-head"><span class="box-title">Recommended next actions</span></div>
+            <div class="box-body">
+              <div class="quick-links">
+                <a class="quick-link" href="/integrate">
+                  <strong>Integration guide</strong>
+                  <span>Wrap the browser or agent flow that matters first.</span>
+                </a>
+                <a class="quick-link" href="/security">
+                  <strong>Share trust posture</strong>
+                  <span>Use the security page during internal review or buyer calls.</span>
+                </a>
+                <a class="quick-link" href="/status">
+                  <strong>Service status</strong>
+                  <span>Share a public health page during pilots and demos.</span>
+                </a>
+                <a class="quick-link" href="/threats">
+                  <strong>Threat feed</strong>
+                  <span>See the public-facing risk narrative and product proof.</span>
+                </a>
               </div>
             </div>
           </div>
@@ -314,6 +388,9 @@
 const API = window.location.origin;
 let authUser = null;
 let currentKey = "";
+let latestOverview = { total: 0 };
+let latestAlerts = {};
+let latestBilling = {};
 
 function displayPlan(plan) {
   const normalized = String(plan || "free").toLowerCase();
@@ -391,6 +468,7 @@ async function loadOverview() {
 
   const analytics = unwrap(await analyticsResponse.json());
   const usage = unwrap(await usageResponse.json());
+  latestOverview = analytics || { total: 0 };
 
   document.getElementById("metric-total").textContent = (analytics.total || 0).toLocaleString();
   document.getElementById("metric-blocked").textContent = (analytics.blocked || 0).toLocaleString();
@@ -405,6 +483,7 @@ async function loadOverview() {
   document.getElementById("usage-limit").textContent = limit.toLocaleString();
   document.getElementById("usage-fill").style.width = `${percent}%`;
   document.getElementById("usage-remaining").textContent = Math.max(0, limit - used).toLocaleString();
+  updateChecklist();
 }
 
 async function loadHistory() {
@@ -491,11 +570,13 @@ async function loadAlerts() {
     headers: { "X-API-Key": currentKey }
   });
   const data = unwrap(await response.json());
+  latestAlerts = data || {};
 
   document.getElementById("alert-slack").value = data.slack_url || "";
   document.getElementById("alert-webhook").value = data.webhook_url || "";
   document.getElementById("toggle-block").classList.toggle("on", data.on_block !== false);
   document.getElementById("toggle-confirm").classList.toggle("on", Boolean(data.on_confirm));
+  updateChecklist();
 }
 
 async function saveAlerts() {
@@ -546,6 +627,7 @@ async function loadBilling() {
   const response = await fetch(`${API}/billing/me`, { credentials: "include" });
   const data = unwrap(await response.json());
   const subscription = data.subscription || {};
+  latestBilling = { plan: subscription.plan || data.plan || "free", status: subscription.status || "inactive" };
 
   document.getElementById("billing-plan").textContent = displayPlan(subscription.plan || data.plan || "free");
   document.getElementById("billing-status").textContent = subscription.status || "inactive";
@@ -565,6 +647,26 @@ async function loadBilling() {
       <div class="note" style="margin-top:6px">${esc(event.amount || 0)} ${esc(event.currency || "INR")}</div>
     </div>
   `).join("");
+  updateChecklist();
+}
+
+function setChecklistState(id, done, doneText = "Done", pendingText = "Pending") {
+  const el = document.getElementById(id);
+  if (!el) return 0;
+  el.textContent = done ? doneText : pendingText;
+  el.classList.toggle("done", done);
+  return done ? 1 : 0;
+}
+
+function updateChecklist() {
+  if (!authUser) return;
+  let done = 0;
+  done += setChecklistState("check-verified", Boolean(authUser.verified), "Ready", "Pending");
+  done += setChecklistState("check-key", Boolean(currentKey), "Issued", "Pending");
+  done += setChecklistState("check-scan", Number(latestOverview.total || 0) > 0, "Active", "Pending");
+  const rolloutReady = Boolean(latestAlerts.slack_url || latestAlerts.webhook_url) || ["starter", "pro"].includes(String(latestBilling.plan || "").toLowerCase());
+  done += setChecklistState("check-rollout", rolloutReady, "Configured", "Pending");
+  document.getElementById("checklist-progress").textContent = `${done} of 4 complete`;
 }
 
 async function startCheckout(plan) {

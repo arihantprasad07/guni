@@ -99,7 +99,7 @@ scanner = GuniScanner(goal=<span class="ss">"Book a train ticket"</span>)
 
 <span class="sk">def</span> <span class="sf">scan_page</span>(html: str, goal: str, api_key: str) -> dict:
     r = requests.post(
-        <span class="ss">"https://guni.up.railway.app/scan"</span>,
+        <span class="ss">"https://your-guni-domain/scan"</span>,
         json={<span class="ss">"html"</span>: html, <span class="ss">"goal"</span>: goal},
         headers={<span class="ss">"X-API-Key"</span>: api_key},
         timeout=<span class="sn">10</span>,

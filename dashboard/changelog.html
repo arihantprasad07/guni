@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Changelog — Guni</title>
+<title>Changelog - Guni</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -33,53 +33,50 @@
 
   <div class="release">
     <div class="release-hdr"><span class="version">v2.2.0</span><span class="rel-date">March 2026</span><span class="g-tag g-tag-green">LATEST</span></div>
-    <p style="font-size:13px;color:var(--muted2)">Threat intelligence feed, integration examples, Docker compose, badge</p>
+    <p style="font-size:13px;color:var(--muted2)">Threat intelligence, trust surface, and hosted product improvements</p>
     <div class="changes">
-      <div class="change"><span class="ctag cn">New</span>Public threat intelligence feed at /threats — live global attack stats</div>
-      <div class="change"><span class="ctag cn">New</span>LangChain integration example — SecureBrowserTool drop-in</div>
-      <div class="change"><span class="ctag cn">New</span>browser-use integration example — pre-scan and navigation hook</div>
-      <div class="change"><span class="ctag cn">New</span>Docker compose — one command local setup</div>
-      <div class="change"><span class="ctag cn">New</span>Guni badge — add to your repo README</div>
-      <div class="change"><span class="ctag cn">New</span>CSV export at /history/export</div>
-      <div class="change"><span class="ctag cn">New</span>Scan comparison at /scan/compare</div>
-      <div class="change"><span class="ctag ci">Improved</span>Unified design system across all pages</div>
-      <div class="change"><span class="ctag ci">Improved</span>Dashboard — API key input for LLM layer testing</div>
+      <div class="change"><span class="ctag cn">New</span>Public threat intelligence feed at /threats with live aggregate attack stats</div>
+      <div class="change"><span class="ctag cn">New</span>Trust-center pages for status, privacy, and product terms</div>
+      <div class="change"><span class="ctag cn">New</span>Owner operations console for signups, revenue, waitlist, and issue visibility</div>
+      <div class="change"><span class="ctag cn">New</span>Searchable docs hub and richer integration guides</div>
+      <div class="change"><span class="ctag ci">Improved</span>Unified design system across all public pages</div>
+      <div class="change"><span class="ctag ci">Improved</span>Customer onboarding flow inside the portal</div>
     </div>
   </div>
 
   <div class="release">
     <div class="release-hdr"><span class="version">v2.1.0</span><span class="rel-date">March 2026</span><span class="g-tag g-tag-amber">MINOR</span></div>
-    <p style="font-size:13px;color:var(--muted2)">Customer portal, analytics, Slack alerts, SQLite DB</p>
+    <p style="font-size:13px;color:var(--muted2)">Customer portal, analytics, Slack alerts, persistent hosted state</p>
     <div class="changes">
-      <div class="change"><span class="ctag cn">New</span>Customer portal at /portal — usage, history, custom rules, alerts</div>
-      <div class="change"><span class="ctag cn">New</span>SQLite persistent storage — survives server restarts</div>
-      <div class="change"><span class="ctag cn">New</span>Slack + webhook alerts on BLOCK/CONFIRM</div>
+      <div class="change"><span class="ctag cn">New</span>Customer portal at /portal for usage, history, custom rules, alerts, and billing</div>
+      <div class="change"><span class="ctag cn">New</span>Persistent hosted storage for customer accounts, API keys, and scan history</div>
+      <div class="change"><span class="ctag cn">New</span>Slack and webhook alerts on BLOCK and CONFIRM decisions</div>
       <div class="change"><span class="ctag cn">New</span>Custom threat rules per API key</div>
-      <div class="change"><span class="ctag cn">New</span>Analytics endpoint — counts, block rates, daily trends</div>
-      <div class="change"><span class="ctag ci">Improved</span>Email confirmation on waitlist + API key delivery on payment</div>
+      <div class="change"><span class="ctag cn">New</span>Analytics endpoint for counts, block rates, and daily trends</div>
+      <div class="change"><span class="ctag ci">Improved</span>Email confirmation on waitlist and API-key delivery on payment</div>
     </div>
   </div>
 
   <div class="release">
     <div class="release-hdr"><span class="version">v2.0.0</span><span class="rel-date">March 2026</span><span class="g-tag g-tag-amber">MAJOR</span></div>
-    <p style="font-size:13px;color:var(--muted2)">8 threat vectors, LLM upgrade, WebSocket</p>
+    <p style="font-size:13px;color:var(--muted2)">8 threat vectors, LLM upgrade, real-time scanning</p>
     <div class="changes">
-      <div class="change"><span class="ctag cn">New</span>Clickjacking, CSRF/token theft, open redirect detectors</div>
+      <div class="change"><span class="ctag cn">New</span>Clickjacking, CSRF/token theft, and open-redirect detectors</div>
       <div class="change"><span class="ctag cn">New</span>WebSocket real-time scanning at /ws/scan</div>
-      <div class="change"><span class="ctag ci">Improved</span>LLM analyzer — 8-vector prompt, confidence scoring, agent_recommendation</div>
-      <div class="change"><span class="ctag ci">Improved</span>Landing page — fully mobile responsive, pricing, scroll animations</div>
-      <div class="change"><span class="ctag ci">Improved</span>Risk engine — binary scoring, no score inflation</div>
+      <div class="change"><span class="ctag ci">Improved</span>LLM analyzer with 8-vector prompting, confidence scoring, and action guidance</div>
+      <div class="change"><span class="ctag ci">Improved</span>Landing page with pricing, mobile responsiveness, and stronger proof flows</div>
+      <div class="change"><span class="ctag ci">Improved</span>Risk engine with clearer scoring and less inflation</div>
     </div>
   </div>
 
   <div class="release">
     <div class="release-hdr"><span class="version">v1.0.0</span><span class="rel-date">March 2026</span><span class="g-tag g-tag-blue">INITIAL</span></div>
-    <p style="font-size:13px;color:var(--muted2)">First release — SDK, REST API, dashboard</p>
+    <p style="font-size:13px;color:var(--muted2)">First release - SDK, REST API, dashboard</p>
     <div class="changes">
       <div class="change"><span class="ctag cn">New</span>5-vector heuristic detection engine</div>
       <div class="change"><span class="ctag cn">New</span>LLM reasoning layer using Claude Sonnet</div>
-      <div class="change"><span class="ctag cn">New</span>FastAPI REST API with auth, rate limiting, audit log</div>
-      <div class="change"><span class="ctag cn">New</span>pip installable Python SDK — from guni import scan</div>
+      <div class="change"><span class="ctag cn">New</span>FastAPI REST API with auth, rate limiting, and audit log</div>
+      <div class="change"><span class="ctag cn">New</span>pip-installable Python SDK with <code>from guni import scan</code></div>
       <div class="change"><span class="ctag cn">New</span>Railway deployment with Dockerfile</div>
     </div>
   </div>
