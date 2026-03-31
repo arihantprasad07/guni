@@ -1204,6 +1204,8 @@ def test_demo_page_renders_scan_studio(client: TestClient):
     assert response.status_code == 200
     assert "Live scan studio" in response.text
     assert "Run scan" in response.text
+    assert "session-only demo" in response.text
+    assert "/history?limit=20" not in response.text
     assert response.text.index("const PRESETS = {") < response.text.index('id="g-shell-script"')
     assert 'html: `<html><body>' in response.text
 

@@ -654,7 +654,7 @@ function renderHistory(entries) {
 
   if (!entries.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No scans yet. Run one from the scan studio.</td></tr>';
-    status.textContent = "No recent scan history";
+    status.textContent = "No session demo history yet";
     updateTopMetrics(entries);
     return;
   }
@@ -673,29 +673,13 @@ function renderHistory(entries) {
     `;
   }).join("");
 
-  status.textContent = `Loaded ${entries.length} recent scan decisions`;
+  status.textContent = `Showing ${entries.length} session-only demo decisions`;
   updateTopMetrics(entries);
 }
 
 async function loadHistory() {
   const status = document.getElementById("history-status");
-  const headers = {};
-  if (apiKeyInput.value.trim()) {
-    headers["X-API-Key"] = apiKeyInput.value.trim();
-  }
-
-  try {
-    const data = await requestJson(`/history?limit=20`, { headers });
-    const entries = Array.isArray(data.entries) ? data.entries : [];
-    if (entries.length) {
-      status.textContent = "Loaded API-backed scan history";
-      renderHistory(entries);
-      return;
-    }
-  } catch (error) {
-    status.textContent = "Falling back to session demo history";
-  }
-
+  status.textContent = "Showing session-only demo history";
   renderHistory(loadDemoHistoryState());
 }
 
@@ -732,9 +716,6 @@ window.addEventListener("load", () => {
   selectPreset("safe");
   loadHistory();
 });
-
-apiKeyInput.addEventListener("change", loadHistory);
-apiKeyInput.addEventListener("blur", loadHistory);
 </script>
 </body>
 </html>
