@@ -198,11 +198,11 @@
             <div class="scan-row">
               <button class="g-btn g-btn-primary" id="scan-btn" type="button">Run scan</button>
               <button class="g-btn g-btn-outline" id="reset-btn" type="button">Reset preset</button>
-              <span class="scan-note" id="scan-note">Uses the deployed `/scan` endpoint and unwraps API responses automatically.</span>
+              <span class="scan-note" id="scan-note">Uses the deployed `/scan` endpoint and publishes anonymized aggregate threat signal to the live feed.</span>
             </div>
 
             <div class="studio-note">
-              Use this as your pre-commit smoke test: paste risky DOM, confirm the policy decision, then ship the change to GitHub and Railway.
+              Use this as your pre-commit smoke test: paste risky DOM, confirm the policy decision, then ship the change to GitHub and Railway. Demo-triggered scans stay out of public history tables but still contribute anonymized counts to the live threat feed.
             </div>
 
             <div class="result-shell" id="result-panel" style="margin-top:1rem"></div>

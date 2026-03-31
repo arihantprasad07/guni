@@ -30,6 +30,7 @@ def scan(
     tracking_key: str = None,
     llm:     bool = False,
     persist: bool = True,
+    include_in_threat_feed: bool | None = None,
 ) -> dict:
     scanner = GuniScanner(
         goal=goal,
@@ -38,6 +39,7 @@ def scan(
         tracking_key=tracking_key,
         llm=llm,
         persist=persist,
+        include_in_threat_feed=include_in_threat_feed,
     )
     return scanner.scan(html=html, url=url)
 
@@ -53,12 +55,22 @@ class GuniScanner:
         print(result["risk"])        # 0-100
     """
 
-    def __init__(self, goal="browse website", api_key=None, llm_api_key=None, tracking_key=None, llm=False, persist=True):
+    def __init__(
+        self,
+        goal="browse website",
+        api_key=None,
+        llm_api_key=None,
+        tracking_key=None,
+        llm=False,
+        persist=True,
+        include_in_threat_feed=None,
+    ):
         self.goal        = goal
         self.api_key     = llm_api_key or api_key or os.environ.get("ANTHROPIC_API_KEY", "")
         self._api_key    = tracking_key
         self.llm         = llm
         self._persist    = persist
+        self._include_in_threat_feed = persist if include_in_threat_feed is None else bool(include_in_threat_feed)
         self.logger      = GuniLogger()
 
     def _load_custom_rules(self) -> list[dict]:
@@ -219,10 +231,15 @@ class GuniScanner:
         self.logger.log(result)
 
         # Persist to database and trigger alerts (non-blocking)
-        if self._persist:
+        if self._persist or self._include_in_threat_feed:
             try:
                 from api.database import db_log_scan, db_increment_usage
-                db_log_scan(getattr(self, '_api_key', 'anonymous'), result)
+                db_log_scan(
+                    getattr(self, '_api_key', 'anonymous'),
+                    result,
+                    include_in_history=self._persist,
+                    include_in_threat_feed=self._include_in_threat_feed,
+                )
                 if hasattr(self, '_api_key') and self._api_key:
                     db_increment_usage(self._api_key)
             except Exception:

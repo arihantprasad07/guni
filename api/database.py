@@ -433,7 +433,13 @@ def db_user_belongs_to_org(email: str, org_id: int | None) -> bool:
     }) is not None
 
 
-def db_log_scan(api_key: str, result: dict):
+def db_log_scan(
+    api_key: str,
+    result: dict,
+    *,
+    include_in_history: bool = True,
+    include_in_threat_feed: bool = True,
+):
     scans = _collections()["scans"]
     doc_id = _next_counter("scans")
     scans.insert_one({
@@ -447,11 +453,17 @@ def db_log_scan(api_key: str, result: dict):
         "breakdown": result.get("breakdown", {}),
         "latency": result.get("total_latency", 0),
         "timestamp": _now(),
+        "include_in_history": int(include_in_history),
+        "include_in_threat_feed": int(include_in_threat_feed),
     })
 
 
 def db_get_history(api_key: str = None, limit: int = 50) -> list:
-    query = {"api_key": api_key} if api_key else {}
+    query = {"include_in_history": {"$ne": 0}}
+    if api_key:
+        query["api_key"] = api_key
+    else:
+        query["api_key"] = {"$in": [None, "", "open", "anonymous"]}
     rows = _collections()["scans"].find(query).sort("timestamp", DESCENDING).limit(limit)
     return _docs_with_id(rows)
 
@@ -538,7 +550,7 @@ def db_get_alert(api_key: str) -> dict | None:
 
 
 def db_get_threat_feed() -> dict:
-    scans = list(_collections()["scans"].find({}))
+    scans = list(_collections()["scans"].find({"include_in_threat_feed": {"$ne": 0}}))
     total = len(scans)
     blocked = sum(1 for item in scans if item.get("decision") == "BLOCK")
 

@@ -79,6 +79,7 @@ def scan_html(
         tracking_key=api_key,
         llm=body.llm,
         persist=not demo_mode_request,
+        include_in_threat_feed=True,
     )
     return build_scan_response(raw)
 
