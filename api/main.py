@@ -696,6 +696,36 @@ def _validate_safe_fetch_url(raw_url: str) -> str:
     return parsed.geturl()
 
 
+def _enforce_scan_quota(api_key: str, scans_needed: int = 1) -> None:
+    if not api_key or api_key == "open":
+        return
+
+    from api.key_manager import get_usage
+
+    usage = get_usage(api_key)
+    if not usage:
+        return
+
+    remaining = usage.get("scans_remaining", 0)
+    if remaining < scans_needed:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=(
+                f"Scan quota exceeded for plan '{usage.get('plan', 'unknown')}'. "
+                f"{remaining} scans remaining."
+            ),
+        )
+
+
+def _require_org_key_access(actor: dict, key: str) -> dict:
+    from api.key_manager import get_key_for_org
+
+    key_record = get_key_for_org(key, actor.get("org_id"))
+    if not key_record:
+        raise HTTPException(status_code=404, detail="API key not found")
+    return key_record
+
+
 def _analyze_action(action: str, url: str, data: str | None = None) -> AnalyzeResponse:
     trusted_domains = ["google.com", "github.com"]
     action_text = (action or "").strip().lower()
@@ -824,6 +854,7 @@ def scan_html(
     - **llm_analysis**: deep semantic reasoning (if LLM available)
     """
     check_rate_limit(api_key)
+    _enforce_scan_quota(api_key)
 
     if not body.html.strip():
         raise HTTPException(
@@ -866,6 +897,7 @@ def scan_url(
     before navigating.
     """
     check_rate_limit(api_key)
+    _enforce_scan_quota(api_key)
 
     safe_url = _validate_safe_fetch_url(body.url)
 
@@ -999,14 +1031,20 @@ def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key))
     """
     try:
         from api.database import db_set_alert
+        from api.alerts import validate_outbound_target
+
+        webhook_url = validate_outbound_target(body.webhook_url) if body.webhook_url else None
+        slack_url = validate_outbound_target(body.slack_url) if body.slack_url else None
         db_set_alert(
             api_key,
-            webhook_url=body.webhook_url,
-            slack_url=body.slack_url,
+            webhook_url=webhook_url,
+            slack_url=slack_url,
             on_block=body.on_block,
             on_confirm=body.on_confirm,
         )
         return {"success": True, "message": "Alert config saved."}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1030,6 +1068,13 @@ async def razorpay_webhook(request: Request):
     payload   = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
     result    = await handle_razorpay_webhook(payload, signature)
+    if result.get("status") == "error":
+        message = result.get("message", "Webhook rejected")
+        if "signature" in message.lower():
+            raise HTTPException(status_code=401, detail=message)
+        if "configured" in message.lower():
+            raise HTTPException(status_code=503, detail=message)
+        raise HTTPException(status_code=400, detail=message)
     return result
 
 
@@ -1179,13 +1224,16 @@ def generate_key(body: KeyRequest, request: Request):
     Requires an authenticated admin session.
     """
     actor = _require_session_user(request, {"admin"})
-    from api.key_manager import generate_api_key, PLAN_LIMITS
+    from api.key_manager import generate_api_key, PLAN_LIMITS, user_belongs_to_org
     from api.database import db_log_audit_event
 
     plan  = body.plan.lower()
     limit = PLAN_LIMITS.get(plan, 1000)
+    email = body.email.lower().strip()
+    if user_belongs_to_org(email, actor.get("org_id")):
+        raise HTTPException(status_code=409, detail="User already belongs to this organization")
     data  = generate_api_key(
-        email=body.email,
+        email=email,
         plan=plan,
         scans_limit=limit,
         org_id=actor.get("org_id"),
@@ -1223,6 +1271,7 @@ def revoke_customer_key(key: str, request: Request):
     from api.database import db_log_audit_event
     from api.key_manager import revoke_key
 
+    _require_org_key_access(actor, key)
     if not revoke_key(key):
         raise HTTPException(status_code=404, detail="API key not found")
 
@@ -1243,6 +1292,7 @@ def rotate_customer_key(key: str, request: Request):
     from api.database import db_log_audit_event
     from api.key_manager import rotate_key
 
+    _require_org_key_access(actor, key)
     rotated = rotate_key(key)
     if not rotated:
         raise HTTPException(status_code=404, detail="API key not found")
@@ -1323,6 +1373,8 @@ def scan_compare(
 
         if not html_a or not html_b:
             raise HTTPException(status_code=422, detail="html_a and html_b required")
+
+        _enforce_scan_quota(api_key, scans_needed=2)
 
         from guni import GuniScanner
         scanner = GuniScanner(goal=goal, llm_api_key=_get_anthropic_key(), tracking_key=api_key)

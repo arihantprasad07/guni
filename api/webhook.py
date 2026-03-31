@@ -28,8 +28,8 @@ PLAN_AMOUNTS = {
 
 def verify_razorpay_signature(payload: bytes, signature: str) -> bool:
     secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
-    if not secret:
-        return True
+    if not secret or not signature:
+        return False
 
     expected = hmac.new(
         secret.encode("utf-8"),

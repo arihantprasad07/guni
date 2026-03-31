@@ -53,13 +53,51 @@ def _public_demo_path(request: Request) -> bool:
     return request.url.path in {"/scan", "/history", "/analyze"}
 
 
-def _has_valid_session(request: Request) -> bool:
-    session = request.cookies.get("guni_session", "")
-    return bool(session and verify_session(session))
+def _get_cookie(source, name: str) -> str:
+    cookies = getattr(source, "cookies", None)
+    if cookies is not None:
+        try:
+            return cookies.get(name, "")
+        except Exception:
+            pass
+
+    header_value = ""
+    headers = getattr(source, "headers", None)
+    if headers is not None:
+        try:
+            header_value = headers.get("cookie", "")
+        except Exception:
+            header_value = ""
+
+    for raw_cookie in header_value.split(";"):
+        key, _, value = raw_cookie.strip().partition("=")
+        if key == name:
+            return value
+    return ""
 
 
-def _session_api_key(request: Request) -> str | None:
-    session = request.cookies.get("guni_session", "")
+def _get_header(source, name: str) -> str:
+    headers = getattr(source, "headers", None)
+    if headers is None:
+        return ""
+    try:
+        return headers.get(name, "")
+    except Exception:
+        return ""
+
+
+def _get_query_param(source, name: str) -> str:
+    query_params = getattr(source, "query_params", None)
+    if query_params is None:
+        return ""
+    try:
+        return query_params.get(name, "")
+    except Exception:
+        return ""
+
+
+def _session_api_key(request) -> str | None:
+    session = _get_cookie(request, "guni_session")
     email = verify_session(session) if session else None
     if not email:
         return None
@@ -81,14 +119,23 @@ def _session_api_key(request: Request) -> str | None:
     return key if validate_api_key(key) else None
 
 
-def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) -> str:
-    """
-    FastAPI dependency that verifies the X-API-Key header.
+def _extract_api_key(request, explicit_api_key: str | None = None) -> str:
+    if isinstance(explicit_api_key, str) and explicit_api_key:
+        return explicit_api_key
 
-    Open mode is limited to local development or explicit opt-in.
-    In protected mode, only valid keys are accepted.
+    header_key = _get_header(request, "X-API-Key")
+    if header_key:
+        return header_key
+
+    return _get_query_param(request, "api_key")
+
+
+def _verify_api_key_from_request(request, api_key: str | None = None) -> str:
+    """
+    Shared API key verification logic for HTTP and WebSocket requests.
     """
     valid_keys = _load_valid_keys()
+    api_key = _extract_api_key(request, api_key)
 
     if api_key:
         if api_key in valid_keys:
@@ -103,10 +150,21 @@ def verify_api_key(request: Request, api_key: str = Security(API_KEY_HEADER)) ->
     if not api_key and _public_demo_path(request) and _open_mode_allowed():
         return "open"
 
-    if not valid_keys and not api_key and _open_mode_allowed():
-        return "open"
-
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or missing API key. Provide a valid X-API-Key header.",
     )
+
+
+def verify_api_key(request: Request, api_key: str | None = Security(API_KEY_HEADER)) -> str:
+    """
+    FastAPI dependency that verifies the X-API-Key header.
+
+    Open mode is limited to local development or explicit opt-in.
+    In protected mode, only valid keys are accepted.
+    """
+    return _verify_api_key_from_request(request, api_key)
+
+
+def verify_api_key_for_connection(connection) -> str:
+    return _verify_api_key_from_request(connection)

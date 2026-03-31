@@ -8,10 +8,12 @@ import secrets
 
 from api.database import (
     db_create_key,
+    db_get_key_for_org,
     db_get_usage,
     db_list_keys,
     db_revoke_key,
     db_rotate_key,
+    db_user_belongs_to_org,
     db_validate_key,
     db_increment_usage,
 )
@@ -68,3 +70,11 @@ def rotate_key(key: str) -> dict | None:
 
 def list_keys(org_id: int | None = None) -> list:
     return db_list_keys(org_id=org_id)
+
+
+def get_key_for_org(key: str, org_id: int | None) -> dict | None:
+    return db_get_key_for_org(key, org_id)
+
+
+def user_belongs_to_org(email: str, org_id: int | None) -> bool:
+    return db_user_belongs_to_org(email, org_id)

@@ -1,0 +1,14 @@
+[
+  {
+    "timestamp": "2026-03-31T11:46:23",
+    "action": "POST /scan",
+    "url": "http://testserver/scan",
+    "decision": "200"
+  },
+  {
+    "timestamp": "2026-03-31T11:46:23",
+    "action": "GET /keys/usage",
+    "url": "http://testserver/keys/usage",
+    "decision": "200"
+  }
+]

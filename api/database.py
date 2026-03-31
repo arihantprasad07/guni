@@ -255,6 +255,21 @@ def db_get_key(key: str) -> dict | None:
         return dict(row) if row else None
 
 
+def db_get_key_for_org(key: str, org_id: int | None) -> dict | None:
+    with get_conn() as conn:
+        if org_id is None:
+            row = conn.execute(
+                "SELECT * FROM api_keys WHERE key=? AND org_id IS NULL",
+                (key,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM api_keys WHERE key=? AND org_id=?",
+                (key, org_id),
+            ).fetchone()
+        return dict(row) if row else None
+
+
 def db_validate_key(key: str) -> dict | None:
     with get_conn() as conn:
         row = conn.execute(
@@ -550,6 +565,21 @@ def db_set_user_plan(email: str, plan: str) -> bool:
             (plan, email.lower().strip()),
         )
         return result.rowcount > 0
+
+
+def db_user_belongs_to_org(email: str, org_id: int | None) -> bool:
+    with get_conn() as conn:
+        if org_id is None:
+            row = conn.execute(
+                "SELECT 1 FROM users WHERE email=? AND org_id IS NULL",
+                (email.lower().strip(),),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT 1 FROM users WHERE email=? AND org_id=?",
+                (email.lower().strip(), org_id),
+            ).fetchone()
+        return bool(row)
 
 
 # ── Scan history ───────────────────────────────────────────────────────────

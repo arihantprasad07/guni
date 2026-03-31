@@ -21,12 +21,20 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
     """
     from guni import GuniScanner
     import os
+    from api.auth import verify_api_key_for_connection
+
+    try:
+        api_key = verify_api_key_for_connection(websocket)
+    except Exception:
+        await websocket.close(code=1008, reason="Authentication required")
+        return
 
     await websocket.accept()
 
     scanner = GuniScanner(
         goal=goal,
         api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        tracking_key=api_key,
     )
 
     await websocket.send_json({

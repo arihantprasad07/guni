@@ -7,6 +7,8 @@ Runs in-process with FastAPI's TestClient, so no separate server is required.
 from __future__ import annotations
 
 import importlib
+import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -22,7 +24,7 @@ if TEST_DATA_DIR.exists():
     shutil.rmtree(TEST_DATA_DIR)
 TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
-os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com"
+os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com,other-admin@example.com"
 os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
 os.environ["GUNI_SESSION_SECRET"] = "test-session-secret"
 
@@ -254,6 +256,22 @@ def test_scan_usage_and_history_are_tracked_per_customer_key(client: TestClient)
     assert history_data["entries"][0]["url"] == "https://tenant-one.example"
 
 
+def test_scan_quota_is_enforced_before_processing(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="quota@example.com", plan="free", scans_limit=0)["key"]
+    response = client.post(
+        "/scan",
+        json={"html": "<p>quota check</p>", "goal": "Read page"},
+        headers={"X-API-Key": key},
+    )
+
+    assert response.status_code == 402
+    payload = response.json()
+    assert payload["success"] is False
+    assert "quota exceeded" in payload["error"].lower()
+
+
 def test_public_demo_history_works_without_api_key(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
@@ -398,14 +416,14 @@ def test_session_can_access_history_without_pasted_api_key(client: TestClient):
     assert "https://session-owned.example" in urls
 
 
-def test_open_mode_analytics_and_export_are_isolated_to_open_scans(client, monkeypatch: pytest.MonkeyPatch):
+def test_customer_analytics_and_export_are_isolated_from_open_scans(client, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
 
     from api.key_manager import generate_api_key
 
     key = generate_api_key(email="private-analytics@example.com", plan="starter", scans_limit=5)["key"]
 
-    analytics_before = client.get("/analytics")
+    analytics_before = client.get("/analytics", headers={"X-API-Key": key})
     assert analytics_before.status_code == 200
     before_total = unwrap(analytics_before.json())["total"]
 
@@ -430,16 +448,16 @@ def test_open_mode_analytics_and_export_are_isolated_to_open_scans(client, monke
     )
     assert private_scan.status_code == 200
 
-    analytics = client.get("/analytics")
+    analytics = client.get("/analytics", headers={"X-API-Key": key})
     assert analytics.status_code == 200
     analytics_data = unwrap(analytics.json())
     assert analytics_data["total"] == before_total + 1
 
-    export = client.get("/history/export")
+    export = client.get("/history/export", headers={"X-API-Key": key})
     assert export.status_code == 200
     csv_text = export.text
-    assert "https://open-analytics.example" in csv_text
-    assert "https://private-analytics.example" not in csv_text
+    assert "https://open-analytics.example" not in csv_text
+    assert "https://private-analytics.example" in csv_text
 
 
 def test_custom_rules_affect_scan_results(client: TestClient):
@@ -688,6 +706,39 @@ def test_admin_key_lifecycle_and_audit_feed(client: TestClient):
     assert "keys.revoke" in actions
 
 
+def test_admin_cannot_rotate_key_from_another_org(client: TestClient):
+    from api.key_manager import generate_api_key
+    from api.database import db_get_user_by_email, db_verify_user
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "other-admin@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Other Org",
+        },
+    )
+    user = db_get_user_by_email("other-admin@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "other-admin@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    foreign_key = generate_api_key(
+        email="foreign-customer@example.com",
+        plan="starter",
+        scans_limit=5,
+        org_id=999999,
+    )["key"]
+    rotated = client.post(f"/keys/{foreign_key}/rotate")
+    assert rotated.status_code == 404
+
+
 def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     signup = client.post(
         "/auth/signup",
@@ -761,10 +812,17 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
         },
     }
 
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "test-webhook-secret")
+    signature = hmac.new(
+        b"test-webhook-secret",
+        json.dumps(webhook_payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
     webhook = client.post(
         "/webhook/razorpay",
         content=json.dumps(webhook_payload),
-        headers={"Content-Type": "application/json", "x-razorpay-signature": "test"},
+        headers={"Content-Type": "application/json", "x-razorpay-signature": signature},
     )
     assert webhook.status_code == 200
     webhook_data = unwrap(webhook.json())
@@ -817,3 +875,31 @@ def test_billing_cancel_and_resume(client: TestClient):
     assert resume.status_code == 200
     resume_data = unwrap(resume.json())
     assert resume_data["cancel_at_period_end"] == 0
+
+
+def test_webhook_rejects_unsigned_payloads_when_secret_missing(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("RAZORPAY_WEBHOOK_SECRET", raising=False)
+    webhook = client.post(
+        "/webhook/razorpay",
+        content=json.dumps({"event": "payment.captured", "payload": {}}),
+        headers={"Content-Type": "application/json", "x-razorpay-signature": "bad"},
+    )
+    assert webhook.status_code == 401
+
+
+def test_alert_configuration_rejects_private_targets(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="alerts@example.com", plan="starter", scans_limit=5)["key"]
+    response = client.post(
+        "/alerts",
+        json={"webhook_url": "https://127.0.0.1/internal"},
+        headers={"X-API-Key": key},
+    )
+    assert response.status_code == 422
+
+
+def test_websocket_requires_authentication(client: TestClient):
+    with pytest.raises(Exception):
+        with client.websocket_connect("/ws/scan") as websocket:
+            websocket.receive_json()

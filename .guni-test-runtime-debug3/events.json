@@ -1,0 +1,14 @@
+[
+  {
+    "timestamp": "2026-03-31T11:46:23",
+    "action": "POST /auth/signup",
+    "url": "http://testserver/auth/signup",
+    "decision": "200"
+  },
+  {
+    "timestamp": "2026-03-31T11:46:24",
+    "action": "POST /auth/signup",
+    "url": "http://testserver/auth/signup",
+    "decision": "200"
+  }
+]
