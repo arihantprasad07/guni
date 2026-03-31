@@ -77,10 +77,15 @@ EVENT_LOG_LOCK = threading.Lock()
 def log_event(action: str, url: str, decision: str):
     entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "kind": "http",
         "action": action,
         "url": url,
         "decision": decision,
     }
+    _append_event_log(entry)
+
+
+def _append_event_log(entry: dict):
     try:
         with EVENT_LOG_LOCK:
             entries = []
@@ -100,6 +105,17 @@ def log_event(action: str, url: str, decision: str):
                 json.dump(entries, f, indent=2)
     except OSError:
         pass
+
+
+def log_system_event(action: str, status: str, details: str = "", **metadata):
+    _append_event_log({
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "kind": "system",
+        "action": action,
+        "status": status,
+        "details": details,
+        "metadata": metadata,
+    })
 
 
 def _json_payload(success: bool, data=None, error: str | None = None):
@@ -134,6 +150,11 @@ def _admin_emails() -> set[str]:
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
+def _owner_emails() -> set[str]:
+    raw = os.environ.get("GUNI_OWNER_EMAILS", "")
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
 def _session_user(request: Request):
     from api.auth_system import verify_session
     from api.database import db_get_user_by_email
@@ -154,11 +175,108 @@ def _require_session_user(request: Request, roles: set[str] | None = None) -> di
     return user
 
 
+def _is_owner_user(user: dict | None) -> bool:
+    return bool(user and user.get("email", "").lower() in _owner_emails())
+
+
+def _require_owner_user(request: Request) -> dict:
+    user = _require_session_user(request)
+    if not _is_owner_user(user):
+        raise HTTPException(status_code=403, detail="Owner access required")
+    return user
+
+
+def _read_json_file(path: str) -> list:
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, list) else []
+    except Exception:
+        return []
+
+
+def _read_recent_runtime_events(limit: int = 50) -> list[dict]:
+    entries = _read_json_file(EVENT_LOG_PATH)
+    entries.sort(key=lambda item: item.get("timestamp", ""), reverse=True)
+    return entries[: min(limit, 200)]
+
+
+def _build_owner_summary(limit: int = 20) -> dict:
+    from api.database import db_get_platform_summary
+
+    platform = db_get_platform_summary(limit=limit)
+    waitlist = _read_json_file(WAITLIST_PATH)
+    recent_waitlist = sorted(waitlist, key=lambda item: item.get("timestamp", ""), reverse=True)[: min(limit, 100)]
+    runtime_events = _read_recent_runtime_events(limit=200)
+    recent_issues = [
+        event for event in runtime_events
+        if str(event.get("decision", "")).startswith(("4", "5"))
+        or event.get("status") in {"failed", "skipped", "500"}
+    ][: min(limit, 100)]
+    recent_emails = [
+        event for event in runtime_events
+        if str(event.get("action", "")).startswith("email.")
+    ][: min(limit, 100)]
+
+    return {
+        "totals": {
+            **platform["totals"],
+            "waitlist_total": len(waitlist),
+            "runtime_issue_count": len(recent_issues),
+        },
+        "recent_users": platform["recent_users"],
+        "recent_billing_events": platform["recent_billing_events"],
+        "recent_waitlist": recent_waitlist,
+        "recent_issues": recent_issues,
+        "recent_emails": recent_emails,
+    }
+
+
+def _send_verification_email_task(email: str, token: str, base_url: str):
+    from api.auth_system import send_verification_email
+    from api.email_service import email_sender_configured
+
+    configured = email_sender_configured()
+    sent = send_verification_email(email, token, base_url)
+    log_system_event(
+        "email.verification",
+        "delivered" if sent else ("skipped" if not configured else "failed"),
+        recipient=email,
+    )
+
+
+def _send_reset_email_task(email: str, token: str, base_url: str):
+    from api.auth_system import send_reset_email
+    from api.email_service import email_sender_configured
+
+    configured = email_sender_configured()
+    sent = send_reset_email(email, token, base_url)
+    log_system_event(
+        "email.reset",
+        "delivered" if sent else ("skipped" if not configured else "failed"),
+        recipient=email,
+    )
+
+
+def _send_waitlist_confirmation_task(email: str):
+    from api.email_service import email_sender_configured, send_confirmation
+
+    configured = email_sender_configured()
+    sent = send_confirmation(email)
+    log_system_event(
+        "email.waitlist_confirmation",
+        "delivered" if sent else ("skipped" if not configured else "failed"),
+        recipient=email,
+    )
+
+
 def _is_api_json_path(path: str) -> bool:
     excluded = {
         "/docs", "/api-docs", "/redoc", "/openapi.json",
         "/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset",
-        "/portal", "/about", "/dashboard", "/demo", "/integrate", "/threats", "/changelog",
+        "/portal", "/owner", "/about", "/dashboard", "/demo", "/integrate", "/threats", "/changelog",
         "/enterprise", "/security", "/pilot",
     }
     if path in excluded:
@@ -222,6 +340,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    log_system_event(
+        "request.unhandled_exception",
+        "500",
+        details=str(exc),
+        path=request.url.path,
+    )
     if not _is_api_json_path(request.url.path):
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
     return JSONResponse(
@@ -365,7 +489,7 @@ class BillingCheckoutRequest(BaseModel):
 
 @app.post("/auth/signup", tags=["Auth"])
 async def auth_signup(body: SignupRequest, request: Request, background_tasks: BackgroundTasks):
-    from api.auth_system import hash_password, generate_token, send_verification_email
+    from api.auth_system import hash_password, generate_token
     from api.database import (
         db_create_organization,
         db_create_user,
@@ -399,7 +523,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         metadata={"plan": plan, "role": role},
     )
     base_url = str(request.base_url).rstrip("/")
-    background_tasks.add_task(send_verification_email, email, token, base_url)
+    background_tasks.add_task(_send_verification_email_task, email, token, base_url)
     return {
         "success": True,
         "message": "Account created. Check your email to verify.",
@@ -469,7 +593,7 @@ async def auth_signin(body: SigninRequest, request: Request):
 
 @app.post("/auth/reset-request", tags=["Auth"])
 async def auth_reset_request(body: ResetRequest, request: Request, background_tasks: BackgroundTasks):
-    from api.auth_system import generate_token, send_reset_email
+    from api.auth_system import generate_token
     from api.database import db_get_user_by_email, db_set_reset_token
     import time as _time
     email = body.email.lower().strip()
@@ -479,7 +603,7 @@ async def auth_reset_request(body: ResetRequest, request: Request, background_ta
         expiry = _time.strftime("%Y-%m-%dT%H:%M:%S", _time.gmtime(_time.time() + 3600))
         db_set_reset_token(email, token, expiry)
         base_url = str(request.base_url).rstrip("/")
-        background_tasks.add_task(send_reset_email, email, token, base_url)
+        background_tasks.add_task(_send_reset_email_task, email, token, base_url)
     return {"success": True, "message": "If that email exists, a reset link has been sent."}
 
 
@@ -510,6 +634,7 @@ async def auth_me(request: Request):
         "org_id": user.get("org_id"),
         "organization": org,
         "subscription": subscription,
+        "is_owner": _is_owner_user(user),
     }
 
 
@@ -540,6 +665,27 @@ def portal(request: Request):
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("portal.html"))
     return HTMLResponse(content="<h1>Portal</h1>")
+
+
+@app.get("/owner", response_class=HTMLResponse, include_in_schema=False)
+def owner_dashboard(request: Request):
+    """Serve the private owner operations dashboard."""
+    user = _session_user(request)
+    if not user:
+        return RedirectResponse(url="/signin", status_code=302)
+    if not _is_owner_user(user):
+        raise HTTPException(status_code=404, detail="Not found")
+    html_path = DASHBOARD_DIR / "owner.html"
+    if html_path.exists():
+        return HTMLResponse(content=_read_dashboard_html("owner.html"))
+    return HTMLResponse(content="<h1>Owner Dashboard</h1>")
+
+
+@app.get("/owner/summary", include_in_schema=False)
+def owner_summary(request: Request, limit: int = 20):
+    """Return a platform-wide summary for the owner dashboard."""
+    _require_owner_user(request)
+    return _build_owner_summary(limit=limit)
 
 
 @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
@@ -618,8 +764,7 @@ def join_waitlist(body: WaitlistRequest, background_tasks: BackgroundTasks):
     except OSError:
         pass  # Read-only filesystem (Railway) — still return success
 
-    from api.email_service import send_confirmation
-    background_tasks.add_task(send_confirmation, email)
+    background_tasks.add_task(_send_waitlist_confirmation_task, email)
 
     return WaitlistResponse(
         success=True,
@@ -835,6 +980,7 @@ def health():
 )
 def scan_html(
     body:    ScanRequest,
+    request: Request,
     api_key: str = Depends(verify_api_key_or_demo),
 ):
     """
@@ -855,6 +1001,8 @@ def scan_html(
             detail="html field cannot be empty.",
         )
 
+    demo_mode_request = request.headers.get("x-guni-demo", "").strip().lower() in {"1", "true", "yes"}
+
     raw = scan(
         html        = body.html,
         goal        = body.goal,
@@ -862,6 +1010,7 @@ def scan_html(
         llm_api_key = _get_anthropic_key(),
         tracking_key= api_key,
         llm         = body.llm,
+        persist     = not demo_mode_request,
     )
     return _build_response(raw)
 

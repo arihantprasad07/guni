@@ -20,6 +20,12 @@ from email.mime.multipart import MIMEMultipart
 SMTP_TIMEOUT_SECONDS = float(os.environ.get("GUNI_SMTP_TIMEOUT", "10"))
 
 
+def email_sender_configured() -> bool:
+    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
+    app_pass = os.environ.get("GUNI_EMAIL_PASS", "")
+    return bool(from_email and app_pass)
+
+
 CONFIRMATION_HTML = """<!DOCTYPE html>
 <html>
 <head>
@@ -102,7 +108,7 @@ def send_confirmation(to_email: str) -> bool:
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")
     app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
 
-    if not from_email or not app_pass:
+    if not email_sender_configured():
         # Not configured — skip silently
         return False
 
@@ -146,7 +152,7 @@ def send_api_key_email(to_email: str, api_key: str, plan: str, scans_limit: int)
     """Send API key delivery email after payment."""
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")
     app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
-    if not from_email or not app_pass:
+    if not email_sender_configured():
         return False
 
     html = f"""<!DOCTYPE html>
@@ -207,7 +213,7 @@ def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> 
     """Generic HTML email sender used by auth system."""
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")
     app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
-    if not from_email or not app_pass:
+    if not email_sender_configured():
         return False
     try:
         msg = MIMEMultipart("alternative")

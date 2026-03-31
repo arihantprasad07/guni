@@ -704,4 +704,55 @@ def db_set_user_org(email: str, org_id: int) -> bool:
     return result.modified_count > 0
 
 
+def db_list_users(limit: int = 50) -> list:
+    rows = _collections()["users"].find({}).sort("created_at", DESCENDING).limit(min(limit, 200))
+    return _docs_with_id(rows)
+
+
+def db_get_platform_summary(limit: int = 20) -> dict:
+    collections = _collections()
+    users = list(collections["users"].find({}))
+    keys = list(collections["api_keys"].find({}))
+    scans = list(collections["scans"].find({}))
+    subscriptions = list(collections["billing_subscriptions"].find({}))
+    billing_events = list(collections["billing_events"].find({}))
+
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 86400))
+    verified_users = sum(1 for user in users if user.get("verified"))
+    users_24h = sum(1 for user in users if (user.get("created_at") or "") >= cutoff)
+    active_keys = sum(1 for item in keys if item.get("active"))
+    active_subscriptions = sum(1 for item in subscriptions if item.get("status") == "active")
+    total_scans = len(scans)
+    blocked_scans = sum(1 for item in scans if item.get("decision") == "BLOCK")
+    total_revenue_paise = sum(
+        int(item.get("amount", 0) or 0)
+        for item in billing_events
+        if item.get("event_type") == "payment.captured"
+    )
+
+    recent_users = _docs_with_id(
+        collections["users"].find({}).sort("created_at", DESCENDING).limit(min(limit, 100))
+    )
+    recent_billing = _docs_with_id(
+        collections["billing_events"].find({}).sort("created_at", DESCENDING).limit(min(limit, 100))
+    )
+
+    return {
+        "totals": {
+            "users": len(users),
+            "verified_users": verified_users,
+            "users_last_24h": users_24h,
+            "api_keys_active": active_keys,
+            "subscriptions_active": active_subscriptions,
+            "scans_total": total_scans,
+            "scans_blocked": blocked_scans,
+            "block_rate": round((blocked_scans / total_scans) * 100, 1) if total_scans else 0,
+            "revenue_inr": round(total_revenue_paise / 100, 2),
+            "revenue_paise": total_revenue_paise,
+        },
+        "recent_users": recent_users,
+        "recent_billing_events": recent_billing,
+    }
+
+
 init_db()

@@ -28,6 +28,7 @@ os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
 os.environ["GUNI_USE_MOCK_MONGO"] = "true"
 os.environ["GUNI_MONGO_DB_NAME"] = "guni_test"
 os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com,admin4@example.com,other-admin@example.com"
+os.environ["GUNI_OWNER_EMAILS"] = "owner@guni.dev"
 os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
 os.environ["GUNI_SESSION_SECRET"] = "test-session-secret"
 
@@ -614,6 +615,24 @@ def test_waitlist_join_sends_confirmation_email(client: TestClient, monkeypatch)
     assert delivered == [email]
 
 
+def test_demo_scans_do_not_persist_history(client: TestClient):
+    before = client.get("/history")
+    assert before.status_code == 200
+    before_data = unwrap(before.json())
+
+    response = client.post(
+        "/scan",
+        json={"html": "<html><body><p>safe</p></body></html>", "goal": "Browse website"},
+        headers={"X-Guni-Demo": "1"},
+    )
+    assert response.status_code == 200
+
+    history = client.get("/history")
+    assert history.status_code == 200
+    history_data = unwrap(history.json())
+    assert history_data["count"] == before_data["count"]
+
+
 def test_runtime_data_dir_isolated_for_tests():
     assert runtime_config.DATA_DIR == TEST_DATA_DIR.resolve()
 
@@ -656,6 +675,73 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     assert me_data["role"] == "admin"
     assert me_data["verified"] is True
     assert me_data["organization"]["name"] == "Aera"
+
+
+def test_owner_dashboard_summary_is_owner_only(client: TestClient):
+    forbidden = client.get("/owner/summary")
+    assert forbidden.status_code == 401
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "owner@guni.dev",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Guni",
+        },
+    )
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    owner = db_get_user_by_email("owner@guni.dev")
+    assert owner is not None
+    assert db_verify_user(owner["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "owner@guni.dev", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    waitlist = client.post("/waitlist", json={"email": "pipeline@example.com"})
+    assert waitlist.status_code == 200
+
+    owner_page = client.get("/owner")
+    assert owner_page.status_code == 200
+
+    summary = client.get("/owner/summary?limit=20")
+    assert summary.status_code == 200
+    summary_data = unwrap(summary.json())
+    assert summary_data["totals"]["users"] >= 1
+    assert summary_data["totals"]["waitlist_total"] >= 1
+    assert any(item["email"] == "owner@guni.dev" for item in summary_data["recent_users"])
+    assert any(item["email"] == "pipeline@example.com" for item in summary_data["recent_waitlist"])
+
+
+def test_owner_dashboard_rejects_non_owner_session(client: TestClient):
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "member@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    member = db_get_user_by_email("member@example.com")
+    assert member is not None
+    assert db_verify_user(member["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "member@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    forbidden = client.get("/owner/summary")
+    assert forbidden.status_code == 403
 
 
 def test_admin_key_inventory_requires_admin_session(client: TestClient):

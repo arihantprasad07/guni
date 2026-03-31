@@ -328,6 +328,7 @@ result = <span class="sf">scan</span>(html=page_html, goal=<span class="ss">"Log
 
 <script>
 const API = window.location.origin;
+const DEMO_HISTORY_KEY = "guni_demo_history";
 const PRESETS = {
   safe: {
     html: `<html><body>
@@ -394,6 +395,27 @@ const apiKeyInput = document.getElementById("apikey-in");
 const presetRow = document.getElementById("preset-row");
 const resultPanel = document.getElementById("result-panel");
 const analyzePanel = document.getElementById("analyze-result");
+
+function loadDemoHistoryState() {
+  try {
+    const raw = sessionStorage.getItem(DEMO_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveDemoHistoryState(entries) {
+  sessionStorage.setItem(DEMO_HISTORY_KEY, JSON.stringify(entries.slice(0, 20)));
+}
+
+function appendDemoHistoryEntry(entry) {
+  const entries = loadDemoHistoryState();
+  entries.unshift(entry);
+  saveDemoHistoryState(entries);
+  renderHistory(loadDemoHistoryState());
+}
 
 function esc(value) {
   return String(value ?? "")
@@ -533,6 +555,7 @@ async function runScan() {
 
   try {
     const headers = { "Content-Type": "application/json" };
+    headers["X-Guni-Demo"] = "1";
     if (apiKeyInput.value.trim()) {
       headers["X-API-Key"] = apiKeyInput.value.trim();
     }
@@ -540,7 +563,7 @@ async function runScan() {
     const response = await fetch(`${API}/scan`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ html, goal })
+      body: JSON.stringify({ html, goal, url: "demo://scan-studio" })
     });
     const payload = await response.json();
 
@@ -551,7 +574,14 @@ async function runScan() {
     const data = unwrapPayload(payload);
     renderResult(data);
     note.textContent = `Scan complete in ${Number(data.total_latency || 0).toFixed(4)}s.`;
-    await loadHistory();
+    appendDemoHistoryEntry({
+      timestamp: new Date().toISOString(),
+      url: data.url || "demo://scan-studio",
+      goal: data.goal || goal,
+      risk: data.risk ?? 0,
+      decision: data.decision || "ALLOW",
+      latency: data.total_latency || 0,
+    });
   } catch (error) {
     note.textContent = "Scan failed.";
     showError(resultPanel, "API offline", error.message || "Could not reach /scan.");
@@ -652,28 +682,8 @@ function renderHistory(entries) {
 
 async function loadHistory() {
   const status = document.getElementById("history-status");
-  status.textContent = "Refreshing audit history";
-
-  try {
-    const headers = {};
-    if (apiKeyInput.value.trim()) {
-      headers["X-API-Key"] = apiKeyInput.value.trim();
-    }
-
-    const response = await fetch(`${API}/history?limit=20`, { headers });
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || payload.detail || `API error ${response.status}`);
-    }
-
-    const data = unwrapPayload(payload);
-    renderHistory(Array.isArray(data.entries) ? data.entries : []);
-  } catch (error) {
-    document.getElementById("hist-body").innerHTML = `<tr><td colspan="5" class="empty-state">${esc(error.message || "Could not load history.")}</td></tr>`;
-    status.textContent = "History unavailable";
-    updateTopMetrics([]);
-  }
+  status.textContent = "Session-only demo history";
+  renderHistory(loadDemoHistoryState());
 }
 
 function copySnippet() {

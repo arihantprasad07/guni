@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Guni | Owner Console</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+:root{--owner-red:#ff5d5d;--owner-blue:#69a7ff;--owner-green:#00d97e;--owner-orange:#ffb800}
+.owner-shell{padding:calc(56px + 1.5rem) 0 3rem}
+.hero{display:grid;grid-template-columns:1.25fr 0.75fr;gap:1rem;margin-bottom:1rem}
+.hero-card,.panel-card{background:rgba(8,8,12,0.84);border:1px solid var(--border2);backdrop-filter:blur(10px)}
+.hero-card{padding:1.4rem}
+.hero-title{font-family:var(--display);font-size:2.2rem;line-height:1;letter-spacing:-0.04em;margin-bottom:0.7rem}
+.hero-copy{font-size:13px;color:var(--muted2);line-height:1.8;max-width:58ch}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:1rem}
+.status-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border2);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--owner-green);box-shadow:0 0 18px rgba(0,217,126,.5)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:1rem}
+.metric-card{background:var(--bg2);border:1px solid var(--border2);padding:1rem}
+.metric-card strong{display:block;font-family:var(--display);font-size:2rem;line-height:1}
+.metric-card span{display:block;font-size:11px;color:var(--muted2);letter-spacing:.08em;text-transform:uppercase;margin-top:.45rem}
+.metric-card small{display:block;font-size:12px;color:var(--muted3);margin-top:.6rem}
+.owner-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.panel-card{overflow:hidden}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.panel-title{font-size:11px;color:var(--muted2);letter-spacing:.08em;text-transform:uppercase}
+.panel-body{padding:1rem 1.1rem}
+.stack{display:grid;gap:.85rem}
+.event{border:1px solid var(--border2);background:var(--bg2);padding:.85rem .95rem}
+.event strong{display:block;font-size:13px;color:var(--text)}
+.event span{display:block;font-size:12px;color:var(--muted3);line-height:1.7;margin-top:.25rem}
+.event code{font-family:var(--mono);font-size:11px;color:var(--amber)}
+.tone-good{color:var(--owner-green)}
+.tone-warn{color:var(--owner-orange)}
+.tone-bad{color:var(--owner-red)}
+.tone-blue{color:var(--owner-blue)}
+.note{font-size:12px;color:var(--muted3);line-height:1.7}
+.empty{font-size:12px;color:var(--muted3);padding:.8rem 0}
+@media (max-width: 980px){.hero,.owner-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="g-page">
+<nav class="g-nav">
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
+  <div class="g-nav-links">
+    <a href="/portal">Portal</a>
+    <a href="/threats">Threat Feed</a>
+    <a href="/docs">Docs</a>
+  </div>
+  <div class="g-nav-right">
+    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Owner Console</span></div>
+  </div>
+</nav>
+
+<main class="owner-shell">
+  <div class="g-wrap">
+    <section class="hero">
+      <div class="hero-card">
+        <div class="g-eyebrow">Private Ops View</div>
+        <div class="hero-title">One place for sales, signups, waitlist, and problems.</div>
+        <p class="hero-copy">This view is for the software owner only. It pulls company-wide metrics across users, revenue, waitlist growth, verification email delivery, and the latest runtime trouble spots so you can see the business and the product health together.</p>
+        <div class="hero-meta">
+          <div class="status-chip"><div class="status-dot"></div><span id="owner-email">owner@guni.dev</span></div>
+          <div class="status-chip"><span id="refresh-status">Loading live company data</span></div>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div class="panel-title" style="margin-bottom:.8rem">Focus</div>
+        <div class="stack">
+          <div class="note">Revenue and active subscriptions tell you whether demand is converting.</div>
+          <div class="note">Recent signups and waitlist entries show acquisition velocity.</div>
+          <div class="note">Email delivery and runtime issue feeds tell you what is breaking before customers tell you.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric-card"><strong id="m-revenue">₹0</strong><span>Revenue</span><small id="m-subs">0 active subscriptions</small></div>
+      <div class="metric-card"><strong id="m-users">0</strong><span>Users</span><small id="m-verified">0 verified</small></div>
+      <div class="metric-card"><strong id="m-waitlist">0</strong><span>Waitlist</span><small id="m-signups-24h">0 signups in 24h</small></div>
+      <div class="metric-card"><strong id="m-scans">0</strong><span>Total Scans</span><small id="m-block-rate">0% block rate</small></div>
+      <div class="metric-card"><strong id="m-keys">0</strong><span>Active API Keys</span><small id="m-issues">0 recent issues</small></div>
+    </section>
+
+    <section class="owner-grid">
+      <div class="panel-card">
+        <div class="panel-head"><span class="panel-title">Recent Signups</span></div>
+        <div class="panel-body"><div class="stack" id="recent-users"></div></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-head"><span class="panel-title">Recent Waitlist</span></div>
+        <div class="panel-body"><div class="stack" id="recent-waitlist"></div></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-head"><span class="panel-title">Sales Feed</span></div>
+        <div class="panel-body"><div class="stack" id="recent-billing"></div></div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-head"><span class="panel-title">Email Delivery</span></div>
+        <div class="panel-body"><div class="stack" id="recent-emails"></div></div>
+      </div>
+
+      <div class="panel-card" style="grid-column:1 / -1">
+        <div class="panel-head"><span class="panel-title">Recent Problems</span></div>
+        <div class="panel-body"><div class="stack" id="recent-issues"></div></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const API = window.location.origin;
+
+function esc(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function currencyInr(value) {
+  return `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function renderList(targetId, items, formatter, emptyText) {
+  const node = document.getElementById(targetId);
+  if (!Array.isArray(items) || !items.length) {
+    node.innerHTML = `<div class="empty">${esc(emptyText)}</div>`;
+    return;
+  }
+  node.innerHTML = items.map(formatter).join("");
+}
+
+function issueTone(item) {
+  const status = String(item.status || item.decision || "").toLowerCase();
+  if (status.startsWith("5") || status === "failed") return "tone-bad";
+  if (status.startsWith("4") || status === "skipped") return "tone-warn";
+  return "tone-blue";
+}
+
+async function loadOwnerSummary() {
+  const response = await fetch(`${API}/owner/summary?limit=12`, { credentials: "include" });
+  if (!response.ok) {
+    window.location.href = "/portal";
+    return;
+  }
+
+  const data = await response.json();
+  const totals = data.totals || {};
+  document.getElementById("refresh-status").textContent = "Live company data";
+  document.getElementById("m-revenue").textContent = currencyInr(totals.revenue_inr || 0);
+  document.getElementById("m-subs").textContent = `${Number(totals.subscriptions_active || 0).toLocaleString()} active subscriptions`;
+  document.getElementById("m-users").textContent = Number(totals.users || 0).toLocaleString();
+  document.getElementById("m-verified").textContent = `${Number(totals.verified_users || 0).toLocaleString()} verified`;
+  document.getElementById("m-waitlist").textContent = Number(totals.waitlist_total || 0).toLocaleString();
+  document.getElementById("m-signups-24h").textContent = `${Number(totals.users_last_24h || 0).toLocaleString()} signups in 24h`;
+  document.getElementById("m-scans").textContent = Number(totals.scans_total || 0).toLocaleString();
+  document.getElementById("m-block-rate").textContent = `${Number(totals.block_rate || 0).toLocaleString()}% block rate`;
+  document.getElementById("m-keys").textContent = Number(totals.api_keys_active || 0).toLocaleString();
+  document.getElementById("m-issues").textContent = `${Number(totals.runtime_issue_count || 0).toLocaleString()} recent issues`;
+
+  renderList(
+    "recent-users",
+    data.recent_users,
+    (item) => `<div class="event">
+      <strong>${esc(item.email)}</strong>
+      <span>${esc(item.created_at || "-")} | ${esc(item.plan || "free")} | ${item.verified ? '<span class="tone-good">verified</span>' : '<span class="tone-warn">pending verification</span>'}</span>
+    </div>`,
+    "No signups yet."
+  );
+
+  renderList(
+    "recent-waitlist",
+    data.recent_waitlist,
+    (item) => `<div class="event">
+      <strong>${esc(item.email)}</strong>
+      <span>${esc(item.timestamp || "-")} | position #${esc(item.position || "-")}</span>
+    </div>`,
+    "No waitlist entries yet."
+  );
+
+  renderList(
+    "recent-billing",
+    data.recent_billing_events,
+    (item) => `<div class="event">
+      <strong>${esc(item.event_type || "billing.event")} <span class="tone-good">${currencyInr((Number(item.amount || 0) / 100))}</span></strong>
+      <span>${esc(item.email || "unknown")} | ${esc(item.status || "-")} | ${esc(item.created_at || "-")}</span>
+    </div>`,
+    "No billing activity yet."
+  );
+
+  renderList(
+    "recent-emails",
+    data.recent_emails,
+    (item) => `<div class="event">
+      <strong>${esc(item.action || "email")} <span class="${issueTone(item)}">${esc(item.status || "-")}</span></strong>
+      <span>${esc(item.metadata?.recipient || "-")} | ${esc(item.timestamp || "-")}</span>
+    </div>`,
+    "No email events yet."
+  );
+
+  renderList(
+    "recent-issues",
+    data.recent_issues,
+    (item) => `<div class="event">
+      <strong>${esc(item.action || "issue")} <span class="${issueTone(item)}">${esc(item.status || item.decision || "-")}</span></strong>
+      <span>${esc(item.timestamp || "-")} | ${esc(item.url || item.metadata?.path || "-")}</span>
+      <span><code>${esc(item.details || "")}</code></span>
+    </div>`,
+    "No recent issues detected."
+  );
+}
+
+async function hydrateOwner() {
+  const response = await fetch(`${API}/auth/me`, { credentials: "include" });
+  if (!response.ok) {
+    window.location.href = "/signin";
+    return;
+  }
+  const user = await response.json();
+  const data = user && user.data ? user.data : user;
+  document.getElementById("owner-email").textContent = data.email || "owner@guni.dev";
+  await loadOwnerSummary();
+}
+
+window.addEventListener("load", hydrateOwner);
+</script>
+</body>
+</html>
