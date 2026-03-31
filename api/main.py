@@ -498,6 +498,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         db_create_user,
         db_get_user_by_email,
         db_log_audit_event,
+        db_mark_user_verified,
     )
     email = body.email.lower().strip()
     plan = (body.plan or "free").lower().strip()
@@ -517,6 +518,9 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
+    if email in _owner_emails():
+        db_mark_user_verified(email)
+        user = db_get_user_by_email(email) or user
     db_log_audit_event(
         actor_email=email,
         org_id=org["id"],
@@ -526,10 +530,11 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         metadata={"plan": plan, "role": role},
     )
     base_url = str(request.base_url).rstrip("/")
-    background_tasks.add_task(_send_verification_email_task, email, token, base_url)
+    if email not in _owner_emails():
+        background_tasks.add_task(_send_verification_email_task, email, token, base_url)
     return {
         "success": True,
-        "message": "Account created. Check your email to verify.",
+        "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.",
         "email": email,
         "plan": plan,
         "role": role,
@@ -551,7 +556,7 @@ async def auth_signin(body: SigninRequest, request: Request):
     user  = db_get_user_by_email(email)
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not user.get("verified"):
+    if not user.get("verified") and email not in _owner_emails():
         raise HTTPException(status_code=403, detail="Please verify your email first")
     api_key = user.get("api_key")
     if not api_key or not db_validate_key(api_key):

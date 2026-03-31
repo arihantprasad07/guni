@@ -664,6 +664,14 @@ def db_set_verify_token(email: str, token: str) -> bool:
     return result.modified_count > 0
 
 
+def db_mark_user_verified(email: str) -> bool:
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$set": {"verified": 1, "verify_token": None}},
+    )
+    return result.modified_count > 0
+
+
 def db_set_reset_token(email: str, token: str, expiry: str) -> bool:
     result = _collections()["users"].update_one(
         {"email": email.lower().strip()},

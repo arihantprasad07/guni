@@ -677,6 +677,40 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     assert me_data["organization"]["name"] == "Aera"
 
 
+def test_owner_email_bypasses_verification_requirement(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "owner@guni.dev",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Guni",
+        },
+    )
+    assert signup.status_code == 200
+    signup_data = unwrap(signup.json())
+    assert "Sign in with your password" in signup_data["message"]
+
+    from api.database import db_get_user_by_email
+
+    owner = db_get_user_by_email("owner@guni.dev")
+    assert owner is not None
+    assert owner["verified"] == 1
+    assert owner["verify_token"] is None
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "owner@guni.dev", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    me_data = unwrap(me.json())
+    assert me_data["is_owner"] is True
+    assert me_data["verified"] is True
+
+
 def test_resend_verification_refreshes_token_for_unverified_user(client: TestClient):
     signup = client.post(
         "/auth/signup",
@@ -744,11 +778,11 @@ def test_owner_dashboard_summary_is_owner_only(client: TestClient):
         },
     )
 
-    from api.database import db_get_user_by_email, db_verify_user
+    from api.database import db_get_user_by_email
 
     owner = db_get_user_by_email("owner@guni.dev")
     assert owner is not None
-    assert db_verify_user(owner["verify_token"]) is True
+    assert owner["verified"] == 1
 
     signin = client.post(
         "/auth/signin",
