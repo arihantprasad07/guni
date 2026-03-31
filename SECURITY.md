@@ -41,8 +41,8 @@ Current implementation may persist the following runtime state:
 
 - scan audit logs
 - waitlist entries
-- local API key metadata
-- SQLite app data for users, scans, alerts, and custom rules
+- filesystem-backed runtime events
+- MongoDB app data for users, organizations, scans, alerts, billing, audit events, and custom rules
 
 By default, local runtime state is stored in `.guni/` for development. In production, paths should be mapped to a dedicated writable volume via environment variables.
 

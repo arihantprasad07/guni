@@ -1198,6 +1198,22 @@ def test_session_tokens_are_cookie_safe_and_round_trip():
     assert verify_session(token) == "cookie-safe@example.com"
 
 
+def test_demo_page_renders_scan_studio(client: TestClient):
+    response = client.get("/demo")
+
+    assert response.status_code == 200
+    assert "Live scan studio" in response.text
+    assert "Run scan" in response.text
+
+
+def test_threat_page_uses_live_stream(client: TestClient):
+    response = client.get("/threats")
+
+    assert response.status_code == 200
+    assert "Threat Intelligence" in response.text
+    assert "/threats/stream" in response.text
+
+
 def test_database_init_fails_fast_when_connection_cannot_be_established(monkeypatch: pytest.MonkeyPatch):
     import pymongo.errors
 

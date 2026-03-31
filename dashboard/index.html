@@ -431,6 +431,15 @@ function unwrapPayload(payload) {
   return payload || {};
 }
 
+async function requestJson(path, options = {}) {
+  const response = await fetch(`${API}${path}`, options);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || payload.detail || `API error ${response.status}`);
+  }
+  return unwrapPayload(payload);
+}
+
 function selectPreset(name) {
   const preset = PRESETS[name];
   if (!preset) return;
@@ -560,18 +569,11 @@ async function runScan() {
       headers["X-API-Key"] = apiKeyInput.value.trim();
     }
 
-    const response = await fetch(`${API}/scan`, {
+    const data = await requestJson(`/scan`, {
       method: "POST",
       headers,
       body: JSON.stringify({ html, goal, url: "demo://scan-studio" })
     });
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || payload.detail || `API error ${response.status}`);
-    }
-
-    const data = unwrapPayload(payload);
     renderResult(data);
     note.textContent = `Scan complete in ${Number(data.total_latency || 0).toFixed(4)}s.`;
     appendDemoHistoryEntry({
@@ -609,18 +611,13 @@ async function runAnalyze() {
   analyzePanel.classList.remove("show");
 
   try {
-    const response = await fetch(`${API}/analyze`, {
+    const responseData = await requestJson(`/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, url, data: data || null })
     });
-    const payload = await response.json();
 
-    if (!response.ok) {
-      throw new Error(payload.error || payload.detail || `API error ${response.status}`);
-    }
-
-    renderAnalyzeResult(unwrapPayload(payload));
+    renderAnalyzeResult(responseData);
     note.textContent = "Action analysis complete.";
   } catch (error) {
     note.textContent = "Action analysis failed.";
@@ -682,7 +679,23 @@ function renderHistory(entries) {
 
 async function loadHistory() {
   const status = document.getElementById("history-status");
-  status.textContent = "Session-only demo history";
+  const headers = {};
+  if (apiKeyInput.value.trim()) {
+    headers["X-API-Key"] = apiKeyInput.value.trim();
+  }
+
+  try {
+    const data = await requestJson(`/history?limit=20`, { headers });
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    if (entries.length) {
+      status.textContent = "Loaded API-backed scan history";
+      renderHistory(entries);
+      return;
+    }
+  } catch (error) {
+    status.textContent = "Falling back to session demo history";
+  }
+
   renderHistory(loadDemoHistoryState());
 }
 
@@ -719,6 +732,9 @@ window.addEventListener("load", () => {
   selectPreset("safe");
   loadHistory();
 });
+
+apiKeyInput.addEventListener("change", loadHistory);
+apiKeyInput.addEventListener("blur", loadHistory);
 </script>
 </body>
 </html>

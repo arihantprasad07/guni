@@ -65,7 +65,7 @@
         <h1 class="g-title-md" style="margin-bottom:0.8rem">Public signal from real agent-risk traffic</h1>
         <p class="hero-copy">This page shows aggregate threat patterns seen by Guni-protected AI-agent workflows. It is designed to be safe to share publicly: counts are aggregated, customer details are omitted, and the goal is to show what the adversarial web looks like for browser agents in practice.</p>
         <div class="hero-meta">
-          <div class="live-chip" id="feed-status">Refreshing live feed</div>
+          <div class="live-chip" id="feed-status">Connecting to live feed</div>
           <div class="live-chip" id="feed-updated">Waiting for snapshot</div>
         </div>
       </div>
@@ -189,34 +189,80 @@ function renderNotes(stats) {
 }
 
 function applySnapshot(payload) {
-  const stats = payload?.stats || {};
+  const stats = payload || {};
   const totalScans = Number(stats.total_scans || 0);
-  const blocked = Number(stats.blocked || 0);
+  const blocked = Number(stats.total_blocked || 0);
   const blockRate = totalScans ? Math.round((blocked / totalScans) * 100) : 0;
   setText('total-scans', totalScans.toLocaleString());
   setText('total-blocked', blocked.toLocaleString());
-  setText('last24-scans', `${Number(stats.last_24h?.scans || 0).toLocaleString()} scans in the last 24h`);
-  setText('block-rate', `${blockRate}% block rate`);
+  setText('last24-scans', `${Number(stats.last_24h_scans || 0).toLocaleString()} scans in the last 24h`);
+  setText('block-rate', `${Number(stats.block_rate || blockRate)}% block rate`);
   setText('top-threat', THREAT_LABELS[stats.top_threat] || '-');
   setText('top-threat-copy', stats.top_threat ? 'Most frequent category in the current public feed.' : 'Waiting for threat breakdown');
   setText('feed-updated', `Updated ${new Date().toLocaleTimeString()}`);
   renderBreakdown(stats.threat_counts || {}, blocked || totalScans);
-  renderNotes(stats);
+  renderNotes({
+    total_scans: totalScans,
+    blocked,
+    top_threat: stats.top_threat,
+    last_24h: {
+      scans: Number(stats.last_24h_scans || 0),
+      blocked: Number(stats.last_24h_blocked || 0),
+    },
+  });
 }
 
-async function loadFeed() {
-  try {
-    const response = await fetch(`${API}/threats/feed`);
-    const payload = await response.json();
-    const data = payload?.data || payload || {};
-    applySnapshot(data);
-    setText('feed-status', 'Live public feed');
-    setText('feed-health', 'Online');
-  } catch (error) {
-    setText('feed-status', 'Feed unavailable');
-    setText('feed-health', 'Issue');
-    document.getElementById('feed-health').style.color = 'var(--red)';
+let feedSource = null;
+let fallbackPoll = null;
+
+async function loadFeedSnapshot() {
+  const response = await fetch(`${API}/threats/feed`);
+  const payload = await response.json();
+  applySnapshot(payload?.data || payload || {});
+}
+
+function setFeedHealth(label, color) {
+  const node = document.getElementById('feed-health');
+  setText('feed-health', label);
+  node.style.color = color;
+}
+
+function startFeedStream() {
+  if (feedSource) {
+    feedSource.close();
   }
+
+  feedSource = new EventSource(`${API}/threats/stream`);
+  feedSource.addEventListener('snapshot', (event) => {
+    applySnapshot(JSON.parse(event.data || '{}'));
+    setText('feed-status', 'Streaming live feed');
+    setFeedHealth('Online', 'var(--green)');
+  });
+
+  feedSource.addEventListener('heartbeat', () => {
+    setText('feed-status', 'Streaming live feed');
+  });
+
+  feedSource.onerror = async () => {
+    setText('feed-status', 'Live stream interrupted');
+    setFeedHealth('Polling', 'var(--amber)');
+    if (!fallbackPoll) {
+      try {
+        await loadFeedSnapshot();
+      } catch (error) {
+        setText('feed-status', 'Feed unavailable');
+        setFeedHealth('Issue', 'var(--red)');
+      }
+      fallbackPoll = window.setInterval(async () => {
+        try {
+          await loadFeedSnapshot();
+        } catch (error) {
+          setText('feed-status', 'Feed unavailable');
+          setFeedHealth('Issue', 'var(--red)');
+        }
+      }, 30000);
+    }
+  };
 }
 
 document.getElementById('copy-feed-link')?.addEventListener('click', async () => {
@@ -224,8 +270,7 @@ document.getElementById('copy-feed-link')?.addEventListener('click', async () =>
 });
 
 window.addEventListener('load', () => {
-  loadFeed();
-  setInterval(loadFeed, 30000);
+  startFeedStream();
 });
 </script>
 </body>
