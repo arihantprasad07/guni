@@ -25,6 +25,9 @@ PLAN_AMOUNTS = {
     "pro": 239900,
 }
 
+ACTIVE_BILLING_EVENTS = {"payment.captured", "subscription.activated"}
+INACTIVE_BILLING_EVENTS = {"subscription.cancelled", "payment.failed"}
+
 
 def verify_razorpay_signature(payload: bytes, signature: str) -> bool:
     secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
@@ -152,11 +155,47 @@ def _extract_payment_context(data: dict) -> dict:
     }
 
 
+def _subscription_update_kwargs(context: dict, org_id: int | None, *, status: str, last_payment_at: str | None = None) -> dict:
+    return {
+        "email": context["email"],
+        "org_id": org_id,
+        "plan": context["plan"],
+        "status": status,
+        "provider_customer_id": context["customer_id"] or None,
+        "provider_subscription_id": context["subscription_id"] or None,
+        "provider_payment_id": context["payment_id"] or None,
+        "provider_payment_link_id": context["payment_link_id"] or None,
+        "last_payment_at": last_payment_at,
+    }
+
+
+def _log_billing_activity(context: dict, *, org_id: int | None, status: str, action: str):
+    from api.database import db_log_audit_event, db_log_billing_event
+
+    db_log_billing_event(
+        event_type=context["event"],
+        email=context["email"],
+        status=status,
+        org_id=org_id,
+        provider_event_id=context["payment_link_id"] or context["subscription_id"],
+        provider_payment_id=context["payment_id"],
+        amount=context["amount"],
+        currency=context["currency"],
+        payload=context["raw"],
+    )
+    db_log_audit_event(
+        actor_email=context["email"],
+        org_id=org_id,
+        action=action,
+        target_type="subscription",
+        target_id=context["payment_id"] or context["subscription_id"],
+        metadata={"plan": context["plan"], "amount": context["amount"]},
+    )
+
+
 def apply_billing_event(data: dict) -> dict:
     from api.database import (
         db_get_user_by_email,
-        db_log_audit_event,
-        db_log_billing_event,
         db_set_user_plan,
         db_upsert_subscription,
     )
@@ -174,18 +213,10 @@ def apply_billing_event(data: dict) -> dict:
     org_id = user.get("org_id") if user else None
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
 
-    if event in {"payment.captured", "subscription.activated"}:
+    if event in ACTIVE_BILLING_EVENTS:
         db_set_user_plan(email, context["plan"])
         subscription = db_upsert_subscription(
-            email=email,
-            org_id=org_id,
-            plan=context["plan"],
-            status="active",
-            provider_customer_id=context["customer_id"] or None,
-            provider_subscription_id=context["subscription_id"] or None,
-            provider_payment_id=context["payment_id"] or None,
-            provider_payment_link_id=context["payment_link_id"] or None,
-            last_payment_at=now,
+            **_subscription_update_kwargs(context, org_id, status="active", last_payment_at=now),
         )
         key_data = generate_api_key(
             email=email,
@@ -193,25 +224,7 @@ def apply_billing_event(data: dict) -> dict:
             scans_limit=PLAN_LIMITS.get(context["plan"], 1000),
             org_id=org_id,
         )
-        db_log_billing_event(
-            event_type=event,
-            email=email,
-            status="active",
-            org_id=org_id,
-            provider_event_id=context["payment_link_id"] or context["subscription_id"],
-            provider_payment_id=context["payment_id"],
-            amount=context["amount"],
-            currency=context["currency"],
-            payload=context["raw"],
-        )
-        db_log_audit_event(
-            actor_email=email,
-            org_id=org_id,
-            action="billing.payment_captured",
-            target_type="subscription",
-            target_id=context["payment_id"] or context["subscription_id"],
-            metadata={"plan": context["plan"], "amount": context["amount"]},
-        )
+        _log_billing_activity(context, org_id=org_id, status="active", action="billing.payment_captured")
         try:
             send_api_key_email(
                 email,
@@ -229,43 +242,20 @@ def apply_billing_event(data: dict) -> dict:
             "key": key_data["key"][:20] + "...",
         }
 
-    if event in {"subscription.cancelled", "payment.failed"}:
+    if event in INACTIVE_BILLING_EVENTS:
         status = "cancelled" if event == "subscription.cancelled" else "past_due"
         subscription = db_upsert_subscription(
-            email=email,
-            org_id=org_id,
-            plan=context["plan"],
-            status=status,
-            provider_customer_id=context["customer_id"] or None,
-            provider_subscription_id=context["subscription_id"] or None,
-            provider_payment_id=context["payment_id"] or None,
-            provider_payment_link_id=context["payment_link_id"] or None,
+            **_subscription_update_kwargs(context, org_id, status=status),
         )
-        db_log_billing_event(
-            event_type=event,
-            email=email,
-            status=status,
-            org_id=org_id,
-            provider_event_id=context["payment_link_id"] or context["subscription_id"],
-            provider_payment_id=context["payment_id"],
-            amount=context["amount"],
-            currency=context["currency"],
-            payload=context["raw"],
-        )
-        db_log_audit_event(
-            actor_email=email,
-            org_id=org_id,
-            action=f"billing.{status}",
-            target_type="subscription",
-            target_id=context["payment_id"] or context["subscription_id"],
-            metadata={"plan": context["plan"]},
-        )
+        _log_billing_activity(context, org_id=org_id, status=status, action=f"billing.{status}")
         return {
             "status": status,
             "email": email,
             "plan": context["plan"],
             "subscription": subscription,
         }
+
+    from api.database import db_log_billing_event
 
     db_log_billing_event(
         event_type=event,

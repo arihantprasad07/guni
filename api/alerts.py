@@ -4,46 +4,20 @@ Sends Slack and webhook notifications when an agent hits a BLOCK or CONFIRM.
 """
 
 import json
-import ipaddress
-import socket
 import urllib.request
 import urllib.error
-from urllib.parse import urlparse
+
+from api.netutil import validate_public_url
 
 
 def validate_outbound_target(url: str) -> str:
-    parsed = urlparse((url or "").strip())
-    if parsed.scheme != "https":
-        raise ValueError("Alert destinations must use https.")
-
-    hostname = (parsed.hostname or "").strip().lower()
-    if not hostname:
-        raise ValueError("Alert destination must include a valid hostname.")
-
-    if hostname == "localhost" or hostname.endswith(".local"):
-        raise ValueError("Alert destination host is not allowed.")
-
-    try:
-        resolved = {
-            info[4][0]
-            for info in socket.getaddrinfo(hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
-        }
-    except socket.gaierror as exc:
-        raise ValueError("Could not resolve alert destination hostname.") from exc
-
-    for ip_text in resolved:
-        ip_obj = ipaddress.ip_address(ip_text)
-        if (
-            ip_obj.is_private
-            or ip_obj.is_loopback
-            or ip_obj.is_link_local
-            or ip_obj.is_multicast
-            or ip_obj.is_reserved
-            or ip_obj.is_unspecified
-        ):
-            raise ValueError("Alert destination resolves to a non-public IP address.")
-
-    return parsed.geturl()
+    return validate_public_url(
+        url,
+        allowed_schemes={"https"},
+        blocked_hosts={"localhost"},
+        default_port=443,
+        subject="Alert destination",
+    )
 
 
 def send_alert(api_key: str, result: dict):
@@ -143,8 +117,8 @@ def _send_webhook(webhook_url: str, payload: dict):
 
 
 def _post_json(url: str, data: dict):
+    safe_url = validate_outbound_target(url)
     try:
-        safe_url = validate_outbound_target(url)
         body = json.dumps(data).encode("utf-8")
         req  = urllib.request.Request(
             safe_url, data=body,

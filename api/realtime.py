@@ -9,9 +9,28 @@ Usage:
     ws.onmessage = (e) => console.log(JSON.parse(e.data))
 """
 
-from fastapi import WebSocket, WebSocketDisconnect
 import json
-import time
+
+from fastapi import WebSocket, WebSocketDisconnect
+
+
+def _build_scan_result(result: dict, url: str, goal: str) -> dict:
+    llm_summary = ""
+    llm_analysis = result.get("llm_analysis")
+    if llm_analysis and not llm_analysis.get("error"):
+        llm_summary = llm_analysis.get("summary", "")
+
+    return {
+        "type": "result",
+        "risk": result["risk"],
+        "decision": result["decision"],
+        "breakdown": result["breakdown"],
+        "evidence": {k: v for k, v in result["evidence"].items() if v},
+        "latency": result["total_latency"],
+        "url": url,
+        "goal": goal,
+        "llm_summary": llm_summary,
+    }
 
 
 async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse website"):
@@ -79,24 +98,7 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
 
             result = scanner.scan(html=html, url=url)
 
-            # Stream result back
-            await websocket.send_json({
-                "type":        "result",
-                "risk":        result["risk"],
-                "decision":    result["decision"],
-                "breakdown":   result["breakdown"],
-                "evidence":    {
-                    k: v for k, v in result["evidence"].items() if v
-                },
-                "latency":     result["total_latency"],
-                "url":         url,
-                "goal":        pg_goal,
-                "llm_summary": (
-                    result["llm_analysis"].get("summary", "")
-                    if result.get("llm_analysis") and not result["llm_analysis"].get("error")
-                    else ""
-                ),
-            })
+            await websocket.send_json(_build_scan_result(result, url, pg_goal))
 
     except WebSocketDisconnect:
         pass

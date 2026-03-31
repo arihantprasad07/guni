@@ -1,13 +1,4 @@
-"""
-Guni API - Authentication
-Simple API key middleware using the X-API-Key header.
-
-Keys are stored in .env as a comma-separated list:
-    GUNI_API_KEYS=key1,key2,key3
-
-Open mode is allowed only when explicitly enabled or in local development.
-Hosted production environments should always require a valid key.
-"""
+"""API key and session-backed request authentication."""
 
 import os
 
@@ -31,20 +22,6 @@ def _is_truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _is_production_environment() -> bool:
-    markers = (
-        os.environ.get("RAILWAY_ENVIRONMENT"),
-        os.environ.get("RAILWAY_PROJECT_ID"),
-        os.environ.get("ENV"),
-        os.environ.get("APP_ENV"),
-        os.environ.get("GUNI_ENV"),
-    )
-    normalized = {(marker or "").strip().lower() for marker in markers if marker}
-    return bool(normalized & {"production", "prod"}) or any(
-        marker for marker in markers[:2]
-    )
-
-
 def _open_mode_allowed() -> bool:
     return _is_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE"))
 
@@ -53,23 +30,22 @@ def _public_demo_path(request: Request) -> bool:
     return request.url.path in {"/scan", "/history", "/analyze"}
 
 
+def _safe_lookup(source, attr_name: str, key: str) -> str:
+    values = getattr(source, attr_name, None)
+    if values is None:
+        return ""
+    try:
+        return values.get(key, "")
+    except Exception:
+        return ""
+
+
 def _get_cookie(source, name: str) -> str:
-    cookies = getattr(source, "cookies", None)
-    if cookies is not None:
-        try:
-            return cookies.get(name, "")
-        except Exception:
-            pass
+    cookie_value = _safe_lookup(source, "cookies", name)
+    if cookie_value:
+        return cookie_value
 
-    header_value = ""
-    headers = getattr(source, "headers", None)
-    if headers is not None:
-        try:
-            header_value = headers.get("cookie", "")
-        except Exception:
-            header_value = ""
-
-    for raw_cookie in header_value.split(";"):
+    for raw_cookie in _safe_lookup(source, "headers", "cookie").split(";"):
         key, _, value = raw_cookie.strip().partition("=")
         if key == name:
             return value
@@ -77,23 +53,11 @@ def _get_cookie(source, name: str) -> str:
 
 
 def _get_header(source, name: str) -> str:
-    headers = getattr(source, "headers", None)
-    if headers is None:
-        return ""
-    try:
-        return headers.get(name, "")
-    except Exception:
-        return ""
+    return _safe_lookup(source, "headers", name)
 
 
 def _get_query_param(source, name: str) -> str:
-    query_params = getattr(source, "query_params", None)
-    if query_params is None:
-        return ""
-    try:
-        return query_params.get(name, "")
-    except Exception:
-        return ""
+    return _safe_lookup(source, "query_params", name)
 
 
 def _session_api_key(request) -> str | None:

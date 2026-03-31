@@ -11,8 +11,6 @@ import json
 import time
 import asyncio
 import threading
-import socket
-import ipaddress
 from pathlib import Path
 from urllib.parse import urlparse
 from pydantic import BaseModel
@@ -32,6 +30,7 @@ from api.models import (
     ErrorResponse, AnalyzeResponse,
 )
 from api.auth import verify_api_key
+from api.netutil import validate_public_url
 from api.rate_limit import check_rate_limit
 from guni import scan, __version__
 from runtime_config import AUDIT_LOG_PATH, EVENT_LOG_PATH, WAITLIST_PATH
@@ -661,39 +660,15 @@ def _get_anthropic_key() -> str:
 
 
 def _validate_safe_fetch_url(raw_url: str) -> str:
-    parsed = urlparse((raw_url or "").strip())
-    if parsed.scheme not in {"http", "https"}:
-        raise HTTPException(status_code=400, detail="Only http and https URLs are allowed.")
-
-    hostname = (parsed.hostname or "").strip().lower()
-    if not hostname:
-        raise HTTPException(status_code=400, detail="URL must include a valid hostname.")
-
-    blocked_hosts = {"localhost", "metadata.google.internal"}
-    if hostname in blocked_hosts or hostname.endswith(".local"):
-        raise HTTPException(status_code=400, detail="Target host is not allowed.")
-
     try:
-        resolved = {
-            info[4][0]
-            for info in socket.getaddrinfo(hostname, parsed.port or None, proto=socket.IPPROTO_TCP)
-        }
-    except socket.gaierror:
-        raise HTTPException(status_code=400, detail="Could not resolve target hostname.")
-
-    for ip_text in resolved:
-        ip_obj = ipaddress.ip_address(ip_text)
-        if (
-            ip_obj.is_private
-            or ip_obj.is_loopback
-            or ip_obj.is_link_local
-            or ip_obj.is_multicast
-            or ip_obj.is_reserved
-            or ip_obj.is_unspecified
-        ):
-            raise HTTPException(status_code=400, detail="Target host resolves to a non-public IP address.")
-
-    return parsed.geturl()
+        return validate_public_url(
+            raw_url,
+            allowed_schemes={"http", "https"},
+            blocked_hosts={"localhost", "metadata.google.internal"},
+            subject="Target",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _enforce_scan_quota(api_key: str, scans_needed: int = 1) -> None:
@@ -724,6 +699,37 @@ def _require_org_key_access(actor: dict, key: str) -> dict:
     if not key_record:
         raise HTTPException(status_code=404, detail="API key not found")
     return key_record
+
+
+def _prepare_alert_target(url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        from api.alerts import validate_outbound_target
+
+        return validate_outbound_target(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _subscription_update_from_current(user: dict, current: dict, *, cancel_at_period_end: bool) -> dict:
+    from api.database import db_upsert_subscription
+
+    return db_upsert_subscription(
+        email=user["email"],
+        org_id=user.get("org_id"),
+        plan=current.get("plan", user.get("plan", "free")),
+        status=current.get("status", "active"),
+        billing_provider=current.get("billing_provider", "razorpay"),
+        provider_customer_id=current.get("provider_customer_id"),
+        provider_subscription_id=current.get("provider_subscription_id"),
+        provider_payment_id=current.get("provider_payment_id"),
+        provider_payment_link_id=current.get("provider_payment_link_id"),
+        checkout_url=current.get("checkout_url"),
+        current_period_end=current.get("current_period_end"),
+        cancel_at_period_end=cancel_at_period_end,
+        last_payment_at=current.get("last_payment_at"),
+    )
 
 
 def _analyze_action(action: str, url: str, data: str | None = None) -> AnalyzeResponse:
@@ -1031,20 +1037,17 @@ def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key))
     """
     try:
         from api.database import db_set_alert
-        from api.alerts import validate_outbound_target
 
-        webhook_url = validate_outbound_target(body.webhook_url) if body.webhook_url else None
-        slack_url = validate_outbound_target(body.slack_url) if body.slack_url else None
         db_set_alert(
             api_key,
-            webhook_url=webhook_url,
-            slack_url=slack_url,
+            webhook_url=_prepare_alert_target(body.webhook_url),
+            slack_url=_prepare_alert_target(body.slack_url),
             on_block=body.on_block,
             on_confirm=body.on_confirm,
         )
         return {"success": True, "message": "Alert config saved."}
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1128,28 +1131,14 @@ async def billing_checkout(body: BillingCheckoutRequest, request: Request):
 @app.post("/billing/cancel", tags=["Payments"])
 def billing_cancel(request: Request):
     """Mark the current subscription to cancel at period end."""
-    from api.database import db_get_subscription_by_email, db_log_audit_event, db_upsert_subscription
+    from api.database import db_get_subscription_by_email, db_log_audit_event
 
     user = _require_session_user(request)
     current = db_get_subscription_by_email(user["email"])
     if not current:
         raise HTTPException(status_code=404, detail="No active subscription found")
 
-    updated = db_upsert_subscription(
-        email=user["email"],
-        org_id=user.get("org_id"),
-        plan=current.get("plan", user.get("plan", "free")),
-        status=current.get("status", "active"),
-        billing_provider=current.get("billing_provider", "razorpay"),
-        provider_customer_id=current.get("provider_customer_id"),
-        provider_subscription_id=current.get("provider_subscription_id"),
-        provider_payment_id=current.get("provider_payment_id"),
-        provider_payment_link_id=current.get("provider_payment_link_id"),
-        checkout_url=current.get("checkout_url"),
-        current_period_end=current.get("current_period_end"),
-        cancel_at_period_end=True,
-        last_payment_at=current.get("last_payment_at"),
-    )
+    updated = _subscription_update_from_current(user, current, cancel_at_period_end=True)
     db_log_audit_event(
         actor_email=user["email"],
         org_id=user.get("org_id"),
@@ -1164,28 +1153,14 @@ def billing_cancel(request: Request):
 @app.post("/billing/resume", tags=["Payments"])
 def billing_resume(request: Request):
     """Resume a subscription marked for cancellation."""
-    from api.database import db_get_subscription_by_email, db_log_audit_event, db_upsert_subscription
+    from api.database import db_get_subscription_by_email, db_log_audit_event
 
     user = _require_session_user(request)
     current = db_get_subscription_by_email(user["email"])
     if not current:
         raise HTTPException(status_code=404, detail="No subscription found")
 
-    updated = db_upsert_subscription(
-        email=user["email"],
-        org_id=user.get("org_id"),
-        plan=current.get("plan", user.get("plan", "free")),
-        status=current.get("status", "active"),
-        billing_provider=current.get("billing_provider", "razorpay"),
-        provider_customer_id=current.get("provider_customer_id"),
-        provider_subscription_id=current.get("provider_subscription_id"),
-        provider_payment_id=current.get("provider_payment_id"),
-        provider_payment_link_id=current.get("provider_payment_link_id"),
-        checkout_url=current.get("checkout_url"),
-        current_period_end=current.get("current_period_end"),
-        cancel_at_period_end=False,
-        last_payment_at=current.get("last_payment_at"),
-    )
+    updated = _subscription_update_from_current(user, current, cancel_at_period_end=False)
     db_log_audit_event(
         actor_email=user["email"],
         org_id=user.get("org_id"),
