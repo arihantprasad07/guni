@@ -29,6 +29,8 @@
 .plan-name{font-size:13px;color:var(--text);font-family:var(--display);font-weight:600}
 .plan-price{font-size:11px;color:var(--muted2);margin-top:2px;line-height:1.5}
 .plan-opt.selected .plan-name{color:var(--amber)}
+.inline-action{display:none}
+.inline-action.show{display:block}
 @media (max-width: 640px){.plan-select{grid-template-columns:1fr}}
 </style>
 </head>
@@ -78,6 +80,7 @@
 
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
+      <button class="g-btn g-btn-outline inline-action" id="resend-btn" type="button">Resend verification email</button>
 
       <button class="g-btn g-btn-primary" id="signup-btn" style="padding:13px;font-size:13px" onclick="signup(this)">Create account</button>
     </div>
@@ -116,9 +119,11 @@ async function signup(btnEl) {
   const confirm = document.getElementById('confirm').value;
   const err = document.getElementById('err');
   const ok = document.getElementById('ok');
+  const resend = document.getElementById('resend-btn');
 
   err.classList.remove('show');
   ok.classList.remove('show');
+  resend.classList.remove('show');
 
   if (!email || !email.includes('@')) { err.textContent = 'Enter a valid email.'; err.classList.add('show'); return; }
   if (password.length < 8) { err.textContent = 'Password must be at least 8 characters.'; err.classList.add('show'); return; }
@@ -136,10 +141,16 @@ async function signup(btnEl) {
     });
     const payload = await r.json().catch(() => null);
     if (!r.ok) {
-      err.textContent = apiErrorMessage(payload, 'Could not create account.');
+      const message = apiErrorMessage(payload, 'Could not create account.');
+      err.textContent = message;
       err.classList.add('show');
+      if (r.status === 409 || message.toLowerCase().includes('exists')) {
+        resend.classList.add('show');
+      }
       return;
     }
+
+    resend.classList.add('show');
 
     if (selectedPlan === 'starter') {
       ok.textContent = 'Account created. Check your email to verify. Your Plus access can be activated after review.';
@@ -163,7 +174,46 @@ async function signup(btnEl) {
   }
 }
 
+async function resendVerification() {
+  const email = document.getElementById('email').value.trim();
+  const err = document.getElementById('err');
+  const ok = document.getElementById('ok');
+  const btn = document.getElementById('resend-btn');
+  if (!email || !email.includes('@')) {
+    err.textContent = 'Enter your email first.';
+    err.classList.add('show');
+    return;
+  }
+
+  err.classList.remove('show');
+  ok.classList.remove('show');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    const response = await fetch('/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      err.textContent = apiErrorMessage(payload, 'Could not resend verification email.');
+      err.classList.add('show');
+      return;
+    }
+    ok.textContent = 'If your account exists and is still unverified, a new verification email is on the way.';
+    ok.classList.add('show');
+  } catch (error) {
+    err.textContent = 'Could not resend verification email right now.';
+    err.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Resend verification email';
+  }
+}
+
 document.addEventListener('keydown', e => { if (e.key === 'Enter') signup(); });
+document.getElementById('resend-btn').addEventListener('click', resendVerification);
 </script>
 </body>
 </html>

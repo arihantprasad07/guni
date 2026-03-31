@@ -102,7 +102,6 @@
           <span id="user-org" style="font-size:12px;color:var(--muted2)">-</span>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a class="g-btn g-btn-outline admin-only" id="owner-console-link" href="/owner" style="display:none">Owner Console</a>
           <span class="g-tag g-tag-amber" id="user-plan">FREE</span>
           <button class="g-btn g-btn-outline" id="signout-btn" type="button">Sign out</button>
         </div>
@@ -372,10 +371,6 @@ async function hydrateSession() {
 
     if (authUser.role === "admin") {
       document.querySelectorAll(".admin-only").forEach((node) => node.classList.add("show"));
-    }
-    if (authUser.is_owner) {
-      const ownerLink = document.getElementById("owner-console-link");
-      ownerLink.style.display = "inline-flex";
     }
 
     showPortal();

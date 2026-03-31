@@ -677,6 +677,59 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     assert me_data["organization"]["name"] == "Aera"
 
 
+def test_resend_verification_refreshes_token_for_unverified_user(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "pending@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email
+
+    before = db_get_user_by_email("pending@example.com")
+    assert before is not None
+    old_token = before["verify_token"]
+
+    resend = client.post("/auth/resend-verification", json={"email": "pending@example.com"})
+    assert resend.status_code == 200
+
+    after = db_get_user_by_email("pending@example.com")
+    assert after is not None
+    assert after["verify_token"] != old_token
+    assert after["verified"] == 0
+
+
+def test_resend_verification_is_noop_for_verified_user(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "done@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    assert signup.status_code == 200
+
+    from api.database import db_get_user_by_email, db_verify_user
+
+    user = db_get_user_by_email("done@example.com")
+    assert user is not None
+    original_token = user["verify_token"]
+    assert db_verify_user(original_token) is True
+
+    resend = client.post("/auth/resend-verification", json={"email": "done@example.com"})
+    assert resend.status_code == 200
+
+    updated = db_get_user_by_email("done@example.com")
+    assert updated is not None
+    assert updated["verified"] == 1
+    assert updated["verify_token"] is None
+
+
 def test_owner_dashboard_summary_is_owner_only(client: TestClient):
     forbidden = client.get("/owner/summary")
     assert forbidden.status_code == 401

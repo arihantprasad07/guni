@@ -23,6 +23,8 @@
 .auth-footer a:hover{text-decoration:underline}
 .forgot{text-align:right;font-size:11px;color:var(--muted2);text-decoration:none;transition:color 0.15s}
 .forgot:hover{color:var(--amber)}
+.inline-action{display:none;font-size:12px}
+.inline-action.show{display:block}
 </style>
 </head>
 <body class="g-page">
@@ -51,6 +53,7 @@
 
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
+      <button class="g-btn g-btn-outline inline-action" id="resend-btn" type="button">Resend verification email</button>
 
       <button class="g-btn g-btn-primary" id="signin-btn" style="padding:13px;font-size:13px" onclick="signin(this)">Sign in</button>
 
@@ -89,9 +92,11 @@ async function signin(btnEl) {
   const password = document.getElementById('password').value;
   const err      = document.getElementById('err');
   const ok       = document.getElementById('ok');
+  const resend   = document.getElementById('resend-btn');
 
   err.classList.remove('show');
   ok.classList.remove('show');
+  resend.classList.remove('show');
 
   if (!email || !password) { err.textContent = 'Enter your email and password.'; err.classList.add('show'); return; }
 
@@ -109,8 +114,12 @@ async function signin(btnEl) {
     const d = payload && payload.data ? payload.data : payload;
 
     if (!r.ok) {
-      err.textContent = apiErrorMessage(payload, 'Invalid email or password.');
+      const message = apiErrorMessage(payload, 'Invalid email or password.');
+      err.textContent = message;
       err.classList.add('show');
+      if (message.toLowerCase().includes('verify your email')) {
+        resend.classList.add('show');
+      }
       return;
     }
 
@@ -134,7 +143,46 @@ async function signin(btnEl) {
   }
 }
 
+async function resendVerification() {
+  const email = document.getElementById('email').value.trim();
+  const err = document.getElementById('err');
+  const ok = document.getElementById('ok');
+  const btn = document.getElementById('resend-btn');
+  if (!email || !email.includes('@')) {
+    err.textContent = 'Enter your email first.';
+    err.classList.add('show');
+    return;
+  }
+
+  err.classList.remove('show');
+  ok.classList.remove('show');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    const response = await fetch('/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      err.textContent = apiErrorMessage(payload, 'Could not resend verification email.');
+      err.classList.add('show');
+      return;
+    }
+    ok.textContent = 'If your account exists and is still unverified, a new verification email is on the way.';
+    ok.classList.add('show');
+  } catch (error) {
+    err.textContent = 'Could not resend verification email right now.';
+    err.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Resend verification email';
+  }
+}
+
 document.addEventListener('keydown', e => { if (e.key === 'Enter') signin(); });
+document.getElementById('resend-btn').addEventListener('click', resendVerification);
 </script>
 </body>
 </html>

@@ -477,6 +477,9 @@ class SigninRequest(BaseModel):
 class ResetRequest(BaseModel):
     email: str
 
+class ResendVerificationRequest(BaseModel):
+    email: str
+
 class NewPasswordRequest(BaseModel):
     token:    str
     password: str
@@ -605,6 +608,21 @@ async def auth_reset_request(body: ResetRequest, request: Request, background_ta
         base_url = str(request.base_url).rstrip("/")
         background_tasks.add_task(_send_reset_email_task, email, token, base_url)
     return {"success": True, "message": "If that email exists, a reset link has been sent."}
+
+
+@app.post("/auth/resend-verification", tags=["Auth"])
+async def auth_resend_verification(body: ResendVerificationRequest, request: Request, background_tasks: BackgroundTasks):
+    from api.auth_system import generate_token
+    from api.database import db_get_user_by_email, db_set_verify_token
+
+    email = body.email.lower().strip()
+    user = db_get_user_by_email(email)
+    if user and not user.get("verified"):
+        token = generate_token()
+        db_set_verify_token(email, token)
+        base_url = str(request.base_url).rstrip("/")
+        background_tasks.add_task(_send_verification_email_task, email, token, base_url)
+    return {"success": True, "message": "If the account exists and is not verified, a fresh verification email has been sent."}
 
 
 @app.post("/auth/reset-password", tags=["Auth"])
