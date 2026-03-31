@@ -29,7 +29,7 @@ from api.models import (
     LLMAnalysis, ThreatItem,
     ErrorResponse, AnalyzeResponse,
 )
-from api.auth import verify_api_key
+from api.auth import verify_api_key, verify_api_key_or_demo
 from api.netutil import validate_public_url
 from api.rate_limit import check_rate_limit
 from guni import scan, __version__
@@ -283,11 +283,8 @@ if DASHBOARD_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static")
 
 # Initialize database on startup
-try:
-    from api.database import init_db
-    init_db()
-except Exception as e:
-    print(f"[Guni] DB init: {e}")
+from api.database import init_db
+init_db()
 
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
@@ -848,7 +845,7 @@ def health():
 )
 def scan_html(
     body:    ScanRequest,
-    api_key: str = Depends(verify_api_key),
+    api_key: str = Depends(verify_api_key_or_demo),
 ):
     """
     Submit raw HTML + agent goal → receive structured risk report.
@@ -941,7 +938,7 @@ def scan_url(
 )
 def get_history(
     limit:   int = 20,
-    api_key: str = Depends(verify_api_key),
+    api_key: str = Depends(verify_api_key_or_demo),
 ):
     """
     Returns the last N scan results from the audit log.

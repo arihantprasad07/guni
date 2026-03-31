@@ -26,7 +26,7 @@ TEST_DATA_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["GUNI_DATA_DIR"] = str(TEST_DATA_DIR)
 os.environ["GUNI_USE_MOCK_MONGO"] = "true"
 os.environ["GUNI_MONGO_DB_NAME"] = "guni_test"
-os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com,other-admin@example.com"
+os.environ["GUNI_ADMIN_EMAILS"] = "admin@example.com,admin2@example.com,admin3@example.com,admin4@example.com,other-admin@example.com"
 os.environ["GUNI_ALLOW_OPEN_MODE"] = "true"
 os.environ["GUNI_SESSION_SECRET"] = "test-session-secret"
 
@@ -378,7 +378,7 @@ def test_scan_url_blocks_private_network_targets(client: TestClient):
     assert payload["success"] is False
 
 
-def test_session_can_access_history_without_pasted_api_key(client: TestClient):
+def test_session_cannot_access_customer_history_without_api_key(client: TestClient):
     signup = client.post(
         "/auth/signup",
         json={
@@ -401,6 +401,9 @@ def test_session_can_access_history_without_pasted_api_key(client: TestClient):
     )
     assert signin.status_code == 200
 
+    auth_data = unwrap(signin.json())
+    api_key = auth_data["api_key"]
+
     scan_response = client.post(
         "/scan",
         json={
@@ -408,6 +411,7 @@ def test_session_can_access_history_without_pasted_api_key(client: TestClient):
             "goal": "Read page content",
             "url": "https://session-owned.example",
         },
+        headers={"X-API-Key": api_key},
     )
     assert scan_response.status_code == 200
 
@@ -415,7 +419,16 @@ def test_session_can_access_history_without_pasted_api_key(client: TestClient):
     assert history.status_code == 200
     history_data = unwrap(history.json())
     urls = [entry["url"] for entry in history_data["entries"]]
-    assert "https://session-owned.example" in urls
+    assert "https://session-owned.example" not in urls
+
+    private_history = client.get(
+        "/history?limit=10",
+        headers={"X-API-Key": api_key},
+    )
+    assert private_history.status_code == 200
+    private_history_data = unwrap(private_history.json())
+    private_urls = [entry["url"] for entry in private_history_data["entries"]]
+    assert "https://session-owned.example" in private_urls
 
 
 def test_customer_analytics_and_export_are_isolated_from_open_scans(client, monkeypatch: pytest.MonkeyPatch):
@@ -741,6 +754,46 @@ def test_admin_cannot_rotate_key_from_another_org(client: TestClient):
     assert rotated.status_code == 404
 
 
+def test_admin_key_generation_does_not_leak_cross_org_existing_key(client: TestClient):
+    from api.key_manager import generate_api_key
+    from api.database import db_get_user_by_email, db_verify_user
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "admin4@example.com",
+            "password": "strong-pass-123",
+            "plan": "starter",
+            "company": "Fourth Org",
+        },
+    )
+    admin = db_get_user_by_email("admin4@example.com")
+    assert admin is not None
+    assert db_verify_user(admin["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "admin4@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    foreign_key = generate_api_key(
+        email="shared@example.com",
+        plan="starter",
+        scans_limit=5,
+        org_id=999999,
+    )["key"]
+
+    generated = client.post(
+        "/keys/generate",
+        json={"email": "shared@example.com", "plan": "starter"},
+    )
+    assert generated.status_code == 200
+    generated_data = unwrap(generated.json())
+    assert generated_data["key"] != foreign_key
+    assert generated_data["org_id"] == admin["org_id"]
+
+
 def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     signup = client.post(
         "/auth/signup",
@@ -905,3 +958,25 @@ def test_websocket_requires_authentication(client: TestClient):
     with pytest.raises(Exception):
         with client.websocket_connect("/ws/scan") as websocket:
             websocket.receive_json()
+
+
+def test_database_init_fails_fast_when_connection_cannot_be_established(monkeypatch: pytest.MonkeyPatch):
+    import pymongo.errors
+
+    for module_name in ["api.database"]:
+        sys.modules.pop(module_name, None)
+
+    monkeypatch.setenv("GUNI_USE_MOCK_MONGO", "false")
+    monkeypatch.setenv("GUNI_MONGO_URI", "mongodb://invalid-host:27017/guni")
+
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            self.admin = self
+
+        def command(self, *_args, **_kwargs):
+            raise pymongo.errors.ServerSelectionTimeoutError("cannot connect")
+
+    monkeypatch.setattr("pymongo.MongoClient", FailingClient)
+
+    with pytest.raises(pymongo.errors.ServerSelectionTimeoutError):
+        importlib.import_module("api.database")

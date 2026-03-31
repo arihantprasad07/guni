@@ -70,6 +70,7 @@ def get_db():
         _CLIENT = mongomock.MongoClient()
     else:
         _CLIENT = MongoClient(_mongo_uri(), serverSelectionTimeoutMS=5000)
+        _CLIENT.admin.command("ping")
 
     _DB = _CLIENT[_default_db_name()]
     return _DB
@@ -188,7 +189,8 @@ def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int
     now = _now()
     keys = _collections()["api_keys"]
     email = email.lower().strip()
-    existing = keys.find_one({"email": email, "active": 1})
+    existing_query = {"email": email, "active": 1, "org_id": org_id}
+    existing = keys.find_one(existing_query)
     if existing:
         return _with_id(existing)
 
@@ -212,7 +214,7 @@ def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int
 
     result = db_get_key(key)
     if result is None:
-        existing = keys.find_one({"email": email, "active": 1})
+        existing = keys.find_one(existing_query)
         return _with_id(existing) or {"key": key, "email": email, "plan": plan}
     return result
 
@@ -702,7 +704,4 @@ def db_set_user_org(email: str, org_id: int) -> bool:
     return result.modified_count > 0
 
 
-try:
-    init_db()
-except Exception as e:
-    print(f"[Guni] DB init warning: {e}")
+init_db()
