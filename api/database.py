@@ -740,6 +740,11 @@ def db_get_platform_summary(limit: int = 20) -> dict:
     active_subscriptions = sum(1 for item in subscriptions if item.get("status") == "active")
     total_scans = len(scans)
     blocked_scans = sum(1 for item in scans if item.get("decision") == "BLOCK")
+    plan_counts = {"free": 0, "starter": 0, "pro": 0}
+    for user in users:
+        plan = str(user.get("plan", "free")).lower()
+        if plan in plan_counts:
+            plan_counts[plan] += 1
     total_revenue_paise = sum(
         int(item.get("amount", 0) or 0)
         for item in billing_events
@@ -765,6 +770,7 @@ def db_get_platform_summary(limit: int = 20) -> dict:
             "block_rate": round((blocked_scans / total_scans) * 100, 1) if total_scans else 0,
             "revenue_inr": round(total_revenue_paise / 100, 2),
             "revenue_paise": total_revenue_paise,
+            "plan_counts": plan_counts,
         },
         "recent_users": recent_users,
         "recent_billing_events": recent_billing,

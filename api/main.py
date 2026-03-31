@@ -205,6 +205,7 @@ def _read_recent_runtime_events(limit: int = 50) -> list[dict]:
 
 def _build_owner_summary(limit: int = 20) -> dict:
     from api.database import db_get_platform_summary
+    from api.email_service import email_sender_configured
 
     platform = db_get_platform_summary(limit=limit)
     waitlist = _read_json_file(WAITLIST_PATH)
@@ -225,6 +226,11 @@ def _build_owner_summary(limit: int = 20) -> dict:
             **platform["totals"],
             "waitlist_total": len(waitlist),
             "runtime_issue_count": len(recent_issues),
+        },
+        "system": {
+            "email_configured": email_sender_configured(),
+            "open_demo_enabled": (os.environ.get("GUNI_ALLOW_OPEN_MODE", "").strip().lower() in {"1", "true", "yes", "on"}),
+            "owner_emails": sorted(_owner_emails()),
         },
         "recent_users": platform["recent_users"],
         "recent_billing_events": platform["recent_billing_events"],
@@ -587,6 +593,7 @@ async def auth_signin(body: SigninRequest, request: Request):
         "api_key": api_key,
         "session": session,
         "org_id": user.get("org_id"),
+        "is_owner": _is_owner_user(user),
     })
     response.set_cookie(
         "guni_session",
@@ -682,8 +689,11 @@ async def auth_signout(request: Request):
 @app.get("/portal", response_class=HTMLResponse, include_in_schema=False)
 def portal(request: Request):
     """Serve the customer portal."""
-    if not _session_user(request):
+    user = _session_user(request)
+    if not user:
         return RedirectResponse(url="/signin", status_code=302)
+    if _is_owner_user(user):
+        return RedirectResponse(url="/owner", status_code=302)
     html_path = DASHBOARD_DIR / "portal.html"
     if html_path.exists():
         return HTMLResponse(content=_read_dashboard_html("portal.html"))

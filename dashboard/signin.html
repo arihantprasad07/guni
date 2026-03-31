@@ -133,7 +133,9 @@ async function signin(btnEl) {
     ok.textContent = '✓ Signed in! Redirecting to your portal...';
     ok.classList.add('show');
 
-    setTimeout(() => window.location.href = '/portal', 1000);
+    const target = d.is_owner ? '/owner' : '/portal';
+    ok.textContent = d.is_owner ? 'Signed in. Redirecting to your owner console...' : 'Signed in. Redirecting to your portal...';
+    setTimeout(() => window.location.href = target, 1000);
 
   } catch(e) {
     err.textContent = 'Could not connect. Try again.';

@@ -703,6 +703,12 @@ def test_owner_email_bypasses_verification_requirement(client: TestClient):
         json={"email": "owner@guni.dev", "password": "strong-pass-123"},
     )
     assert signin.status_code == 200
+    signin_data = unwrap(signin.json())
+    assert signin_data["is_owner"] is True
+
+    portal = client.get("/portal", follow_redirects=False)
+    assert portal.status_code == 302
+    assert portal.headers["location"] == "/owner"
 
     me = client.get("/auth/me")
     assert me.status_code == 200
