@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Public service status for Guni."/>
+<title>Status - Guni</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.status-shell{padding:calc(56px + 2rem) 0 3rem}
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+.status-card,.status-log{background:rgba(7,7,10,0.82);border:1px solid var(--border2)}
+.status-card{padding:1.3rem}
+.status-label{font-size:10px;color:var(--muted2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem}
+.status-val{font-family:var(--display);font-size:2rem;line-height:1;color:var(--amber)}
+.status-sub{font-size:12px;color:var(--muted3);line-height:1.7;margin-top:.5rem}
+.status-log{margin-top:1rem;padding:1.2rem}
+.status-row{display:flex;justify-content:space-between;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--border)}
+.status-row:last-child{border-bottom:none}
+.status-row strong{font-size:12px}
+.status-row span{font-size:12px;color:var(--muted3)}
+</style>
+</head>
+<body class="g-page">
+<main class="status-shell">
+  <div class="g-wrap">
+    <section class="g-section" style="padding-top:0">
+      <div class="g-eyebrow">Status</div>
+      <h1 class="g-title-md" style="margin-bottom:0.8rem">Public service health</h1>
+      <p class="g-subtitle" style="max-width:760px">A lightweight public view of API availability, threat-feed freshness, and product readiness. This page is safe to share during pilots and buyer conversations.</p>
+    </section>
+
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="status-label">API health</div>
+        <div class="status-val" id="status-api">Checking</div>
+        <div class="status-sub" id="status-api-copy">Waiting for the live health check.</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Threat feed</div>
+        <div class="status-val" id="status-feed">Checking</div>
+        <div class="status-sub" id="status-feed-copy">Loading recent activity from the public feed.</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Docs and onboarding</div>
+        <div class="status-val">Ready</div>
+        <div class="status-sub">Docs, demo, and signup flows are available from the public product shell.</div>
+      </div>
+    </div>
+
+    <div class="status-log">
+      <div class="g-card-title" style="margin-bottom:0.8rem">Public checks</div>
+      <div class="status-row"><strong>Health endpoint</strong><span id="log-health">Pending</span></div>
+      <div class="status-row"><strong>Threat feed snapshot</strong><span id="log-feed">Pending</span></div>
+      <div class="status-row"><strong>API reference</strong><span><a href="/api-docs">Available at /api-docs</a></span></div>
+    </div>
+  </div>
+</main>
+
+<script>
+async function loadStatus(){
+  try{
+    const health = await fetch('/health');
+    const healthPayload = await health.json();
+    const ok = health.ok && healthPayload && healthPayload.status === 'ok';
+    document.getElementById('status-api').textContent = ok ? 'Online' : 'Issue';
+    document.getElementById('status-api').style.color = ok ? 'var(--green)' : 'var(--red)';
+    document.getElementById('status-api-copy').textContent = ok ? 'Core API responded successfully.' : 'The public health check did not return a healthy response.';
+    document.getElementById('log-health').textContent = ok ? 'Healthy' : 'Attention needed';
+  } catch(e){
+    document.getElementById('status-api').textContent = 'Issue';
+    document.getElementById('status-api').style.color = 'var(--red)';
+    document.getElementById('status-api-copy').textContent = 'Could not reach the health endpoint from this browser.';
+    document.getElementById('log-health').textContent = 'Unavailable';
+  }
+
+  try{
+    const feed = await fetch('/threats/feed');
+    const feedPayload = await feed.json();
+    const count = Number(feedPayload?.data?.stats?.total_scans || 0);
+    document.getElementById('status-feed').textContent = count > 0 ? 'Live' : 'Idle';
+    document.getElementById('status-feed').style.color = count > 0 ? 'var(--green)' : 'var(--amber)';
+    document.getElementById('status-feed-copy').textContent = count > 0 ? `${count.toLocaleString()} scans currently reflected in the public feed.` : 'The public feed is reachable but does not yet show sustained activity.';
+    document.getElementById('log-feed').textContent = count > 0 ? 'Feed responding with data' : 'Feed responding with low activity';
+  } catch(e){
+    document.getElementById('status-feed').textContent = 'Issue';
+    document.getElementById('status-feed').style.color = 'var(--red)';
+    document.getElementById('status-feed-copy').textContent = 'Could not read the public threat feed right now.';
+    document.getElementById('log-feed').textContent = 'Unavailable';
+  }
+}
+window.addEventListener('load', loadStatus);
+</script>
+</body>
+</html>

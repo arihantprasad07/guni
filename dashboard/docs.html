@@ -17,6 +17,9 @@
 .docs-item strong{display:block;font-size:12px;margin-bottom:0.35rem}
 .docs-item span{font-size:12px;color:var(--muted3);line-height:1.7}
 .mini-code{margin-top:1rem}
+.docs-search{margin:0 0 1rem}
+.docs-filter-copy{font-size:11px;color:var(--muted2);margin-top:0.5rem}
+.docs-item[data-hidden="true"]{display:none}
 @media (max-width: 960px){.docs-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -48,6 +51,10 @@
           <div class="docs-card">
             <div class="body">
               <div class="g-card-title">Quick start</div>
+              <div class="docs-search">
+                <input class="g-input" id="docs-search" type="search" placeholder="Search docs topics like auth, websocket, billing, portal"/>
+                <div class="docs-filter-copy" id="docs-filter-copy">Browse by quick start, integration, hosted API, and trust topics.</div>
+              </div>
               <div class="mini-code">
                 <div class="g-code-block">
                   <div class="g-code-header"><span class="g-code-lang">python</span></div>
@@ -73,10 +80,23 @@ print(response.json()["decision"])</pre>
           <div class="docs-card">
             <div class="body">
               <div class="g-card-title">Documentation map</div>
-              <div class="docs-list">
-                <div class="docs-item"><strong>Integration guide</strong><span>Framework-specific examples for Playwright, browser-use, LangChain, REST, and WebSocket.</span></div>
-                <div class="docs-item"><strong>Security architecture</strong><span>Customer-facing overview of what Guni protects, how evidence is returned, and where policy decisions happen.</span></div>
-                <div class="docs-item"><strong>Portal and billing</strong><span>Account sessions, API keys, billing state, audit events, and plan controls all flow through the portal.</span></div>
+              <div class="docs-list" id="docs-directory">
+                <div class="docs-item" data-search="integration playwright browser-use langchain rest websocket">
+                  <strong>Integration guide</strong>
+                  <span>Framework-specific examples for Playwright, browser-use, LangChain, REST, and WebSocket.</span>
+                </div>
+                <div class="docs-item" data-search="security architecture trust evidence decisions controls">
+                  <strong>Security architecture</strong>
+                  <span>Customer-facing overview of what Guni protects, how evidence is returned, and where policy decisions happen.</span>
+                </div>
+                <div class="docs-item" data-search="portal billing keys analytics rules alerts admin usage">
+                  <strong>Portal and billing</strong>
+                  <span>Account sessions, API keys, billing state, audit events, and plan controls all flow through the portal.</span>
+                </div>
+                <div class="docs-item" data-search="status privacy terms trust legal">
+                  <strong>Trust center</strong>
+                  <span>Public status, privacy, and terms pages help customers and pilots evaluate the product more confidently.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -101,6 +121,7 @@ print(response.json()["decision"])</pre>
                 <div class="docs-item"><strong><a href="/demo">Live demo</a></strong><span>Public scanner and threat visibility.</span></div>
                 <div class="docs-item"><strong><a href="/portal">Portal</a></strong><span>Signed account area for API keys, billing, usage, and admin controls.</span></div>
                 <div class="docs-item"><strong><a href="/security">Security</a></strong><span>Customer-facing trust and architecture details.</span></div>
+                <div class="docs-item"><strong><a href="/status">Status</a></strong><span>Shareable service-health page for pilots and customer reviews.</span></div>
               </div>
             </div>
           </div>
@@ -110,16 +131,26 @@ print(response.json()["decision"])</pre>
   </div>
 </main>
 
-<footer class="g-footer">
-  <div class="g-footer-logo">guni</div>
-  <div class="g-footer-links">
-    <a href="/demo">Demo</a>
-    <a href="/integrate">Integrate</a>
-    <a href="/api-docs">API reference</a>
-    <a href="/security">Security</a>
-    <a href="/portal">Portal</a>
-  </div>
-  <div class="g-footer-copy">&copy; 2026 Guni</div>
-</footer>
+<script>
+const docsSearch = document.getElementById('docs-search');
+const docsItems = [...document.querySelectorAll('#docs-directory .docs-item')];
+const docsCopy = document.getElementById('docs-filter-copy');
+
+function filterDocs() {
+  const q = (docsSearch?.value || '').trim().toLowerCase();
+  let visible = 0;
+  docsItems.forEach((item) => {
+    const hay = `${item.dataset.search || ''} ${item.textContent || ''}`.toLowerCase();
+    const match = !q || hay.includes(q);
+    item.dataset.hidden = match ? 'false' : 'true';
+    if (match) visible += 1;
+  });
+  if (docsCopy) {
+    docsCopy.textContent = q ? `${visible} topic${visible === 1 ? '' : 's'} match "${q}".` : 'Browse by quick start, integration, hosted API, and trust topics.';
+  }
+}
+
+docsSearch?.addEventListener('input', filterDocs);
+</script>
 </body>
 </html>

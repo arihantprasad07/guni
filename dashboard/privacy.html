@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="Privacy overview for Guni hosted services and product evaluation flows."/>
+<title>Privacy - Guni</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.legal-shell{padding:calc(56px + 2rem) 0 3rem}
+.legal-grid{display:grid;grid-template-columns:260px 1fr;gap:1rem}
+.legal-nav,.legal-card{background:rgba(7,7,10,0.8);border:1px solid var(--border2)}
+.legal-nav{padding:1rem;position:sticky;top:84px;height:fit-content}
+.legal-nav a{display:block;padding:0.65rem 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted3);text-decoration:none}
+.legal-nav a:last-child{border-bottom:none}
+.legal-nav a:hover{color:var(--amber)}
+.legal-card{padding:1.4rem}
+.legal-card section+section{margin-top:2rem}
+.legal-card h2{font-family:var(--display);font-size:1.4rem;margin-bottom:0.65rem}
+.legal-card p,.legal-card li{font-size:12px;color:var(--muted3);line-height:1.85}
+.legal-card ul{display:grid;gap:10px;padding-left:1rem}
+@media (max-width: 900px){.legal-grid{grid-template-columns:1fr}.legal-nav{position:static}}
+</style>
+</head>
+<body class="g-page">
+<main class="legal-shell">
+  <div class="g-wrap">
+    <section class="g-section" style="padding-top:0">
+      <div class="g-eyebrow">Privacy</div>
+      <h1 class="g-title-md" style="margin-bottom:0.8rem">How Guni handles data</h1>
+      <p class="g-subtitle" style="max-width:760px">This page explains the hosted-product privacy posture in plain English for prospects, design partners, and customers evaluating the service.</p>
+    </section>
+
+    <div class="legal-grid">
+      <aside class="legal-nav">
+        <a href="#what">What we collect</a>
+        <a href="#how">How we use it</a>
+        <a href="#retention">Retention</a>
+        <a href="#choices">Customer controls</a>
+      </aside>
+
+      <article class="legal-card">
+        <section id="what">
+          <h2>What we collect</h2>
+          <p>Depending on the product area you use, Guni may process account information, API-key metadata, billing state, waitlist or pilot requests, and scan-related telemetry such as page HTML, agent goal, decision output, and evidence returned by detectors. Demo-mode browser sessions are intentionally treated differently and are not meant to persist like normal customer traffic.</p>
+        </section>
+
+        <section id="how">
+          <h2>How we use it</h2>
+          <ul>
+            <li>To authenticate accounts, issue API keys, and support the customer portal.</li>
+            <li>To return security decisions, evidence, analytics, and audit visibility for customer workflows.</li>
+            <li>To operate the hosted service, respond to support issues, and improve product reliability.</li>
+            <li>To handle early-access, pilot, and commercial conversations when you explicitly submit those forms.</li>
+          </ul>
+        </section>
+
+        <section id="retention">
+          <h2>Retention</h2>
+          <p>Hosted customer state is retained in the configured application datastore and runtime logs according to the deployment setup. Demo-only browser history is designed to stay session-local in the browser and should not be treated as durable customer storage. Self-hosted deployments control their own retention posture.</p>
+        </section>
+
+        <section id="choices">
+          <h2>Customer controls</h2>
+          <ul>
+            <li>Self-host the SDK or API for tighter control over runtime data.</li>
+            <li>Use production API keys and session auth instead of public demo routes.</li>
+            <li>Request account updates or deletion help via <a href="mailto:hello@guni.dev">hello@guni.dev</a>.</li>
+            <li>Review the public trust posture on <a href="/security">Security</a> and live availability on <a href="/status">Status</a>.</li>
+          </ul>
+        </section>
+      </article>
+    </div>
+  </div>
+</main>
+</body>
+</html>
