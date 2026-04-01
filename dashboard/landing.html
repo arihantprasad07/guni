@@ -22,6 +22,14 @@ section{
   position:relative;
   z-index:1;
 }
+.section-intro{
+  display:block;
+  padding:1rem 1.15rem 1.1rem;
+  margin-bottom:1.4rem;
+  border:1px solid rgba(245,166,35,0.16);
+  background:linear-gradient(180deg, rgba(12,12,18,0.9), rgba(10,10,14,0.82));
+  box-shadow:0 16px 38px rgba(0,0,0,0.14);
+}
 .g-title-md,
 .g-title,
 .hero-title,
@@ -31,7 +39,7 @@ section{
 .big-quote blockquote,
 .mission-panel h2{
   color:var(--text);
-  text-shadow:0 2px 12px rgba(0,0,0,0.12);
+  text-shadow:none;
 }
 .g-subtitle,
 .hero-sub,
@@ -41,7 +49,7 @@ section{
 .ecosystem-card p,
 .big-quote p,
 .cta-band p{
-  color:#9ea5c8;
+  color:#b3b8d4;
 }
 [id]{
   scroll-margin-top:88px;
@@ -52,7 +60,7 @@ section{
   inset:0;
   pointer-events:none;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.012), transparent 18%),
+    linear-gradient(180deg, rgba(255,255,255,0.006), transparent 18%),
     linear-gradient(90deg, rgba(245,166,35,0.016) 1px, transparent 1px),
     linear-gradient(0deg, rgba(245,166,35,0.016) 1px, transparent 1px);
   background-size:auto, 120px 120px, 120px 120px;
@@ -367,6 +375,13 @@ section{
   color:#a1a8ca;
   line-height:1.85;
 }
+.section-intro .g-title-md{
+  color:#f5f6fb;
+}
+.section-intro .g-subtitle{
+  color:#b1b7d2;
+  max-width:720px;
+}
 .platform-stack{
   display:grid;
   gap:10px;
@@ -472,6 +487,7 @@ section{
   .g-nav-right .g-btn-outline{display:none}
   .hero{padding:4.4rem 0 2.2rem}
   .hero-main,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band,.mission-panel,.mission-item{padding:1.1rem}
+  .section-intro{padding:0.95rem 1rem}
   .hero-sub,
   .mission-panel p,
   .platform-card p,
@@ -545,7 +561,7 @@ section{
     <div class="g-wrap">
       <div class="hero-grid">
         <div class="hero-main">
-          <div class="hero-chip">Control plane for browser-agent trust</div>
+          <div class="hero-chip">Protect your agent</div>
           <h1 class="hero-title">The security layer <span class="dim">for agents operating</span> <span class="accent">on the real web.</span></h1>
           <p class="hero-sub">Guni is not a wrapper, plugin, or basic website scanner. It is the runtime policy layer between your browser agent and a hostile internet. Before an autonomous workflow clicks, submits, or follows instructions, Guni inspects the page, scores the risk, and decides whether execution is allowed, confirmed, or blocked.</p>
           <div class="hero-actions">
@@ -606,9 +622,11 @@ section{
 
   <section class="g-section g-fade-up" id="platform">
     <div class="g-wrap">
-      <div class="g-eyebrow">Platform</div>
-      <h2 class="g-title-md" style="max-width:760px;margin-bottom:0.75rem">A runtime trust layer for the next generation of browser software.</h2>
-      <p class="g-subtitle" style="max-width:720px;margin-bottom:2rem">Guni sits at the point of execution, where autonomous browsers are most fragile. It evaluates hostile pages before they shape the agent's next move.</p>
+      <div class="section-intro">
+        <div class="g-eyebrow">Platform</div>
+        <h2 class="g-title-md" style="max-width:760px;margin-bottom:0.75rem">A runtime trust layer for the next generation of browser software.</h2>
+        <p class="g-subtitle" style="margin-bottom:0">Guni sits at the point of execution, where autonomous browsers are most fragile. It evaluates hostile pages before they shape the agent's next move.</p>
+      </div>
 
       <div class="platform-grid">
         <div class="platform-card">
@@ -638,9 +656,11 @@ section{
 
   <section class="g-section g-fade-up" id="control-plane">
     <div class="g-wrap">
-      <div class="g-eyebrow">Control Plane</div>
-      <h2 class="g-title-md" style="margin-bottom:0.75rem">From detection engine to visible command center.</h2>
-      <p class="g-subtitle" style="max-width:700px;margin-bottom:1.6rem">The site should feel like the front door to a serious system. That means showing how Guni sees the world, what it intercepts, and how it explains itself under pressure.</p>
+      <div class="section-intro">
+        <div class="g-eyebrow">Control Plane</div>
+        <h2 class="g-title-md" style="margin-bottom:0.75rem">From detection engine to visible command center.</h2>
+        <p class="g-subtitle" style="margin-bottom:0">The site should feel like the front door to a serious system. That means showing how Guni sees the world, what it intercepts, and how it explains itself under pressure.</p>
+      </div>
 
       <div class="command-grid">
         <div class="command-card">
@@ -669,9 +689,11 @@ section{
 
   <section class="g-section g-fade-up" id="ecosystem">
     <div class="g-wrap">
-      <div class="g-eyebrow">Ecosystem</div>
-      <h2 class="g-title-md" style="margin-bottom:0.75rem">Built to anchor a larger category.</h2>
-      <p class="g-subtitle" style="max-width:720px;margin-bottom:1.8rem">Guni already has the ingredients of something bigger than a landing page: SDK, API, dashboard, realtime scanning, trust artifacts, and buyer-facing proof. The presentation now treats that surface area like a platform.</p>
+      <div class="section-intro">
+        <div class="g-eyebrow">Ecosystem</div>
+        <h2 class="g-title-md" style="margin-bottom:0.75rem">Built to anchor a larger category.</h2>
+        <p class="g-subtitle" style="margin-bottom:0">Guni already has the ingredients of something bigger than a landing page: SDK, API, dashboard, realtime scanning, trust artifacts, and buyer-facing proof. The presentation now treats that surface area like a platform.</p>
+      </div>
 
       <div class="ecosystem-grid">
         <div class="ecosystem-card">
