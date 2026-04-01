@@ -3,8 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="Guni live dashboard for AI agent threat scans, action analysis, and audit visibility."/>
-<title>Guni | Live Security Dashboard</title>
+<meta name="description" content="Try the Guni live demo to scan prompt injection, phishing, clickjacking, and goal hijacking threats in real time."/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="Guni"/>
+<meta property="og:title" content="Guni Demo — Live Threat Scan"/>
+<meta property="og:description" content="Try the Guni live demo to scan prompt injection, phishing, clickjacking, and goal hijacking threats in real time."/>
+<meta property="og:url" content="https://guni.up.railway.app/demo"/>
+<meta property="og:image" content="https://guni.up.railway.app/static/og-image.svg"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Guni Demo — Live Threat Scan"/>
+<meta name="twitter:description" content="Try the Guni live demo to scan prompt injection, phishing, clickjacking, and goal hijacking threats in real time."/>
+<meta name="twitter:image" content="https://guni.up.railway.app/static/og-image.svg"/>
+<title>Guni Demo — Live Threat Scan</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -334,8 +344,8 @@ result = <span class="sf">scan</span>(html=page_html, goal=<span class="ss">"Log
 </main>
 <div class="demo-cta" id="demo-cta">
   <div class="demo-cta-inner">
-    <div class="demo-cta-copy"><strong>Protecting your agents starts at ₹999/mo →</strong></div>
-    <a class="g-btn g-btn-primary" href="/signup?plan=starter&interval=monthly">Go to signup</a>
+    <div class="demo-cta-copy"><strong id="demo-cta-text">Protecting your agents starts at ₹999/mo →</strong></div>
+    <a class="g-btn g-btn-primary" id="demo-cta-link" href="/signup?plan=starter&interval=monthly">Go to signup</a>
     <button class="demo-cta-close" id="demo-cta-close" type="button" aria-label="Dismiss CTA">×</button>
   </div>
 </div>
@@ -414,6 +424,12 @@ const THREAT_FEED_SIGNAL_KEY = "guni_threat_feed_refresh";
 const threatFeedChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("guni-threat-feed") : null;
 let ctaDismissed = false;
 
+function setDemoCtaCopy(text, href = "/signup?plan=starter&interval=monthly", buttonLabel = "Go to signup") {
+  document.getElementById("demo-cta-text").textContent = text;
+  document.getElementById("demo-cta-link").href = href;
+  document.getElementById("demo-cta-link").textContent = buttonLabel;
+}
+
 function showDemoCta() {
   if (ctaDismissed) return;
   demoCta.classList.add("show");
@@ -475,7 +491,9 @@ async function requestJson(path, options = {}) {
   const response = await fetch(`${API}${path}`, options);
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.error || payload.detail || `API error ${response.status}`);
+    const error = new Error(payload.error || payload.detail || `API error ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return unwrapPayload(payload);
 }
@@ -628,6 +646,10 @@ async function runScan() {
     notifyThreatFeedRefresh();
   } catch (error) {
     note.textContent = "Scan failed.";
+    if (error?.status === 402) {
+      setDemoCtaCopy("Scan quota reached. Upgrade to keep scanning →");
+      showDemoCta();
+    }
     showError(resultPanel, "API offline", error.message || "Could not reach /scan.");
   } finally {
     scanBtn.disabled = false;
@@ -754,6 +776,7 @@ document.getElementById("reset-btn").addEventListener("click", () => selectPrese
 document.getElementById("demo-cta-close").addEventListener("click", dismissDemoCta);
 
 window.addEventListener("load", () => {
+  setDemoCtaCopy("Protecting your agents starts at ₹999/mo →");
   selectPreset("safe");
   loadHistory();
   window.setTimeout(showDemoCta, 30000);

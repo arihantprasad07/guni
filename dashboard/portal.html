@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Guni | Customer Portal</title>
+<meta name="description" content="Secure your AI agents with Guni."/>
+<title>Guni — Secure your AI agents</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -14,6 +15,10 @@
 .portal{display:none}
 .portal.show{display:block}
 .topbar{display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.quota-banner{display:none;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;padding:1rem 1.1rem;border:1px solid var(--amber2);background:rgba(245,166,35,0.08)}
+.quota-banner.show{display:flex}
+.quota-banner strong{font-size:12px;color:var(--amber)}
+.quota-banner span{font-size:12px;color:var(--muted3);line-height:1.7}
 .identity{display:grid;gap:4px}
 .identity strong{font-family:var(--display);font-size:1.6rem;line-height:1}
 .identity span{font-size:12px;color:var(--muted2)}
@@ -121,6 +126,14 @@
           <span class="g-tag g-tag-amber" id="user-plan">FREE</span>
           <button class="g-btn g-btn-outline" id="signout-btn" type="button">Sign out</button>
         </div>
+      </div>
+
+      <div class="quota-banner" id="quota-banner">
+        <div>
+          <strong>You've used all your scans for this month.</strong>
+          <span>Upgrade your plan to continue.</span>
+        </div>
+        <button class="g-btn g-btn-primary" id="quota-upgrade-btn" type="button">Upgrade Plan</button>
       </div>
 
       <div class="tabs" id="tabs">
@@ -405,6 +418,23 @@ let latestOverview = { total: 0 };
 let latestAlerts = {};
 let latestBilling = {};
 
+function showQuotaBanner() {
+  document.getElementById("quota-banner").classList.add("show");
+}
+
+function hideQuotaBanner() {
+  document.getElementById("quota-banner").classList.remove("show");
+}
+
+async function fetchJsonWithQuota(url, options = {}) {
+  const response = await fetch(url, options);
+  const payload = await response.json().catch(() => ({}));
+  if (response.status === 402) {
+    showQuotaBanner();
+  }
+  return { response, payload, data: unwrap(payload) };
+}
+
 function displayPlan(plan) {
   const normalized = String(plan || "free").toLowerCase();
   if (normalized === "starter") return "Plus";
@@ -484,13 +514,12 @@ async function hydrateSession() {
 }
 
 async function loadOverview() {
-  const [analyticsResponse, usageResponse] = await Promise.all([
-    fetch(`${API}/analytics`, { headers: { "X-API-Key": currentKey } }),
-    fetch(`${API}/keys/usage`, { headers: { "X-API-Key": currentKey } }),
+  const [analyticsResult, usageResult] = await Promise.all([
+    fetchJsonWithQuota(`${API}/analytics`, { headers: { "X-API-Key": currentKey } }),
+    fetchJsonWithQuota(`${API}/keys/usage`, { headers: { "X-API-Key": currentKey } }),
   ]);
-
-  const analytics = unwrap(await analyticsResponse.json());
-  const usage = unwrap(await usageResponse.json());
+  const analytics = analyticsResult.data;
+  const usage = usageResult.data;
   latestOverview = analytics || { total: 0 };
 
   document.getElementById("metric-total").textContent = (analytics.total || 0).toLocaleString();
@@ -519,10 +548,9 @@ function renderApiKeyUsage(usage) {
 }
 
 async function loadHistory() {
-  const response = await fetch(`${API}/history?limit=30`, {
+  const { data } = await fetchJsonWithQuota(`${API}/history?limit=30`, {
     headers: { "X-API-Key": currentKey }
   });
-  const data = unwrap(await response.json());
   const body = document.getElementById("history-body");
 
   if (!Array.isArray(data.entries) || !data.entries.length) {
@@ -543,10 +571,9 @@ async function loadHistory() {
 }
 
 async function loadRules() {
-  const response = await fetch(`${API}/rules`, {
+  const { data } = await fetchJsonWithQuota(`${API}/rules`, {
     headers: { "X-API-Key": currentKey }
   });
-  const data = unwrap(await response.json());
   const list = document.getElementById("rule-list");
 
   if (!Array.isArray(data.rules) || !data.rules.length) {
@@ -572,7 +599,7 @@ async function addRule() {
   const ruleType = document.getElementById("rule-type").value;
   if (!pattern) return;
 
-  const response = await fetch(`${API}/rules`, {
+  const { response } = await fetchJsonWithQuota(`${API}/rules`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -590,7 +617,7 @@ async function addRule() {
 }
 
 async function deleteRule(ruleId) {
-  await fetch(`${API}/rules/${ruleId}`, {
+  await fetchJsonWithQuota(`${API}/rules/${ruleId}`, {
     method: "DELETE",
     headers: { "X-API-Key": currentKey }
   });
@@ -598,10 +625,9 @@ async function deleteRule(ruleId) {
 }
 
 async function loadAlerts() {
-  const response = await fetch(`${API}/alerts`, {
+  const { data } = await fetchJsonWithQuota(`${API}/alerts`, {
     headers: { "X-API-Key": currentKey }
   });
-  const data = unwrap(await response.json());
   latestAlerts = data || {};
 
   document.getElementById("alert-slack").value = data.slack_url || "";
@@ -612,7 +638,7 @@ async function loadAlerts() {
 }
 
 async function saveAlerts() {
-  const response = await fetch(`${API}/alerts`, {
+  const { response } = await fetchJsonWithQuota(`${API}/alerts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -629,8 +655,7 @@ async function saveAlerts() {
 }
 
 async function loadAdmin() {
-  const response = await fetch(`${API}/keys/list`, { credentials: "include" });
-  const data = unwrap(await response.json());
+  const { data } = await fetchJsonWithQuota(`${API}/keys/list`, { credentials: "include" });
   const body = document.getElementById("admin-body");
 
   if (!Array.isArray(data.keys) || !data.keys.length) {
@@ -656,8 +681,7 @@ async function loadAdmin() {
 }
 
 async function loadBilling() {
-  const response = await fetch(`${API}/billing/me`, { credentials: "include" });
-  const data = unwrap(await response.json());
+  const { data } = await fetchJsonWithQuota(`${API}/billing/me`, { credentials: "include" });
   const subscription = data.subscription || {};
   latestBilling = { plan: subscription.plan || data.plan || "free", status: subscription.status || "inactive" };
 
@@ -749,8 +773,7 @@ async function updateBilling(action) {
 }
 
 async function loadAudit() {
-  const response = await fetch(`${API}/audit/events?limit=20`, { credentials: "include" });
-  const data = unwrap(await response.json());
+  const { data } = await fetchJsonWithQuota(`${API}/audit/events?limit=20`, { credentials: "include" });
   const list = document.getElementById("audit-list");
 
   if (!Array.isArray(data.events) || !data.events.length) {
@@ -818,6 +841,7 @@ document.getElementById("billing-starter-btn").addEventListener("click", () => s
 document.getElementById("billing-pro-btn").addEventListener("click", () => startCheckout("pro"));
 document.getElementById("billing-cancel-btn").addEventListener("click", () => updateBilling("cancel"));
 document.getElementById("billing-resume-btn").addEventListener("click", () => updateBilling("resume"));
+document.getElementById("quota-upgrade-btn").addEventListener("click", () => switchTab("billing"));
 document.getElementById("toggle-block").addEventListener("click", () => document.getElementById("toggle-block").classList.toggle("on"));
 document.getElementById("toggle-confirm").addEventListener("click", () => document.getElementById("toggle-confirm").classList.toggle("on"));
 document.getElementById("copy-key-btn").addEventListener("click", async () => {

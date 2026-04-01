@@ -4,12 +4,13 @@ import json
 import os
 import threading
 import time
+from datetime import date
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
 
@@ -571,6 +572,51 @@ def join_waitlist(body: WaitlistRequest, background_tasks: BackgroundTasks):
 @app.get("/waitlist/count", tags=["Waitlist"])
 def waitlist_count():
     return {"count": len(_read_json_file(WAITLIST_PATH))}
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt():
+    return PlainTextResponse(
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /portal\n"
+        "Disallow: /owner\n"
+        "Disallow: /api/\n"
+        "Sitemap: https://guni.up.railway.app/sitemap.xml"
+    )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml():
+    today = date.today().isoformat()
+    urls = [
+        "/",
+        "/demo",
+        "/enterprise",
+        "/pilot",
+        "/integrate",
+        "/docs",
+        "/security",
+        "/about",
+        "/threats",
+        "/changelog",
+    ]
+    body = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for path in urls:
+        body.extend(
+            [
+                "  <url>",
+                f"    <loc>https://guni.up.railway.app{path}</loc>",
+                f"    <lastmod>{today}</lastmod>",
+                "    <priority>1.0</priority>",
+                "  </url>",
+            ]
+        )
+    body.append("</urlset>")
+    return Response("\n".join(body), media_type="text/xml")
 
 def _subscription_update_from_current(user: dict, current: dict, *, cancel_at_period_end: bool) -> dict:
     from api.database import db_upsert_subscription
