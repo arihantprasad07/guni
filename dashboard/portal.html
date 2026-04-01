@@ -17,7 +17,6 @@
 .identity{display:grid;gap:4px}
 .identity strong{font-family:var(--display);font-size:1.6rem;line-height:1}
 .identity span{font-size:12px;color:var(--muted2)}
-.workspace-copy{max-width:56ch;font-size:12px;color:var(--muted3);line-height:1.8;margin-top:0.55rem}
 .role-pill{display:inline-flex;gap:8px;align-items:center;width:fit-content;padding:5px 10px;border:1px solid var(--border2);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber)}
 .tabs{display:flex;gap:0;overflow:auto;border-bottom:1px solid var(--border2);margin-bottom:1rem}
 .tab{font-family:var(--mono);font-size:11px;color:var(--muted2);padding:10px 16px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
@@ -108,16 +107,13 @@
     <div class="portal" id="portal">
       <div class="topbar">
         <div class="identity">
-          <span class="g-tag g-tag-blue" style="width:fit-content">Workspace overview</span>
           <span>Signed in as</span>
           <strong id="user-email">customer@guni.dev</strong>
           <div class="role-pill" id="user-role">owner</div>
           <span id="user-org" style="font-size:12px;color:var(--muted2)">-</span>
-          <div class="workspace-copy">Use this workspace to track policy usage, audit risky flows, manage alerting, and keep customer-facing security controls visible.</div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <span class="g-tag g-tag-amber" id="user-plan">FREE</span>
-          <a class="g-btn g-btn-outline" href="/demo">Open demo</a>
           <button class="g-btn g-btn-outline" id="signout-btn" type="button">Sign out</button>
         </div>
       </div>
@@ -234,10 +230,7 @@
         <div class="box">
           <div class="box-head">
             <span class="box-title">Recent scans</span>
-            <div class="action-row">
-              <button class="g-code-copy" id="refresh-history" type="button">Refresh</button>
-              <button class="g-code-copy" id="export-history" type="button">Export CSV</button>
-            </div>
+            <button class="g-code-copy" id="refresh-history" type="button">Refresh</button>
           </div>
           <div class="box-body table-wrap">
             <table class="table">
@@ -768,23 +761,6 @@ async function signOut() {
   window.location.href = "/signin";
 }
 
-async function exportHistory() {
-  if (!currentKey) return;
-  const response = await fetch(`${API}/history/export?limit=500`, {
-    headers: { "X-API-Key": currentKey }
-  });
-  if (!response.ok) return;
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "guni_scan_history.csv";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.tab === name);
@@ -802,7 +778,6 @@ document.getElementById("tabs").addEventListener("click", (event) => {
 
 document.getElementById("signout-btn").addEventListener("click", signOut);
 document.getElementById("refresh-history").addEventListener("click", loadHistory);
-document.getElementById("export-history").addEventListener("click", exportHistory);
 document.getElementById("add-rule-btn").addEventListener("click", addRule);
 document.getElementById("save-alerts-btn").addEventListener("click", saveAlerts);
 document.getElementById("billing-starter-btn").addEventListener("click", () => startCheckout("starter"));

@@ -2,69 +2,13 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from api.config import load_settings
 from api.services.site import render_dashboard_page
-from guni import __version__
-from runtime_config import WAITLIST_PATH
 
 
 router = APIRouter(include_in_schema=False)
-
-
-def _read_waitlist_total() -> int:
-    try:
-        path = Path(WAITLIST_PATH)
-        if not path.exists():
-            return 0
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return len(payload) if isinstance(payload, list) else 0
-    except Exception:
-        return 0
-
-
-@router.get("/site/summary")
-def site_summary():
-    try:
-        from api.database import db_get_threat_feed
-
-        feed = db_get_threat_feed()
-    except Exception:
-        feed = {
-            "total_scans": 0,
-            "total_blocked": 0,
-            "block_rate": 0,
-            "last_24h_scans": 0,
-            "last_24h_blocked": 0,
-            "threat_counts": {},
-            "top_threat": "none",
-            "hourly_trend": [],
-        }
-
-    settings = load_settings()
-    return {
-        "product": {
-            "name": "Guni",
-            "tagline": "Security infrastructure for browser agents",
-            "version": __version__,
-            "deployment_mode": "open" if settings.allow_open_mode else "protected",
-            "llm_available": bool(settings.llm_api_key),
-        },
-        "signals": {
-            "total_scans": int(feed.get("total_scans", 0) or 0),
-            "total_blocked": int(feed.get("total_blocked", 0) or 0),
-            "block_rate": float(feed.get("block_rate", 0) or 0),
-            "last_24h_scans": int(feed.get("last_24h_scans", 0) or 0),
-            "last_24h_blocked": int(feed.get("last_24h_blocked", 0) or 0),
-            "top_threat": feed.get("top_threat", "none"),
-            "waitlist_total": _read_waitlist_total(),
-        },
-    }
 
 
 @router.get("/", response_class=HTMLResponse)
