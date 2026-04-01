@@ -56,7 +56,10 @@ By default, local runtime state is stored in `.guni/` for development. In produc
 - `GUNI_EVENT_LOG_PATH`
 - `GUNI_RATE_LIMIT`
 - `GUNI_API_KEYS`
-- `ANTHROPIC_API_KEY`
+- `GUNI_LLM_API_KEY`
+- `GUNI_LLM_PROVIDER`
+- `GUNI_LLM_MODEL`
+- `GUNI_LLM_BASE_URL`
 - `GUNI_SESSION_SECRET`
 
 ## Buyer-facing security posture

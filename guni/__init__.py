@@ -7,8 +7,14 @@ Quick start:
     # Heuristics only (free, ~0.001s)
     result = scan(html=page_html, goal="Login to website")
 
-    # With LLM reasoning layer (catches novel attacks)
-    result = scan(html=page_html, goal="Login to website", api_key="sk-ant-...")
+    # With LLM reasoning layer (bring your own provider + model)
+    result = scan(
+        html=page_html,
+        goal="Login to website",
+        llm_api_key="your-llm-key",
+        llm_provider="openai",
+        llm_model="gpt-4.1-mini",
+    )
 
     print(result["decision"])              # ALLOW / CONFIRM / BLOCK
     print(result["risk"])                  # 0-100

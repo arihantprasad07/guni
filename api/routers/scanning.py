@@ -27,7 +27,7 @@ from api.services.scan_api import (
     analyze_action_payload,
     build_scan_response,
     enforce_scan_quota,
-    get_anthropic_key,
+    get_default_llm_api_key,
     prepare_alert_target,
     validate_safe_fetch_url,
 )
@@ -50,7 +50,7 @@ def health():
     return HealthResponse(
         status="ok",
         version=__version__,
-        llm_available=bool(get_anthropic_key()),
+        llm_available=bool(get_default_llm_api_key()),
     )
 
 
@@ -75,7 +75,10 @@ def scan_html(
         html=body.html,
         goal=body.goal,
         url=body.url,
-        llm_api_key=get_anthropic_key(),
+        llm_api_key=body.llm_api_key or get_default_llm_api_key(),
+        llm_provider=body.llm_provider,
+        llm_model=body.llm_model,
+        llm_base_url=body.llm_base_url,
         tracking_key=api_key,
         llm=body.llm,
         persist=not demo_mode_request,
@@ -121,7 +124,10 @@ def scan_url(
         html=html,
         goal=body.goal,
         url=safe_url,
-        llm_api_key=get_anthropic_key(),
+        llm_api_key=body.llm_api_key or get_default_llm_api_key(),
+        llm_provider=body.llm_provider,
+        llm_model=body.llm_model,
+        llm_base_url=body.llm_base_url,
         tracking_key=api_key,
         llm=body.llm,
     )
@@ -291,6 +297,10 @@ async def scan_compare(
     html_a = body.get("html_a", "")
     html_b = body.get("html_b", "")
     goal = body.get("goal", "browse website")
+    llm_api_key = body.get("llm_api_key") or get_default_llm_api_key()
+    llm_provider = body.get("llm_provider")
+    llm_model = body.get("llm_model")
+    llm_base_url = body.get("llm_base_url")
 
     if not html_a or not html_b:
         raise HTTPException(status_code=422, detail="html_a and html_b required")
@@ -300,7 +310,14 @@ async def scan_compare(
 
     from guni import GuniScanner
 
-    scanner = GuniScanner(goal=goal, llm_api_key=get_anthropic_key(), tracking_key=api_key)
+    scanner = GuniScanner(
+        goal=goal,
+        llm_api_key=llm_api_key,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_base_url=llm_base_url,
+        tracking_key=api_key,
+    )
     result_a = scanner.scan(html=html_a, url="page_a")
     result_b = scanner.scan(html=html_b, url="page_b")
 

@@ -26,7 +26,11 @@ Set these in Railway:
 | `GUNI_RATE_LIMIT` | `60` or your preferred limit |
 | `GUNI_API_KEYS` | Comma-separated production keys if using protected mode |
 | `GUNI_SESSION_SECRET` | Long random secret |
-| `ANTHROPIC_API_KEY` | Optional, for LLM reasoning |
+| `GUNI_LLM_API_KEY` | Optional default API key for hosted LLM reasoning |
+| `GUNI_LLM_PROVIDER` | Optional default provider: `anthropic`, `openai`, `gemini`, or `openai_compatible` |
+| `GUNI_LLM_MODEL` | Optional default model name |
+| `GUNI_LLM_BASE_URL` | Optional default base URL for OpenAI-compatible providers |
+| `ANTHROPIC_API_KEY` | Legacy fallback for Anthropic |
 | `RAZORPAY_KEY_ID` | Required for hosted checkout creation |
 | `RAZORPAY_KEY_SECRET` | Required for hosted checkout creation |
 | `RAZORPAY_WEBHOOK_SECRET` | Required for webhook verification |

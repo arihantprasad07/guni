@@ -11,8 +11,14 @@ from api.models import AnalyzeResponse, LLMAnalysis, ScanResponse, ThreatItem
 from api.netutil import validate_public_url
 
 
-def get_anthropic_key() -> str:
-    return os.environ.get("ANTHROPIC_API_KEY", "")
+def get_default_llm_api_key() -> str:
+    return (
+        os.environ.get("GUNI_LLM_API_KEY", "")
+        or os.environ.get("ANTHROPIC_API_KEY", "")
+        or os.environ.get("OPENAI_API_KEY", "")
+        or os.environ.get("GEMINI_API_KEY", "")
+        or os.environ.get("GOOGLE_API_KEY", "")
+    )
 
 
 def validate_safe_fetch_url(raw_url: str) -> str:
@@ -130,6 +136,8 @@ def build_scan_response(raw: dict) -> ScanResponse:
             safe=llm_data.get("safe", True),
             summary=llm_data.get("summary", ""),
             llm_latency=llm_data.get("llm_latency", 0),
+            provider=llm_data.get("provider"),
+            model=llm_data.get("model"),
             error=None,
         )
     elif llm_data and llm_data.get("error"):
@@ -139,6 +147,8 @@ def build_scan_response(raw: dict) -> ScanResponse:
             safe=True,
             summary="",
             llm_latency=0,
+            provider=llm_data.get("provider"),
+            model=llm_data.get("model"),
             error=llm_data["error"],
         )
 

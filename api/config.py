@@ -12,7 +12,10 @@ def _truthy(value: str | None) -> bool:
 
 @dataclass(frozen=True)
 class AppSettings:
-    anthropic_api_key: str
+    llm_api_key: str
+    llm_provider: str
+    llm_model: str
+    llm_base_url: str
     allow_open_mode: bool
     rate_limit: int
     admin_emails: set[str]
@@ -42,7 +45,16 @@ def load_settings() -> AppSettings:
     }
 
     return AppSettings(
-        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
+        llm_api_key=(
+            os.environ.get("GUNI_LLM_API_KEY", "").strip()
+            or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+            or os.environ.get("OPENAI_API_KEY", "").strip()
+            or os.environ.get("GEMINI_API_KEY", "").strip()
+            or os.environ.get("GOOGLE_API_KEY", "").strip()
+        ),
+        llm_provider=os.environ.get("GUNI_LLM_PROVIDER", "").strip(),
+        llm_model=os.environ.get("GUNI_LLM_MODEL", "").strip(),
+        llm_base_url=os.environ.get("GUNI_LLM_BASE_URL", "").strip(),
         allow_open_mode=_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE")),
         rate_limit=rate_limit,
         admin_emails=admin_emails,

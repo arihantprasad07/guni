@@ -27,6 +27,9 @@ def scan(
     url:     str  = "",
     api_key: str  = None,
     llm_api_key: str = None,
+    llm_provider: str = None,
+    llm_model: str = None,
+    llm_base_url: str = None,
     tracking_key: str = None,
     llm:     bool = False,
     persist: bool = True,
@@ -36,6 +39,9 @@ def scan(
         goal=goal,
         api_key=api_key,
         llm_api_key=llm_api_key,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_base_url=llm_base_url,
         tracking_key=tracking_key,
         llm=llm,
         persist=persist,
@@ -60,13 +66,19 @@ class GuniScanner:
         goal="browse website",
         api_key=None,
         llm_api_key=None,
+        llm_provider=None,
+        llm_model=None,
+        llm_base_url=None,
         tracking_key=None,
         llm=False,
         persist=True,
         include_in_threat_feed=None,
     ):
         self.goal        = goal
-        self.api_key     = llm_api_key or api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.api_key     = llm_api_key or api_key or os.environ.get("GUNI_LLM_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.llm_provider = llm_provider or os.environ.get("GUNI_LLM_PROVIDER", "")
+        self.llm_model = llm_model or os.environ.get("GUNI_LLM_MODEL", "")
+        self.llm_base_url = llm_base_url or os.environ.get("GUNI_LLM_BASE_URL", "")
         self._api_key    = tracking_key
         self.llm         = llm
         self._persist    = persist
@@ -188,6 +200,9 @@ class GuniScanner:
                 goal=self.goal,
                 heuristic_findings=evidence,
                 api_key=self.api_key,
+                provider=self.llm_provider,
+                model=self.llm_model,
+                base_url=self.llm_base_url,
             )
 
             if not llm_analysis.get("error"):

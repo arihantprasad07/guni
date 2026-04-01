@@ -3,168 +3,655 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="Guni - AI agent security middleware. Detect prompt injection, phishing, and goal hijacking before your agent executes anything dangerous."/>
-<title>Guni - Secure your AI agents</title>
+<meta name="description" content="Guni is the security control plane for the agentic web. Inspect browser-agent execution before it clicks, submits, or leaks anything dangerous."/>
+<title>Guni - Security Control Plane for the Agentic Web</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
-.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:clamp(5rem,10vh,8rem) var(--pad) 3rem}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--amber);border:1px solid var(--border2);padding:4px 14px;margin-bottom:1.5rem;letter-spacing:0.1em;width:fit-content}
-.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);animation:g-pulse 2s infinite}
-.hero-title{font-family:var(--display);font-size:clamp(3.5rem,9vw,7.5rem);font-weight:800;line-height:0.92;letter-spacing:-0.05em;margin-bottom:1.5rem}
-.hero-title .line2{color:var(--amber);display:block}
-.hero-title .line3{color:var(--muted2);display:block;font-weight:400}
-.hero-sub{font-size:clamp(13px,1.8vw,16px);color:var(--muted3);max-width:500px;line-height:1.8;margin-bottom:2.5rem}
-.hero-sub strong{color:var(--amber);font-weight:400}
-.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:3rem}
-.hero-stats{display:flex;gap:clamp(1.5rem,4vw,3.5rem);padding-top:2rem;border-top:1px solid var(--border);flex-wrap:wrap}
-.stat-val{font-family:var(--display);font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;line-height:1;color:var(--amber)}
-.stat-val.r{color:var(--red)}.stat-val.g{color:var(--green)}
-.stat-label{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:0.1em;text-transform:uppercase}
-.term-strip{background:var(--bg2);border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);padding:clamp(1.5rem,4vw,2.5rem) var(--pad);overflow:hidden}
-.tl{opacity:0;animation:tlin 0.3s forwards;font-size:clamp(11px,1.4vw,13px);line-height:1.6;white-space:pre;overflow:hidden;text-overflow:ellipsis}
-.tl.p{color:var(--green2)}.tl.c{color:var(--muted2)}.tl.ok{color:var(--green)}.tl.w{color:var(--amber)}.tl.e{color:var(--red)}.tl.d{color:var(--muted);font-size:11px}
+.page-shell{
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(245,166,35,0.14), transparent 22%),
+    radial-gradient(circle at 85% 8%, rgba(74,158,255,0.13), transparent 24%),
+    radial-gradient(circle at 50% 60%, rgba(0,217,126,0.06), transparent 34%);
+}
+.page-shell::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.03), transparent 18%),
+    linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+  background-size:auto, 120px 120px, 120px 120px;
+  mask-image:radial-gradient(circle at center, black 45%, transparent 100%);
+  z-index:0;
+}
+.hero{
+  position:relative;
+  z-index:1;
+  min-height:100vh;
+  padding:clamp(5rem,10vh,8rem) 0 3rem;
+  display:grid;
+  align-items:center;
+}
+.hero-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.18fr) minmax(320px,0.82fr);
+  gap:1rem;
+  align-items:stretch;
+}
+.hero-main,.hero-side,.mission-band,.platform-grid,.command-grid,.ecosystem-grid,.quote-strip{
+  position:relative;
+  z-index:1;
+}
+.hero-main{
+  padding:clamp(1.6rem,3vw,2.5rem);
+  border:1px solid var(--border2);
+  background:linear-gradient(180deg, rgba(7,7,10,0.82), rgba(7,7,10,0.64));
+  box-shadow:0 30px 80px rgba(0,0,0,0.35);
+}
+.hero-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  font-size:11px;
+  color:var(--amber);
+  border:1px solid var(--border2);
+  background:rgba(245,166,35,0.08);
+  padding:6px 14px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-bottom:1.25rem;
+}
+.hero-chip::before{
+  content:"";
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 18px rgba(0,217,126,0.7);
+}
+.hero-title{
+  font-family:var(--display);
+  font-size:clamp(3.4rem,8.6vw,7.8rem);
+  line-height:0.9;
+  letter-spacing:-0.06em;
+  margin-bottom:1.25rem;
+}
+.hero-title .dim{display:block;color:var(--muted2);font-weight:500}
+.hero-title .accent{display:block;color:var(--amber)}
+.hero-sub{
+  max-width:58ch;
+  font-size:clamp(14px,1.7vw,16px);
+  color:var(--muted3);
+  line-height:1.85;
+  margin-bottom:1.8rem;
+}
+.hero-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:1.6rem;
+}
+.signal-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:1.8rem;
+}
+.signal-pill{
+  padding:8px 12px;
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  border:1px solid var(--border2);
+  background:rgba(255,255,255,0.02);
+  color:var(--muted3);
+}
+.signal-pill strong{color:var(--text);font-weight:600}
+.hero-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:1px;
+  border:1px solid var(--border);
+  background:var(--border);
+}
+.hero-metric{
+  background:rgba(7,7,10,0.82);
+  padding:1rem 1rem 1.1rem;
+}
+.hero-metric strong{
+  display:block;
+  font-family:var(--display);
+  font-size:clamp(1.7rem,3vw,2.4rem);
+  line-height:1;
+  color:var(--amber);
+}
+.hero-metric strong.alt{color:var(--green)}
+.hero-metric span{
+  display:block;
+  margin-top:6px;
+  font-size:10px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--muted2);
+}
+.hero-side{
+  display:grid;
+  gap:1rem;
+}
+.control-card,.thesis-card,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band{
+  background:linear-gradient(180deg, rgba(13,13,17,0.92), rgba(7,7,10,0.9));
+  border:1px solid var(--border2);
+}
+.control-card{overflow:hidden}
+.control-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0.9rem 1rem;
+  border-bottom:1px solid var(--border);
+  background:rgba(255,255,255,0.02);
+}
+.control-head span{
+  font-size:10px;
+  color:var(--muted2);
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+}
+.control-body{padding:1rem}
+.status-line{
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.7rem 0;
+  border-bottom:1px solid var(--border);
+  font-size:12px;
+  color:var(--muted3);
+}
+.status-line:last-child{border-bottom:none}
+.status-line strong{color:var(--text);font-weight:500}
+.status-line .good{color:var(--green)}
+.status-line .warn{color:var(--amber)}
+.status-line .block{color:var(--red)}
+.thesis-card{
+  padding:1.1rem 1.1rem 1.2rem;
+}
+.thesis-kicker{
+  font-size:10px;
+  color:var(--muted2);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-bottom:0.7rem;
+}
+.thesis-title{
+  font-family:var(--display);
+  font-size:1.7rem;
+  line-height:1;
+  margin-bottom:0.6rem;
+}
+.thesis-copy{
+  font-size:12px;
+  color:var(--muted3);
+  line-height:1.8;
+}
+.mission-band{
+  margin-top:1rem;
+  display:grid;
+  grid-template-columns:1.2fr 0.8fr;
+  gap:1rem;
+}
+.mission-panel{
+  padding:1.4rem;
+  border:1px solid var(--border2);
+  background:linear-gradient(135deg, rgba(245,166,35,0.08), rgba(74,158,255,0.04));
+}
+.mission-panel h2{
+  font-family:var(--display);
+  font-size:clamp(1.9rem,3.8vw,3rem);
+  line-height:1.03;
+  margin-bottom:0.7rem;
+}
+.mission-panel p{
+  max-width:62ch;
+  font-size:13px;
+  color:var(--muted3);
+  line-height:1.85;
+}
+.mission-list{
+  display:grid;
+  gap:10px;
+}
+.mission-item{
+  padding:1rem 1.05rem;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,0.03);
+}
+.mission-item strong{
+  display:block;
+  font-size:12px;
+  color:var(--amber);
+  margin-bottom:0.25rem;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+}
+.mission-item span{
+  display:block;
+  font-size:12px;
+  color:var(--muted3);
+  line-height:1.7;
+}
+.platform-grid,.command-grid,.ecosystem-grid{
+  display:grid;
+  gap:1rem;
+}
+.platform-grid{grid-template-columns:1.06fr 0.94fr}
+.command-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ecosystem-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band{
+  padding:1.35rem;
+}
+.platform-card h3,.command-card h3,.ecosystem-card h3{
+  font-family:var(--display);
+  font-size:1.45rem;
+  line-height:1.05;
+  margin-bottom:0.5rem;
+}
+.platform-card p,.command-card p,.ecosystem-card p{
+  font-size:12px;
+  color:var(--muted3);
+  line-height:1.85;
+}
+.platform-stack{
+  display:grid;
+  gap:10px;
+  margin-top:1rem;
+}
+.stack-row{
+  display:grid;
+  grid-template-columns:92px 1fr;
+  gap:12px;
+  align-items:start;
+  padding:0.8rem 0;
+  border-bottom:1px solid var(--border);
+}
+.stack-row:last-child{border-bottom:none}
+.stack-row strong{
+  font-size:10px;
+  color:var(--amber);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+}
+.stack-row span{
+  font-size:12px;
+  color:var(--muted3);
+  line-height:1.7;
+}
+.live-panel{
+  margin-top:1rem;
+  border:1px solid var(--border2);
+  background:rgba(0,0,0,0.22);
+  overflow:hidden;
+}
+.live-panel .g-card-header{
+  background:rgba(255,255,255,0.02);
+  border-bottom:1px solid var(--border);
+}
+.term-strip{
+  padding:1rem 1.2rem 1.2rem;
+}
+.tl{
+  opacity:0;
+  animation:tlin 0.3s forwards;
+  font-size:clamp(11px,1.35vw,13px);
+  line-height:1.65;
+  white-space:pre;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.tl.p{color:var(--green2)}
+.tl.c{color:var(--muted2)}
+.tl.ok{color:var(--green)}
+.tl.w{color:var(--amber)}
+.tl.e{color:var(--red)}
+.tl.d{color:var(--muted);font-size:11px}
 @keyframes tlin{to{opacity:1}}
-@media(max-width:480px){.tl{white-space:normal;font-size:10px}}
-.feat-num{font-size:11px;color:var(--amber);letter-spacing:0.1em;margin-bottom:0.75rem}
-.feat-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:0.5rem;font-family:var(--display)}
-.feat-desc{font-size:12px;color:var(--muted2);line-height:1.7}
-.price-card{background:var(--bg);padding:clamp(1.5rem,3vw,2rem)}
-.price-card.hot{background:var(--bg2);border:1px solid var(--amber2);margin:-1px;position:relative;z-index:1}
-.price-badge{font-size:10px;color:#000;background:var(--amber);padding:2px 10px;display:inline-block;margin-bottom:0.75rem;letter-spacing:0.08em;font-family:var(--display)}
-.price-tier{font-size:11px;color:var(--muted2);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem}
-.price-val{font-family:var(--display);font-size:clamp(2rem,5vw,3rem);font-weight:700;color:var(--text);line-height:1;margin-bottom:0.25rem;letter-spacing:-0.03em}
-.price-period{font-size:11px;color:var(--muted);margin-bottom:1.25rem}
-.price-feats{display:flex;flex-direction:column;gap:7px}
-.price-feat{font-size:12px;color:var(--muted2);display:flex;gap:8px;line-height:1.4}
-.price-feat::before{content:'->';color:var(--amber);flex-shrink:0}
-.price-note{font-size:11px;color:var(--muted);margin-top:1rem;font-style:italic}
-.quote{padding:1.25rem 1.5rem;border-left:2px solid var(--amber)}
-.quote-text{font-size:13px;color:var(--muted2);line-height:1.8;margin-bottom:0.75rem;font-style:italic}
-.quote-author{font-size:11px;color:var(--amber)}
-.g-wl-error{display:none;color:var(--red);font-size:12px;line-height:1.6;margin-top:10px}
-.g-wl-error.show{display:block}
-.proof-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--border);border:1px solid var(--border);margin-top:1rem}
-.proof-item{background:var(--bg2);padding:1rem 1.1rem}
-.proof-item strong{display:block;font-size:11px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.45rem}
-.proof-item span{display:block;font-size:12px;color:var(--muted3);line-height:1.7}
-.scenario-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
-.scenario-card{padding:1.3rem;background:rgba(7,7,10,.8);border:1px solid var(--border2)}
-.scenario-card strong{display:block;font-family:var(--display);font-size:1.2rem;margin-bottom:.45rem}
-.scenario-card p{font-size:12px;color:var(--muted3);line-height:1.8}
-.trust-band{display:grid;grid-template-columns:1.2fr .8fr;gap:1rem;padding:1.5rem;border:1px solid var(--border2);background:linear-gradient(135deg,rgba(245,166,35,.07),rgba(74,158,255,.04))}
-.trust-points{display:grid;gap:10px}
-.trust-point{padding:.85rem .95rem;background:rgba(255,255,255,.02);border:1px solid var(--border)}
-.trust-point strong{display:block;font-size:12px;margin-bottom:.35rem}
-.trust-point span{display:block;font-size:12px;color:var(--muted3);line-height:1.7}
-@media(max-width:960px){.proof-strip,.scenario-grid,.trust-band{grid-template-columns:1fr}}
+.big-quote{
+  display:grid;
+  grid-template-columns:1.15fr 0.85fr;
+  gap:1rem;
+  align-items:center;
+}
+.big-quote blockquote{
+  font-family:var(--display);
+  font-size:clamp(1.8rem,3.5vw,3rem);
+  line-height:1.02;
+  letter-spacing:-0.04em;
+}
+.big-quote blockquote span{color:var(--amber)}
+.big-quote p{
+  font-size:13px;
+  color:var(--muted3);
+  line-height:1.85;
+}
+.cta-band{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  flex-wrap:wrap;
+  background:linear-gradient(135deg, rgba(245,166,35,0.08), rgba(74,158,255,0.05));
+}
+.cta-band h3{
+  font-family:var(--display);
+  font-size:2rem;
+  line-height:1;
+  margin-bottom:0.45rem;
+}
+.cta-band p{
+  font-size:13px;
+  color:var(--muted3);
+  line-height:1.8;
+  max-width:58ch;
+}
+@media(max-width:1080px){
+  .hero-grid,.mission-band,.platform-grid,.big-quote{grid-template-columns:1fr}
+  .command-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr}
+  .tl{white-space:normal;font-size:10px}
+}
 </style>
 </head>
-<body class="g-page">
+<body class="g-page page-shell">
 <nav class="g-nav">
-  <a class="g-logo" href="#">guni<em>.dev</em></a>
+  <a class="g-logo" href="/">guni<em>.dev</em></a>
   <div class="g-nav-links">
-    <a href="#features">Features</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="/enterprise">Enterprise</a><a href="/security">Security</a><a href="/pilot">Pilot</a><a href="/about">Trust</a><a href="/demo">Demo</a><a href="/threats">Threat feed</a><a href="/integrate">Integrate</a><a href="/docs">Docs</a>
+    <a href="#platform">Platform</a>
+    <a href="#control-plane">Control Plane</a>
+    <a href="#ecosystem">Ecosystem</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/security">Security</a>
+    <a href="/pilot">Pilot</a>
+    <a href="/demo">Demo</a>
+    <a href="/docs">Docs</a>
   </div>
-  <div class="g-nav-right"><div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Live</span></div><a class="g-btn g-btn-outline g-btn-sm" href="/signin" style="margin-right:6px">Sign in</a><a class="g-btn g-btn-primary g-btn-sm" href="/signup">Sign up</a></div>
+  <div class="g-nav-right">
+    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Agent runtime active</span></div>
+    <a class="g-btn g-btn-outline g-btn-sm" href="/signin" style="margin-right:6px">Sign in</a>
+    <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Start pilot</a>
+  </div>
 </nav>
-<div class="g-wrap">
-<section class="hero">
-  <div class="hero-badge">v2.2 - 8 threat vectors · Customer portal · Real-time scanning</div>
-  <h1 class="hero-title">Secure<br><span class="line2">AI agents</span><span class="line3">from the web.</span></h1>
-  <p class="hero-sub">Guni sits between your agent and every page it visits.<br>Detects <strong>prompt injection, phishing, clickjacking,</strong><br>and goal hijacking - before execution. <strong>0.001s.</strong></p>
-  <div class="hero-actions"><a class="g-btn g-btn-primary g-btn-lg" href="#waitlist">Get early access</a><a class="g-btn g-btn-outline g-btn-lg" href="/demo">Try live demo</a><a class="g-btn g-btn-outline g-btn-lg" href="/enterprise">For agentic browsers</a></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin:-1rem 0 2.2rem"><span class="g-tag g-tag-green">CI-backed API tests</span><span class="g-tag g-tag-blue">Self-hostable</span><span class="g-tag g-tag-amber">Hosted API + dashboard</span></div>
-  <div id="waitlist" class="g-fade-up" style="max-width:520px;margin-bottom:2rem">
-    <div style="font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px">Early access - <span style="color:var(--green)">limited spots open</span></div>
-    <div class="g-wl-row" id="wl-row-1"><input class="g-wl-input" id="wl-e1" type="email" placeholder="you@company.com" autocomplete="email"/><button class="g-wl-btn" id="wl-b1" onclick="joinWL('wl-e1','wl-b1','wl-s1','wl-row-1','wl-err1','hero_waitlist')">Get access</button></div>
-    <div class="g-wl-success" id="wl-s1">&#10003; You're on the list. Check your email for confirmation.</div>
-    <div class="g-wl-error" id="wl-err1">We could not save your request. Please try again in a moment.</div>
-    <div class="g-wl-note">No spam. <span>Free tier always included.</span></div>
-  </div>
-  <div class="hero-stats"><div><div class="stat-val r" id="s-blocked">0</div><div class="stat-label">Threats blocked</div></div><div><div class="stat-val" id="s-scans">0</div><div class="stat-label">Pages scanned</div></div><div><div class="stat-val g">0.001s</div><div class="stat-label">Avg detection</div></div><div><div class="stat-val">8</div><div class="stat-label">Threat vectors</div></div></div>
-  <div class="proof-strip">
-    <div class="proof-item"><strong>Open source core</strong><span>Free heuristics layer and self-host path for technical evaluation.</span></div>
-    <div class="proof-item"><strong>Hosted product</strong><span>Customer portal, billing, audit history, alerts, and owner operations.</span></div>
-    <div class="proof-item"><strong>Shareable trust</strong><span>Security, status, privacy, and terms pages for buyer conversations.</span></div>
-    <div class="proof-item"><strong>Production path</strong><span>Move from demo traffic to managed API and tighter workflow controls.</span></div>
-  </div>
-</section>
-</div>
-<div class="term-strip"><div class="g-wrap"><div class="g-card-header" style="background:transparent;border:none;padding:0 0 1rem"><div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div><span class="g-card-title">guni &mdash; live threat analysis</span></div><div id="term-out" style="display:flex;flex-direction:column;gap:2px"></div></div></div>
-<div class="g-wrap">
-<section class="g-section g-fade-up" id="features">
-  <div class="g-eyebrow">What Guni detects</div>
-  <h2 class="g-title-md" style="margin-bottom:0.75rem">8 threat vectors.<br>One security layer.</h2>
-  <p class="g-subtitle" style="margin-bottom:2.5rem">Every page your agent visits gets a full multi-vector scan in under 1 millisecond.</p>
-  <div class="g-grid-4">
-    <div class="g-grid-item"><div class="feat-num">01</div><div class="feat-title">Prompt Injection</div><div class="feat-desc">Visible and CSS-hidden instructions overriding agent goals, including reworded attacks no keyword list catches.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 30</span></div>
-    <div class="g-grid-item"><div class="feat-num">02</div><div class="feat-title">Phishing Forms</div><div class="feat-desc">Credential-harvesting forms, external URL submissions, urgency language designed to trick agents.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 40</span></div>
-    <div class="g-grid-item"><div class="feat-num">03</div><div class="feat-title">UI Deception</div><div class="feat-desc">Deceptive button text, fake urgency, hidden clickable elements visible to agents but not humans.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 25</span></div>
-    <div class="g-grid-item"><div class="feat-num">04</div><div class="feat-title">Malicious Scripts</div><div class="feat-desc">eval(), external fetch, cookie access, and JavaScript patterns that exfiltrate agent session data.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 20</span></div>
-    <div class="g-grid-item"><div class="feat-num">05</div><div class="feat-title">Goal Hijacking</div><div class="feat-desc">Validates every page against the agent's declared objective. Blocks mid-session steering attempts.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 35</span></div>
-    <div class="g-grid-item"><div class="feat-num">06</div><div class="feat-title">Clickjacking</div><div class="feat-desc">Invisible iframe overlays and transparent fixed elements hijacking agent clicks and actions.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 30</span></div>
-    <div class="g-grid-item"><div class="feat-num">07</div><div class="feat-title">CSRF &amp; Token Theft</div><div class="feat-desc">Scripts harvesting auth tokens, forms without CSRF protection, and hidden inputs with sensitive values.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 35</span></div>
-    <div class="g-grid-item"><div class="feat-num">08</div><div class="feat-title">Open Redirects</div><div class="feat-desc">Meta refresh redirects, JavaScript location hijacks, and redirect parameters sending agents to adversarial pages.</div><span class="g-tag g-tag-amber" style="margin-top:0.75rem">Weight 20</span></div>
-  </div>
-</section>
-<hr class="g-divider"/>
-<section class="g-section g-fade-up" id="how"><div class="g-eyebrow">How it works</div><h2 class="g-title-md" style="margin-bottom:0.75rem">Two layers.<br>Zero compromises.</h2><p class="g-subtitle" style="margin-bottom:2.5rem">Fast heuristics catch known attacks instantly. LLM reasoning catches everything else.</p><div class="g-grid-4"><div class="g-grid-item"><div class="feat-num">01 &mdash; PARSE</div><div class="feat-title">DOM normalization</div><div class="feat-desc">Raw HTML parsed. Visible text, hidden elements, forms, and scripts extracted in parallel.</div></div><div class="g-grid-item"><div class="feat-num">02 &mdash; DETECT</div><div class="feat-title">8-vector heuristics</div><div class="feat-desc">All 8 detectors run simultaneously. Known attacks are caught in about 0.001s at zero API cost.</div></div><div class="g-grid-item"><div class="feat-num">03 &mdash; REASON</div><div class="feat-title">LLM intent analysis</div><div class="feat-desc">When heuristics flag something, Claude reasons about intent and catches novel reworded attacks.</div></div><div class="g-grid-item"><div class="feat-num">04 &mdash; DECIDE</div><div class="feat-title">Policy enforcement</div><div class="feat-desc">Risk &ge;70 &rarr; BLOCK. 40&ndash;69 &rarr; CONFIRM. &lt;40 &rarr; ALLOW. Full evidence logged.</div></div></div></section>
-<hr class="g-divider"/>
-<section class="g-section g-fade-up">
-  <div class="g-eyebrow">Where it fits</div>
-  <h2 class="g-title-md" style="margin-bottom:0.75rem">Built for real browser workflows</h2>
-  <p class="g-subtitle" style="margin-bottom:2rem">The strongest use cases are not toy prompts. They are agents logging in, paying, clicking, extracting, and taking action across unpredictable websites.</p>
-  <div class="scenario-grid">
-    <div class="scenario-card">
-      <strong>Autonomous browsing</strong>
-      <p>Protect browser-use, Playwright, and operator-style agents from hidden instructions, deceptive flows, and unsafe redirects.</p>
+
+<main>
+  <section class="hero">
+    <div class="g-wrap">
+      <div class="hero-grid">
+        <div class="hero-main">
+          <div class="hero-chip">Control plane for browser-agent trust</div>
+          <h1 class="hero-title">The security layer <span class="dim">for agents operating</span> <span class="accent">on the real web.</span></h1>
+          <p class="hero-sub">Guni is not a wrapper, plugin, or basic website scanner. It is the runtime policy layer between your browser agent and a hostile internet. Before an autonomous workflow clicks, submits, or follows instructions, Guni inspects the page, scores the risk, and decides whether execution is allowed, confirmed, or blocked.</p>
+          <div class="hero-actions">
+            <a class="g-btn g-btn-primary g-btn-lg" href="/demo">See live command center</a>
+            <a class="g-btn g-btn-outline g-btn-lg" href="/enterprise">Explore enterprise motion</a>
+            <a class="g-btn g-btn-outline g-btn-lg" href="/integrate">Read integration path</a>
+          </div>
+          <div class="signal-row">
+            <div class="signal-pill"><strong>Runtime posture</strong> Browser-agent aware</div>
+            <div class="signal-pill"><strong>Deployment</strong> SDK, API, realtime stream</div>
+            <div class="signal-pill"><strong>Decision model</strong> Allow / Confirm / Block</div>
+          </div>
+          <div class="hero-metrics">
+            <div class="hero-metric"><strong id="s-blocked">0</strong><span>Threats blocked</span></div>
+            <div class="hero-metric"><strong id="s-scans">0</strong><span>Pages inspected</span></div>
+            <div class="hero-metric"><strong class="alt">0.001s</strong><span>Heuristic detection</span></div>
+            <div class="hero-metric"><strong>8</strong><span>Threat vectors</span></div>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <div class="control-card">
+            <div class="control-head">
+              <span>Execution control plane</span>
+              <div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div>
+            </div>
+            <div class="control-body">
+              <div class="status-line"><strong>Agent goal</strong><span>Complete login and proceed to dashboard</span></div>
+              <div class="status-line"><strong>Page risk</strong><span class="block">88 / BLOCK</span></div>
+              <div class="status-line"><strong>Primary threat</strong><span>Hidden prompt injection + phishing action</span></div>
+              <div class="status-line"><strong>Action path</strong><span class="warn">Execution intercepted before submit</span></div>
+              <div class="status-line"><strong>Audit output</strong><span class="good">Evidence captured and persisted</span></div>
+            </div>
+          </div>
+
+          <div class="thesis-card">
+            <div class="thesis-kicker">Why this matters now</div>
+            <div class="thesis-title">Agents turned the DOM into an attack surface.</div>
+            <div class="thesis-copy">Humans ignore hidden text and deceptive overlays. Browser agents do not. Guni exists because agent execution needs its own trust boundary, not just traditional app security.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mission-band g-fade-up">
+        <div class="mission-panel">
+          <h2>Present Guni like infrastructure, because that is what it is.</h2>
+          <p>Security for the agentic web cannot look like another brochure site. The product has to read like critical runtime infrastructure: a layer that governs execution, explains decisions, and gives operators a system they can trust in front of customers, security reviewers, and internal teams.</p>
+        </div>
+        <div class="mission-list">
+          <div class="mission-item"><strong>Platform story</strong><span>Move the narrative from "website scanner" to "execution control plane."</span></div>
+          <div class="mission-item"><strong>Operator confidence</strong><span>Show that Guni does not just detect threats, it actively governs browser-agent behavior.</span></div>
+          <div class="mission-item"><strong>Buyer proof</strong><span>Frame every page, metric, and demo as evidence for a serious platform purchase.</span></div>
+        </div>
+      </div>
     </div>
-    <div class="scenario-card">
-      <strong>Sensitive workflows</strong>
-      <p>Wrap finance, admin, procurement, and data-entry flows with a clear allow, confirm, or block policy boundary.</p>
+  </section>
+
+  <section class="g-section g-fade-up" id="platform">
+    <div class="g-wrap">
+      <div class="g-eyebrow">Platform</div>
+      <h2 class="g-title-md" style="max-width:760px;margin-bottom:0.75rem">A runtime trust layer for the next generation of browser software.</h2>
+      <p class="g-subtitle" style="max-width:720px;margin-bottom:2rem">Guni sits at the point of execution, where autonomous browsers are most fragile. It evaluates hostile pages before they shape the agent's next move.</p>
+
+      <div class="platform-grid">
+        <div class="platform-card">
+          <h3>What Guni becomes in a mature stack</h3>
+          <p>Not a point feature. Not a checkbox. Guni becomes the control layer that product, security, and customer teams all point to when they ask a single question: why did the agent act, or why was it stopped?</p>
+          <div class="platform-stack">
+            <div class="stack-row"><strong>Inspect</strong><span>Parse raw HTML, visible text, hidden elements, forms, scripts, buttons, and redirects before the next action fires.</span></div>
+            <div class="stack-row"><strong>Reason</strong><span>Blend fast heuristics with LLM analysis so both obvious and novel attacks are caught in the same decision path.</span></div>
+            <div class="stack-row"><strong>Decide</strong><span>Translate threat evidence into a policy boundary every operator can understand: allow, confirm, or block.</span></div>
+            <div class="stack-row"><strong>Prove</strong><span>Persist evidence, expose history, and turn blocked actions into usable audit artifacts for reviews and pilots.</span></div>
+          </div>
+        </div>
+
+        <div class="platform-card">
+          <h3>Why the market is bigger than a single feature</h3>
+          <p>Every serious browser agent will need a trust boundary. As autonomous systems move from demos to procurement, finance, support, and operations, the category expands from "security add-on" to "mandatory runtime layer."</p>
+          <div class="platform-stack">
+            <div class="stack-row"><strong>For builders</strong><span>Ship safer browser agents without designing a custom threat model from scratch.</span></div>
+            <div class="stack-row"><strong>For operators</strong><span>Understand why a workflow stopped, not just that it failed.</span></div>
+            <div class="stack-row"><strong>For buyers</strong><span>See technical proof, trust pages, deployment guidance, and a path from evaluation to rollout.</span></div>
+            <div class="stack-row"><strong>For the ecosystem</strong><span>Create a recognizable security layer for the agentic web, not another isolated product page.</span></div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="scenario-card">
-      <strong>Buyer-facing proof</strong>
-      <p>Use the threat feed, portal history, and status pages to explain what was blocked and why during evaluations.</p>
+  </section>
+
+  <section class="g-section g-fade-up" id="control-plane">
+    <div class="g-wrap">
+      <div class="g-eyebrow">Control Plane</div>
+      <h2 class="g-title-md" style="margin-bottom:0.75rem">From detection engine to visible command center.</h2>
+      <p class="g-subtitle" style="max-width:700px;margin-bottom:1.6rem">The site should feel like the front door to a serious system. That means showing how Guni sees the world, what it intercepts, and how it explains itself under pressure.</p>
+
+      <div class="command-grid">
+        <div class="command-card">
+          <h3>Threat intelligence</h3>
+          <p>Prompt injection, phishing, deceptive UI, clickjacking, redirect abuse, CSRF, script attacks, and goal hijacking are presented as one cohesive threat model, not a disconnected list of features.</p>
+        </div>
+        <div class="command-card">
+          <h3>Execution policy</h3>
+          <p>The core visual language is operational. Risk scores, evidence trails, and policy decisions make Guni feel like a live safety system instead of static content.</p>
+        </div>
+        <div class="command-card">
+          <h3>Operator narrative</h3>
+          <p>Every section answers the same question from a different angle: what happens when an agent reaches a hostile page, and how does Guni prevent the wrong action?</p>
+        </div>
+      </div>
+
+      <div class="live-panel">
+        <div class="g-card-header" style="padding:0.85rem 1rem">
+          <div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div>
+          <span class="g-card-title">guni runtime stream</span>
+        </div>
+        <div class="term-strip" id="term-out"></div>
+      </div>
     </div>
+  </section>
+
+  <section class="g-section g-fade-up" id="ecosystem">
+    <div class="g-wrap">
+      <div class="g-eyebrow">Ecosystem</div>
+      <h2 class="g-title-md" style="margin-bottom:0.75rem">Built to anchor a larger category.</h2>
+      <p class="g-subtitle" style="max-width:720px;margin-bottom:1.8rem">Guni already has the ingredients of something bigger than a landing page: SDK, API, dashboard, realtime scanning, trust artifacts, and buyer-facing proof. The presentation now treats that surface area like a platform.</p>
+
+      <div class="ecosystem-grid">
+        <div class="ecosystem-card">
+          <h3>SDK</h3>
+          <p>Embed security directly into browser automation, agent frameworks, and execution wrappers.</p>
+        </div>
+        <div class="ecosystem-card">
+          <h3>API</h3>
+          <p>Centralize policy decisions so multiple workers and products can share one trust boundary.</p>
+        </div>
+        <div class="ecosystem-card">
+          <h3>Dashboard</h3>
+          <p>Turn blocks, confirms, and historical evidence into operational visibility and buyer proof.</p>
+        </div>
+        <div class="ecosystem-card">
+          <h3>Pilot motion</h3>
+          <p>Support a real evaluation path with security pages, rollout guidance, and enterprise framing.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="g-section g-fade-up">
+    <div class="g-wrap">
+      <div class="big-quote">
+        <blockquote>Every browser agent needs a <span>trust boundary</span> before the web becomes its operating system.</blockquote>
+        <p>That is the presentation shift. Guni is not just "a normal website" selling scans. It is the visible face of a larger platform story: the system that makes autonomous web execution safe enough to deploy, review, buy, and trust.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="g-section g-fade-up" style="padding-top:0">
+    <div class="g-wrap">
+      <div class="cta-band">
+        <div>
+          <h3>Make the category feel real.</h3>
+          <p>Show Guni as the control plane for the agentic web, then back it up with a live demo, enterprise page, security posture, and concrete integration path.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="g-btn g-btn-primary g-btn-lg" href="/demo">Open live demo</a>
+          <a class="g-btn g-btn-outline g-btn-lg" href="/pilot">View pilot program</a>
+          <a class="g-btn g-btn-outline g-btn-lg" href="/security">Read security posture</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="g-footer">
+  <div class="g-footer-logo">guni</div>
+  <div class="g-footer-links">
+    <a href="/demo">Demo</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/security">Security</a>
+    <a href="/pilot">Pilot</a>
+    <a href="/portal">Portal</a>
+    <a href="/threats">Threat feed</a>
+    <a href="/docs">Docs</a>
+    <a href="https://github.com/arihantprasad07/guni" target="_blank" rel="noreferrer">GitHub</a>
   </div>
-</section>
-<hr class="g-divider"/>
-<section class="g-section g-fade-up" id="pricing"><div class="g-eyebrow">Plans</div><h2 class="g-title-md" style="margin-bottom:0.75rem">Free to start.<br>Plus and Pro when you grow.</h2><p class="g-subtitle" style="margin-bottom:2.5rem">Start with the free layer, unlock hosted coverage with Plus, and use Pro for higher-risk production workflows.</p><div class="g-grid-3"><div class="price-card"><div class="price-tier">Free</div><div class="price-val">Free</div><div class="price-period">Self-serve starting point</div><div class="price-feats"><div class="price-feat">Full 8-vector heuristics</div><div class="price-feat">Self-hosted REST API</div><div class="price-feat">pip install guni</div><div class="price-feat">Audit log</div><div class="price-feat">Open source MIT</div></div><a class="g-btn g-btn-outline" href="https://github.com/arihantprasad07/guni" target="_blank" style="margin-top:1.5rem;display:block;text-align:center">View on GitHub</a></div><div class="price-card hot"><div class="price-badge">Recommended</div><div class="price-tier">Plus</div><div class="price-val">Hosted access</div><div class="price-period">For growing teams</div><div class="price-feats"><div class="price-feat">Everything in Free</div><div class="price-feat">LLM reasoning layer</div><div class="price-feat">1,000 scans/month</div><div class="price-feat">Hosted API + dashboard</div><div class="price-feat">Real-time WebSocket scanning</div><div class="price-feat">Customer portal</div><div class="price-feat">Slack alerts</div></div><a class="g-btn g-btn-primary" href="/signup" id="pay-btn" style="margin-top:1.5rem;display:block;text-align:center">Choose Plus</a><div class="price-note">Best fit for teams moving from demo traffic to real workflows.</div></div><div class="price-card"><div class="price-tier">Pro</div><div class="price-val">Production</div><div class="price-period">For higher-risk workflows</div><div class="price-feats"><div class="price-feat">Broader workflow coverage</div><div class="price-feat">Custom threat rules</div><div class="price-feat">Key lifecycle controls</div><div class="price-feat">Admin audit visibility</div><div class="price-feat">Priority support</div></div><a class="g-btn g-btn-outline" href="/signup" style="margin-top:1.5rem;display:block;text-align:center">Choose Pro</a></div></div></section>
-<hr class="g-divider"/>
-<section class="g-section g-fade-up">
-  <div class="trust-band">
-    <div>
-      <div class="g-eyebrow">Trust center</div>
-      <h2 class="g-title-md" style="margin-bottom:0.75rem">Everything a technical buyer asks for in one place</h2>
-      <p class="g-subtitle" style="max-width:620px">Use these pages during outreach, security review, or pilot setup so buyers can inspect the product perimeter without needing a custom walkthrough first.</p>
-    </div>
-    <div class="trust-points">
-      <div class="trust-point"><strong><a href="/security">Security</a></strong><span>Architecture, controls, and deployment posture.</span></div>
-      <div class="trust-point"><strong><a href="/status">Status</a></strong><span>Public service health and threat-feed freshness.</span></div>
-      <div class="trust-point"><strong><a href="/privacy">Privacy</a></strong><span>Hosted data handling and customer controls.</span></div>
-      <div class="trust-point"><strong><a href="/terms">Terms</a></strong><span>Simple usage terms for evaluation and product access.</span></div>
-    </div>
-  </div>
-</section>
-<hr class="g-divider"/>
-<section class="g-section" style="padding-bottom:0"><div style="background:var(--bg2);border:1px solid var(--border2);padding:clamp(1.5rem,4vw,3rem);display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem"><div class="quote"><div class="quote-text">"We were shipping a browser agent for automated procurement and never thought about what happens when it hits a malicious page. Guni is the thing we didn't know we needed."</div><div class="quote-author">&mdash; Founder, B2B SaaS startup</div></div><div class="quote"><div class="quote-text">"The LLM reasoning layer caught a reworded injection attack in our staging environment that no WAF would have flagged. Genuinely impressive."</div><div class="quote-author">&mdash; Senior engineer, AI infrastructure team</div></div><div class="quote"><div class="quote-text">"Three lines of code and my LangChain agent has a full security layer. 0.001s detection time. This is exactly what the agentic ecosystem needs."</div><div class="quote-author">&mdash; ML engineer, agent tooling startup</div></div></div></section>
-<section class="g-section g-fade-up" style="text-align:center"><h2 class="g-title-md" style="margin-bottom:1rem">Your agent is browsing<br>an adversarial web.</h2><p style="font-size:13px;color:var(--muted2);margin-bottom:2rem;line-height:1.8">Every page it visits could contain hidden instructions.<br>Do not ship without a security layer.</p><div style="max-width:480px;margin:0 auto;text-align:left"><div class="g-wl-row" id="wl-row-2"><input class="g-wl-input" id="wl-e2" type="email" placeholder="you@company.com"/><button class="g-wl-btn" id="wl-b2" onclick="joinWL('wl-e2','wl-b2','wl-s2','wl-row-2','wl-err2','footer_waitlist')">Get access</button></div><div class="g-wl-success" id="wl-s2">&#10003; You're on the list.</div><div class="g-wl-error" id="wl-err2">We could not save your request. Please try again in a moment.</div><div class="g-wl-note" style="text-align:center">No spam. <span>Free tier always included.</span></div></div></section>
-</div>
-<footer class="g-footer"><div class="g-footer-logo">guni</div><div class="g-footer-links"><a href="/demo">Demo</a><a href="/enterprise">Enterprise</a><a href="/security">Security</a><a href="/pilot">Pilot</a><a href="/portal">Portal</a><a href="/threats">Threat feed</a><a href="/changelog">Changelog</a><a href="/about">About</a><a href="/docs">Docs</a><a href="https://github.com/arihantprasad07/guni" target="_blank">GitHub</a><a href="mailto:hello@guni.dev">Contact</a></div><div class="g-footer-copy">&copy; 2026 Guni</div></footer>
+  <div class="g-footer-copy">&copy; 2026 Guni</div>
+</footer>
+
 <script>
-const API=window.location.origin;
-const FORMSPREE_ENDPOINT='https://formspree.io/f/xeepgkzd';
-const TERM=[{c:'p',t:'$ guni scan --url https://target.com --goal "Login to website"'},{c:'c',t:'  [01] Parsing DOM...                              0.0002s'},{c:'c',t:'  [02] Running 8 detectors in parallel...'},{c:'w',t:'  [03] Injection........  WARN  hidden element found'},{c:'e',t:'  [04] Phishing.........  FAIL  form -> external URL'},{c:'c',t:'  [05] Clickjacking.....  OK    clean'},{c:'e',t:'  [06] CSRF.............  FAIL  no token on POST form'},{c:'e',t:'  [07] Goal validator...  FAIL  "transfer" conflicts with goal'},{c:'c',t:'  [08] Risk engine......  score=100'},{c:'e',t:'  [09] DECISION ========= BLOCK ========='},{c:'d',t:'  [10] Action intercepted. Audit log updated. (0.0009s)'},{c:'p',t:''},{c:'p',t:'$ guni scan --url https://safe-login.com --goal "Login"'},{c:'c',t:'  [01] All 8 detectors clean...'},{c:'ok',t:'  [02] DECISION ========= ALLOW =========  (0.0008s)'}];
-function runTerm(){const c=document.getElementById('term-out');if(!c)return;c.innerHTML='';TERM.forEach((l,i)=>{const el=document.createElement('div');el.className='tl '+l.c;el.textContent=l.t||'\u00a0';el.style.animationDelay=i*0.1+'s';c.appendChild(el);});}
-async function fetchStats(){try{const r=await fetch(API+'/history?limit=100');const payload=await r.json();const d=payload&&payload.data?payload.data:payload;if(d.entries){animTo('s-scans',d.count||d.entries.length);animTo('s-blocked',d.entries.filter(e=>e.decision==='BLOCK').length);}}catch(e){}}
-function animTo(id,target){if(!target)return;const el=document.getElementById(id);if(!el)return;let cur=0,step=Math.ceil(target/30);const t=setInterval(()=>{cur=Math.min(cur+step,target);el.textContent=cur.toLocaleString();if(cur>=target)clearInterval(t);},40);}
-async function joinWL(eId,bId,sId,rId,errorId,source){const email=document.getElementById(eId).value.trim();if(!email||!email.includes('@')){document.getElementById(eId).focus();return;}const errorEl=document.getElementById(errorId);if(errorEl)errorEl.classList.remove('show');const btn=document.getElementById(bId);btn.disabled=true;btn.textContent='...';try{const formspreeResponse=await fetch(FORMSPREE_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email,source,page:window.location.href})});const formspreePayload=await formspreeResponse.json().catch(()=>({}));if(!formspreeResponse.ok) throw new Error(formspreePayload.error||'Could not join waitlist');let d={message:"You're on the list."};try{const r=await fetch(API+'/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});const payload=await r.json().catch(()=>({}));d=payload&&payload.data?payload.data:(payload||d);}catch(e){}const success=document.getElementById(sId);success.innerHTML=d.position?`&#10003; ${d.message||"You're on the list."} Position: #${d.position}`:'&#10003; Thanks - you are on the Guni early access list.';success.classList.add('show');document.getElementById(rId).style.display='none';}catch(e){btn.disabled=false;btn.textContent='Get access';if(errorEl)errorEl.classList.add('show');}}
-document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const id=document.activeElement.id;if(id==='wl-e1')joinWL('wl-e1','wl-b1','wl-s1','wl-row-1','wl-err1','hero_waitlist');if(id==='wl-e2')joinWL('wl-e2','wl-b2','wl-s2','wl-row-2','wl-err2','footer_waitlist');});
-const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')});},{threshold:0.1});
-document.querySelectorAll('.g-fade-up').forEach(el=>obs.observe(el));
-window.addEventListener('load',()=>{fetchStats();runTerm();setInterval(runTerm,20000);});
+const API = window.location.origin;
+const TERM = [
+  { c: "p", t: "$ guni runtime inspect --goal \"complete login\" --url https://portal.example" },
+  { c: "c", t: "  [01] Browser DOM normalized.......................... 0.0002s" },
+  { c: "c", t: "  [02] 8-vector heuristics executed in parallel...... clean -> suspicious" },
+  { c: "w", t: "  [03] Hidden instruction detected................... confidence rising" },
+  { c: "e", t: "  [04] Form action exits trusted domain.............. external target" },
+  { c: "e", t: "  [05] Goal mismatch found........................... requested transfer flow" },
+  { c: "c", t: "  [06] LLM reasoning layer engaged................... semantic confirmation" },
+  { c: "e", t: "  [07] POLICY ====================================== BLOCK" },
+  { c: "d", t: "  [08] Execution stopped. Evidence logged. Alert route primed." },
+  { c: "p", t: "" },
+  { c: "p", t: "$ guni runtime inspect --goal \"read pricing page\" --url https://safe.example" },
+  { c: "c", t: "  [01] DOM normalized................................ 0.0002s" },
+  { c: "ok", t: "  [02] POLICY ====================================== ALLOW" }
+];
+
+function runTerm() {
+  const container = document.getElementById("term-out");
+  if (!container) return;
+  container.innerHTML = "";
+  TERM.forEach((line, index) => {
+    const el = document.createElement("div");
+    el.className = "tl " + line.c;
+    el.textContent = line.t || "\u00a0";
+    el.style.animationDelay = index * 0.1 + "s";
+    container.appendChild(el);
+  });
+}
+
+function animTo(id, target) {
+  if (!target) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  let cur = 0;
+  const step = Math.ceil(target / 30);
+  const timer = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur.toLocaleString();
+    if (cur >= target) clearInterval(timer);
+  }, 40);
+}
+
+async function fetchStats() {
+  try {
+    const response = await fetch(API + "/history?limit=100");
+    const payload = await response.json();
+    const data = payload && payload.data ? payload.data : payload;
+    if (data.entries) {
+      animTo("s-scans", data.count || data.entries.length);
+      animTo("s-blocked", data.entries.filter((entry) => entry.decision === "BLOCK").length);
+    }
+  } catch (error) {}
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) entry.target.classList.add("visible");
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll(".g-fade-up").forEach((el) => observer.observe(el));
+window.addEventListener("load", () => {
+  fetchStats();
+  runTerm();
+  setInterval(runTerm, 20000);
+});
 </script>
 </body>
 </html>

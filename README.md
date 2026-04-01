@@ -73,6 +73,19 @@ print(result["decision"])
 print(result["evidence"])
 ```
 
+Bring your own LLM provider when you want semantic reasoning:
+
+```python
+result = scan(
+    html=page_html,
+    goal="Login to website",
+    llm=True,
+    llm_api_key="your-provider-key",
+    llm_provider="openai",
+    llm_model="gpt-4.1-mini",
+)
+```
+
 ## API quickstart
 
 ```bash

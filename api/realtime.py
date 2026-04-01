@@ -10,6 +10,7 @@ Usage:
 """
 
 import json
+import os
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -39,8 +40,8 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
     Agent sends page HTML, Guni streams back threat analysis.
     """
     from guni import GuniScanner
-    import os
     from api.auth import verify_api_key_for_connection
+    from api.services.scan_api import get_default_llm_api_key
 
     try:
         api_key = verify_api_key_for_connection(websocket)
@@ -52,7 +53,10 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
 
     scanner = GuniScanner(
         goal=goal,
-        api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        llm_api_key=get_default_llm_api_key(),
+        llm_provider=os.environ.get("GUNI_LLM_PROVIDER", ""),
+        llm_model=os.environ.get("GUNI_LLM_MODEL", ""),
+        llm_base_url=os.environ.get("GUNI_LLM_BASE_URL", ""),
         tracking_key=api_key,
     )
 
@@ -78,6 +82,10 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
             html    = data.get("html", "")
             url     = data.get("url", "")
             pg_goal = data.get("goal", goal)
+            llm_api_key = data.get("llm_api_key")
+            llm_provider = data.get("llm_provider")
+            llm_model = data.get("llm_model")
+            llm_base_url = data.get("llm_base_url")
 
             if not html:
                 await websocket.send_json({
@@ -95,6 +103,14 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
             # Run scan
             if pg_goal != scanner.goal:
                 scanner.goal = pg_goal
+            if llm_api_key is not None:
+                scanner.api_key = llm_api_key
+            if llm_provider is not None:
+                scanner.llm_provider = llm_provider
+            if llm_model is not None:
+                scanner.llm_model = llm_model
+            if llm_base_url is not None:
+                scanner.llm_base_url = llm_base_url
 
             result = scanner.scan(html=html, url=url)
 

@@ -10,11 +10,15 @@ from typing import Optional
 # ── Requests ──────────────────────────────────────────────────────────────────
 
 class ScanRequest(BaseModel):
-    """POST /scan — scan raw HTML"""
+    """POST /scan - scan raw HTML"""
     html: str = Field(..., description="Raw HTML content of the page to scan")
     goal: str = Field("browse website", description="Agent's declared objective")
     url:  str = Field("",               description="Source URL (for logging)")
     llm:  bool = Field(False,           description="Force LLM analysis even if heuristics are clean")
+    llm_api_key: Optional[str] = Field(None, description="Bring-your-own LLM API key for this scan")
+    llm_provider: Optional[str] = Field(None, description="anthropic | openai | gemini | openai_compatible")
+    llm_model: Optional[str] = Field(None, description="Model name to use for LLM reasoning")
+    llm_base_url: Optional[str] = Field(None, description="Custom OpenAI-compatible base URL")
 
     model_config = {
         "json_schema_extra": {
@@ -23,16 +27,22 @@ class ScanRequest(BaseModel):
                 "goal": "Login to website",
                 "url":  "https://example.com/login",
                 "llm":  False,
+                "llm_provider": "openai",
+                "llm_model": "gpt-4.1-mini",
             }
         }
     }
 
 
 class ScanURLRequest(BaseModel):
-    """POST /scan/url — fetch and scan a URL"""
+    """POST /scan/url - fetch and scan a URL"""
     url:  str  = Field(...,               description="URL to fetch and scan")
     goal: str  = Field("browse website",  description="Agent's declared objective")
     llm:  bool = Field(False,             description="Force LLM analysis")
+    llm_api_key: Optional[str] = Field(None, description="Bring-your-own LLM API key for this scan")
+    llm_provider: Optional[str] = Field(None, description="anthropic | openai | gemini | openai_compatible")
+    llm_model: Optional[str] = Field(None, description="Model name to use for LLM reasoning")
+    llm_base_url: Optional[str] = Field(None, description="Custom OpenAI-compatible base URL")
 
     model_config = {
         "json_schema_extra": {
@@ -40,6 +50,8 @@ class ScanURLRequest(BaseModel):
                 "url":  "https://example.com",
                 "goal": "Extract product prices",
                 "llm":  False,
+                "llm_provider": "gemini",
+                "llm_model": "gemini-2.0-flash",
             }
         }
     }
@@ -68,6 +80,8 @@ class LLMAnalysis(BaseModel):
     safe:         bool
     summary:      str
     llm_latency:  float            = Field(0, description="LLM call time in seconds")
+    provider:     Optional[str]    = Field(None, description="Resolved LLM provider used for the analysis")
+    model:        Optional[str]    = Field(None, description="Resolved LLM model used for the analysis")
     error:        Optional[str]    = None
 
 

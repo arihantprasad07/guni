@@ -6,7 +6,9 @@ Run (heuristics only):
     python demo_llm.py
 
 Run (with LLM layer):
-    set ANTHROPIC_API_KEY=sk-ant-...
+    set GUNI_LLM_PROVIDER=openai
+    set GUNI_LLM_MODEL=gpt-4.1-mini
+    set GUNI_LLM_API_KEY=your-key
     python demo_llm.py
 
 The LLM layer catches reworded attacks that bypass keyword matching.
@@ -23,7 +25,9 @@ BOLD   = "\033[1m"
 DIM    = "\033[2m"
 RESET  = "\033[0m"
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+API_KEY = os.environ.get("GUNI_LLM_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
+LLM_PROVIDER = os.environ.get("GUNI_LLM_PROVIDER", "")
+LLM_MODEL = os.environ.get("GUNI_LLM_MODEL", "")
 
 # ── Test cases ────────────────────────────────────────────────────────────────
 # Each case has a name, html, goal, and what we expect each layer to do
@@ -122,7 +126,7 @@ def main():
     mode = f"{CYAN}heuristics + LLM{RESET}" if llm_available else f"{YELLOW}heuristics only{RESET}"
     print(f"  Mode: {mode}")
     if not llm_available:
-        print(f"  {DIM}Set ANTHROPIC_API_KEY to enable LLM layer{RESET}")
+        print(f"  {DIM}Set GUNI_LLM_API_KEY to enable the LLM layer{RESET}")
     print(f"{'='*65}")
 
     for i, tc in enumerate(TEST_CASES, 1):
@@ -133,7 +137,9 @@ def main():
         result = scan(
             html=tc["html"],
             goal=tc["goal"],
-            api_key=API_KEY if llm_available else None,
+            llm_api_key=API_KEY if llm_available else None,
+            llm_provider=LLM_PROVIDER or None,
+            llm_model=LLM_MODEL or None,
         )
 
         # Show heuristic-only result
