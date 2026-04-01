@@ -198,11 +198,11 @@
             <div class="scan-row">
               <button class="g-btn g-btn-primary" id="scan-btn" type="button">Run scan</button>
               <button class="g-btn g-btn-outline" id="reset-btn" type="button">Reset preset</button>
-              <span class="scan-note" id="scan-note">Uses the deployed `/scan` endpoint and unwraps API responses automatically.</span>
+              <span class="scan-note" id="scan-note">Demo history stays in this session only. Aggregate threat-feed counts are stored globally and update live.</span>
             </div>
 
             <div class="studio-note">
-              Use this as your pre-commit smoke test: paste risky DOM, confirm the policy decision, then ship the change to GitHub and Railway.
+              Demo-triggered scans stay out of shared history tables, but they still contribute to the permanent live threat feed for global threat visibility.
             </div>
 
             <div class="result-shell" id="result-panel" style="margin-top:1rem"></div>
@@ -395,6 +395,8 @@ const apiKeyInput = document.getElementById("apikey-in");
 const presetRow = document.getElementById("preset-row");
 const resultPanel = document.getElementById("result-panel");
 const analyzePanel = document.getElementById("analyze-result");
+const THREAT_FEED_SIGNAL_KEY = "guni_threat_feed_refresh";
+const threatFeedChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("guni-threat-feed") : null;
 
 function loadDemoHistoryState() {
   try {
@@ -415,6 +417,18 @@ function appendDemoHistoryEntry(entry) {
   entries.unshift(entry);
   saveDemoHistoryState(entries);
   renderHistory(loadDemoHistoryState());
+}
+
+function notifyThreatFeedRefresh() {
+  const stamp = String(Date.now());
+  try {
+    localStorage.setItem(THREAT_FEED_SIGNAL_KEY, stamp);
+  } catch (error) {
+    // Ignore local storage write failures.
+  }
+  if (threatFeedChannel) {
+    threatFeedChannel.postMessage({ type: "refresh", at: stamp });
+  }
 }
 
 function esc(value) {
@@ -584,6 +598,7 @@ async function runScan() {
       decision: data.decision || "ALLOW",
       latency: data.total_latency || 0,
     });
+    notifyThreatFeedRefresh();
   } catch (error) {
     note.textContent = "Scan failed.";
     showError(resultPanel, "API offline", error.message || "Could not reach /scan.");
@@ -654,7 +669,7 @@ function renderHistory(entries) {
 
   if (!entries.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No scans yet. Run one from the scan studio.</td></tr>';
-    status.textContent = "No recent scan history";
+    status.textContent = "No session demo history";
     updateTopMetrics(entries);
     return;
   }
@@ -673,29 +688,11 @@ function renderHistory(entries) {
     `;
   }).join("");
 
-  status.textContent = `Loaded ${entries.length} recent scan decisions`;
+  status.textContent = `Showing ${entries.length} session-only demo decisions`;
   updateTopMetrics(entries);
 }
 
 async function loadHistory() {
-  const status = document.getElementById("history-status");
-  const headers = {};
-  if (apiKeyInput.value.trim()) {
-    headers["X-API-Key"] = apiKeyInput.value.trim();
-  }
-
-  try {
-    const data = await requestJson(`/history?limit=20`, { headers });
-    const entries = Array.isArray(data.entries) ? data.entries : [];
-    if (entries.length) {
-      status.textContent = "Loaded API-backed scan history";
-      renderHistory(entries);
-      return;
-    }
-  } catch (error) {
-    status.textContent = "Falling back to session demo history";
-  }
-
   renderHistory(loadDemoHistoryState());
 }
 
@@ -732,9 +729,6 @@ window.addEventListener("load", () => {
   selectPreset("safe");
   loadHistory();
 });
-
-apiKeyInput.addEventListener("change", loadHistory);
-apiKeyInput.addEventListener("blur", loadHistory);
 </script>
 </body>
 </html>

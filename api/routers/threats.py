@@ -72,7 +72,7 @@ async def threat_feed_stream(request: Request, once: bool = False):
                 if once:
                     break
 
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
 
     return StreamingResponse(
         event_generator(),

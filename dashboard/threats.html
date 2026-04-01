@@ -122,6 +122,8 @@
 
 <script>
 const API = window.location.origin;
+const THREAT_FEED_SIGNAL_KEY = 'guni_threat_feed_refresh';
+const threatFeedChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('guni-threat-feed') : null;
 const THREAT_LABELS = {
   injection: 'Prompt injection',
   phishing: 'Phishing forms',
@@ -265,12 +267,37 @@ function startFeedStream() {
   };
 }
 
+function registerDemoRefreshSignals() {
+  if (threatFeedChannel) {
+    threatFeedChannel.addEventListener('message', async (event) => {
+      if (event?.data?.type !== 'refresh') return;
+      try {
+        await loadFeedSnapshot();
+        setText('feed-status', 'Live feed updated from latest demo scan');
+      } catch (error) {
+        // Ignore local refresh failures and let the stream retry normally.
+      }
+    });
+  }
+
+  window.addEventListener('storage', async (event) => {
+    if (event.key !== THREAT_FEED_SIGNAL_KEY || !event.newValue) return;
+    try {
+      await loadFeedSnapshot();
+      setText('feed-status', 'Live feed updated from latest demo scan');
+    } catch (error) {
+      // Ignore local refresh failures and let the stream retry normally.
+    }
+  });
+}
+
 document.getElementById('copy-feed-link')?.addEventListener('click', async () => {
   await navigator.clipboard.writeText(window.location.href);
 });
 
 window.addEventListener('load', () => {
   startFeedStream();
+  registerDemoRefreshSignals();
 });
 </script>
 </body>
