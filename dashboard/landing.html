@@ -31,7 +31,7 @@ section{
 .big-quote blockquote,
 .mission-panel h2{
   color:var(--text);
-  text-shadow:0 2px 22px rgba(0,0,0,0.2);
+  text-shadow:0 2px 12px rgba(0,0,0,0.12);
 }
 .g-subtitle,
 .hero-sub,
@@ -41,7 +41,7 @@ section{
 .ecosystem-card p,
 .big-quote p,
 .cta-band p{
-  color:#aeb0cb;
+  color:#9ea5c8;
 }
 [id]{
   scroll-margin-top:88px;
@@ -52,9 +52,9 @@ section{
   inset:0;
   pointer-events:none;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.03), transparent 18%),
-    linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+    linear-gradient(180deg, rgba(255,255,255,0.012), transparent 18%),
+    linear-gradient(90deg, rgba(245,166,35,0.016) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(245,166,35,0.016) 1px, transparent 1px);
   background-size:auto, 120px 120px, 120px 120px;
   mask-image:radial-gradient(circle at center, black 45%, transparent 100%);
   z-index:0;
@@ -293,7 +293,7 @@ section{
 }
 .thesis-copy{
   font-size:12px;
-  color:var(--muted3);
+  color:#a1a8ca;
   line-height:1.8;
 }
 .mission-band{
@@ -305,7 +305,7 @@ section{
 .mission-panel{
   padding:1.4rem;
   border:1px solid var(--border2);
-  background:linear-gradient(135deg, rgba(245,166,35,0.08), rgba(74,158,255,0.04));
+  background:linear-gradient(180deg, rgba(16,16,22,0.96), rgba(9,9,13,0.96));
 }
 .mission-panel h2{
   font-family:var(--display);
@@ -316,7 +316,7 @@ section{
 .mission-panel p{
   max-width:62ch;
   font-size:13px;
-  color:var(--muted3);
+  color:#9ea5c8;
   line-height:1.85;
 }
 .mission-list{
@@ -326,7 +326,7 @@ section{
 .mission-item{
   padding:1rem 1.05rem;
   border:1px solid var(--border);
-  background:rgba(255,255,255,0.03);
+  background:rgba(10,10,14,0.94);
 }
 .mission-item strong{
   display:block;
@@ -364,7 +364,7 @@ section{
 }
 .platform-card p,.command-card p,.ecosystem-card p{
   font-size:12px;
-  color:var(--muted3);
+  color:#a1a8ca;
   line-height:1.85;
 }
 .platform-stack{
@@ -389,7 +389,7 @@ section{
 }
 .stack-row span{
   font-size:12px;
-  color:var(--muted3);
+  color:#a1a8ca;
   line-height:1.7;
 }
 .live-panel{
@@ -436,7 +436,7 @@ section{
 .big-quote blockquote span{color:var(--amber)}
 .big-quote p{
   font-size:13px;
-  color:var(--muted3);
+  color:#a1a8ca;
   line-height:1.85;
 }
 .cta-band{
@@ -574,10 +574,11 @@ section{
             </div>
             <div class="control-body">
               <div class="status-line"><strong>Agent goal</strong><span>Complete login and proceed to dashboard</span></div>
-              <div class="status-line"><strong>Page risk</strong><span class="block">88 / BLOCK</span></div>
-              <div class="status-line"><strong>Primary threat</strong><span>Hidden prompt injection + phishing action</span></div>
-              <div class="status-line"><strong>Action path</strong><span class="warn">Execution intercepted before submit</span></div>
-              <div class="status-line"><strong>Audit output</strong><span class="good">Evidence captured and persisted</span></div>
+              <div class="status-line"><strong>Feed status</strong><span class="good" id="feed-status-line">Connecting to live feed</span></div>
+              <div class="status-line"><strong>Page risk</strong><span class="block" id="feed-risk-line">0 / ALLOW</span></div>
+              <div class="status-line"><strong>Primary threat</strong><span id="feed-threat-line">Waiting for public signal</span></div>
+              <div class="status-line"><strong>Action path</strong><span class="warn" id="feed-action-line">Evaluating public feed</span></div>
+              <div class="status-line"><strong>Audit output</strong><span class="good" id="feed-updated-line">Waiting for snapshot</span></div>
             </div>
           </div>
 
@@ -737,6 +738,19 @@ section{
 <script>
 const API = window.location.origin;
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let feedSource = null;
+let fallbackPoll = null;
+const THREAT_LABELS = {
+  injection: "Prompt injection",
+  phishing: "Phishing forms",
+  goal_mismatch: "Goal hijacking",
+  clickjacking: "Clickjacking",
+  csrf: "CSRF and token theft",
+  deception: "UI deception",
+  scripts: "Malicious scripts",
+  redirect: "Open redirects",
+  none: "No dominant threat yet",
+};
 const TERM = [
   { c: "p", t: "$ guni runtime inspect --goal \"complete login\" --url https://portal.example" },
   { c: "c", t: "  [01] Browser DOM normalized.......................... 0.0002s" },
@@ -767,11 +781,14 @@ function runTerm() {
 }
 
 function animTo(id, target) {
-  if (!target) return;
   const el = document.getElementById(id);
   if (!el) return;
+  if (target <= 0) {
+    el.textContent = "0";
+    return;
+  }
   let cur = 0;
-  const step = Math.ceil(target / 30);
+  const step = Math.max(1, Math.ceil(target / 30));
   const timer = setInterval(() => {
     cur = Math.min(cur + step, target);
     el.textContent = cur.toLocaleString();
@@ -779,16 +796,64 @@ function animTo(id, target) {
   }, 40);
 }
 
-async function fetchStats() {
-  try {
-    const response = await fetch(API + "/history?limit=100");
-    const payload = await response.json();
-    const data = payload && payload.data ? payload.data : payload;
-    if (data.entries) {
-      animTo("s-scans", data.count || data.entries.length);
-      animTo("s-blocked", data.entries.filter((entry) => entry.decision === "BLOCK").length);
+function setText(id, value) {
+  const node = document.getElementById(id);
+  if (node) node.textContent = value;
+}
+
+function applyFeedSnapshot(stats) {
+  const totalScans = Number(stats.total_scans || 0);
+  const blocked = Number(stats.total_blocked || 0);
+  const blockRate = Number(stats.block_rate || 0);
+  const topThreat = THREAT_LABELS[stats.top_threat] || "No dominant threat yet";
+  const riskLabel = blocked > 0 ? "BLOCK" : "ALLOW";
+  const riskValue = blocked > 0 ? Math.min(100, Math.max(70, Math.round(blockRate || 70))) : 0;
+
+  animTo("s-scans", totalScans);
+  animTo("s-blocked", blocked);
+  setText("feed-status-line", "Streaming public threat feed");
+  setText("feed-risk-line", `${riskValue} / ${riskLabel}`);
+  setText("feed-threat-line", topThreat);
+  setText("feed-action-line", blocked > 0 ? `${blocked.toLocaleString()} blocked events reflected` : "No blocked events reflected yet");
+  setText("feed-updated-line", `Updated ${new Date().toLocaleTimeString()}`);
+}
+
+async function loadFeedSnapshot() {
+  const response = await fetch(`${API}/threats/feed`);
+  const payload = await response.json();
+  applyFeedSnapshot(payload?.data || payload || {});
+}
+
+function startFeedStream() {
+  if (feedSource) feedSource.close();
+  feedSource = new EventSource(`${API}/threats/stream`);
+
+  feedSource.addEventListener("snapshot", (event) => {
+    applyFeedSnapshot(JSON.parse(event.data || "{}"));
+  });
+
+  feedSource.addEventListener("heartbeat", () => {
+    setText("feed-status-line", "Streaming public threat feed");
+  });
+
+  feedSource.onerror = async () => {
+    setText("feed-status-line", "Feed stream interrupted");
+    if (!fallbackPoll) {
+      try {
+        await loadFeedSnapshot();
+      } catch (error) {
+        setText("feed-status-line", "Public feed unavailable");
+        setText("feed-action-line", "Could not read the threat feed right now");
+      }
+      fallbackPoll = window.setInterval(async () => {
+        try {
+          await loadFeedSnapshot();
+        } catch (error) {
+          setText("feed-status-line", "Public feed unavailable");
+        }
+      }, 30000);
     }
-  } catch (error) {}
+  };
 }
 
 function setupMobileNav() {
@@ -855,7 +920,7 @@ document.querySelectorAll(".g-fade-up").forEach((el) => observer.observe(el));
 window.addEventListener("load", () => {
   setupMobileNav();
   setupPointerDepth();
-  fetchStats();
+  startFeedStream();
   runTerm();
   setInterval(runTerm, 20000);
 });
