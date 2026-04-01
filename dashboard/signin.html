@@ -2,21 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Sign in — Guni</title>
+<title>Sign in | Guni</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
-.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem var(--pad)}
-.auth-card{width:100%;max-width:400px}
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:2rem var(--pad)}
+.auth-card{width:100%;max-width:460px;background:linear-gradient(180deg, rgba(15,19,27,0.94), rgba(9,12,18,0.92));border:1px solid var(--border2);border-radius:24px;box-shadow:var(--shadow-lg);padding:1.5rem}
 .auth-logo{font-family:var(--display);font-size:28px;font-weight:800;color:var(--amber);letter-spacing:-0.04em;margin-bottom:2rem;display:block;text-decoration:none}
 .auth-logo em{color:var(--muted2);font-style:normal;font-weight:400;font-size:18px}
-.auth-title{font-family:var(--display);font-size:1.8rem;font-weight:700;margin-bottom:0.5rem;letter-spacing:-0.03em}
-.auth-sub{font-size:13px;color:var(--muted2);margin-bottom:2rem;line-height:1.7}
+.auth-title{font-family:var(--display);font-size:1.9rem;font-weight:700;margin-bottom:0.5rem;letter-spacing:-0.03em}
+.auth-sub{font-size:13px;color:var(--muted2);margin-bottom:1.5rem;line-height:1.8}
 .auth-form{display:flex;flex-direction:column;gap:1rem}
 .field{display:flex;flex-direction:column;gap:5px}
-.err{font-size:12px;color:var(--red);padding:10px 14px;border:1px solid rgba(240,64,64,0.2);background:var(--red2);display:none}
+.err{font-size:12px;color:var(--red);padding:10px 14px;border:1px solid rgba(240,64,64,0.2);background:var(--red2);display:none;border-radius:14px}
 .err.show{display:block}
-.ok{font-size:12px;color:var(--green);padding:10px 14px;border:1px solid rgba(0,217,126,0.2);background:rgba(0,217,126,0.06);display:none}
+.ok{font-size:12px;color:var(--green);padding:10px 14px;border:1px solid rgba(0,217,126,0.2);background:rgba(0,217,126,0.06);display:none;border-radius:14px}
 .ok.show{display:block}
 .auth-footer{margin-top:1.5rem;font-size:12px;color:var(--muted2);text-align:center;line-height:2}
 .auth-footer a{color:var(--amber);text-decoration:none}
@@ -31,13 +31,13 @@
 <div class="auth-wrap">
   <div class="auth-card">
     <a class="auth-logo" href="/">guni<em>.dev</em></a>
+    <div class="g-tag g-tag-amber" style="margin-bottom:1rem">Customer workspace</div>
     <h1 class="auth-title">Welcome back</h1>
-    <p class="auth-sub">Sign in to your Guni account to access your API key and portal.</p>
+    <p class="auth-sub">Sign in to access your portal, issued API key, usage analytics, and deployment controls.</p>
 
     <div id="verified-msg" class="ok" style="margin-bottom:1rem"></div>
 
     <div class="auth-form">
-
       <div class="field">
         <label class="g-field-label">Email</label>
         <input class="g-input" type="email" id="email" placeholder="you@company.com" autocomplete="email"/>
@@ -54,137 +54,130 @@
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
       <button class="g-btn g-btn-outline inline-action" id="resend-btn" type="button">Resend verification email</button>
-
       <button class="g-btn g-btn-primary" id="signin-btn" style="padding:13px;font-size:13px" onclick="signin(this)">Sign in</button>
-
     </div>
 
     <div class="auth-footer">
-      Don't have an account? <a href="/signup">Sign up free</a><br/>
-      <a href="/#waitlist">Join waitlist for Starter plan</a>
+      Do not have an account? <a href="/signup">Create one</a><br/>
+      <a href="/#waitlist">Join the pilot waitlist</a>
     </div>
   </div>
 </div>
 
 <script>
-// Show verified message if redirected from email verification
 const params = new URLSearchParams(window.location.search);
-if (params.get('verified')) {
-  const msg = document.getElementById('verified-msg');
-  msg.textContent = '✓ Email verified! You can now sign in.';
-  msg.classList.add('show');
+if (params.get("verified")) {
+  const msg = document.getElementById("verified-msg");
+  msg.textContent = "Email verified. You can sign in now.";
+  msg.classList.add("show");
 }
 
 function apiErrorMessage(payload, fallback) {
   if (!payload) return fallback;
-  if (typeof payload === 'string') return payload;
+  if (typeof payload === "string") return payload;
   if (payload.error) return payload.error;
-  if (typeof payload.detail === 'string') return payload.detail;
+  if (typeof payload.detail === "string") return payload.detail;
   if (Array.isArray(payload.detail) && payload.detail.length) {
-    return payload.detail.map(item => item.msg || item.message || String(item)).join(', ');
+    return payload.detail.map(item => item.msg || item.message || String(item)).join(", ");
   }
   if (payload.message) return payload.message;
   return fallback;
 }
 
 async function signin(btnEl) {
-  const email    = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const err      = document.getElementById('err');
-  const ok       = document.getElementById('ok');
-  const resend   = document.getElementById('resend-btn');
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const err = document.getElementById("err");
+  const ok = document.getElementById("ok");
+  const resend = document.getElementById("resend-btn");
+  err.classList.remove("show");
+  ok.classList.remove("show");
+  resend.classList.remove("show");
 
-  err.classList.remove('show');
-  ok.classList.remove('show');
-  resend.classList.remove('show');
+  if (!email || !password) {
+    err.textContent = "Enter your email and password.";
+    err.classList.add("show");
+    return;
+  }
 
-  if (!email || !password) { err.textContent = 'Enter your email and password.'; err.classList.add('show'); return; }
-
-  const btn = btnEl || document.getElementById('signin-btn');
-  btn.disabled = true; btn.textContent = 'Signing in...';
+  const btn = btnEl || document.getElementById("signin-btn");
+  btn.disabled = true;
+  btn.textContent = "Signing in...";
 
   try {
-    const r = await fetch('/auth/signin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const r = await fetch("/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
-      credentials: 'include',
+      credentials: "include",
     });
     const payload = await r.json();
     const d = payload && payload.data ? payload.data : payload;
-
     if (!r.ok) {
-      const message = apiErrorMessage(payload, 'Invalid email or password.');
+      const message = apiErrorMessage(payload, "Invalid email or password.");
       err.textContent = message;
-      err.classList.add('show');
-      if (message.toLowerCase().includes('verify your email')) {
-        resend.classList.add('show');
-      }
+      err.classList.add("show");
+      if (message.toLowerCase().includes("verify your email")) resend.classList.add("show");
       return;
     }
 
-    // Store session and API key in localStorage for portal use
-    localStorage.setItem('guni_email',   d.email);
-    localStorage.setItem('guni_plan',    d.plan);
-    localStorage.setItem('guni_role',    d.role || 'owner');
-    localStorage.setItem('guni_api_key', d.api_key || '');
-    localStorage.setItem('guni_session', d.session || '');
+    localStorage.setItem("guni_email", d.email);
+    localStorage.setItem("guni_plan", d.plan);
+    localStorage.setItem("guni_role", d.role || "owner");
+    localStorage.setItem("guni_api_key", d.api_key || "");
+    localStorage.setItem("guni_session", d.session || "");
 
-    ok.textContent = '✓ Signed in! Redirecting to your portal...';
-    ok.classList.add('show');
-
-    const target = d.is_owner ? '/owner' : '/portal';
-    ok.textContent = d.is_owner ? 'Signed in. Redirecting to your owner console...' : 'Signed in. Redirecting to your portal...';
-    setTimeout(() => window.location.href = target, 1000);
-
-  } catch(e) {
-    err.textContent = 'Could not connect. Try again.';
-    err.classList.add('show');
+    ok.textContent = d.is_owner ? "Signed in. Redirecting to your owner console..." : "Signed in. Redirecting to your workspace...";
+    ok.classList.add("show");
+    setTimeout(() => window.location.href = d.is_owner ? "/owner" : "/portal", 1000);
+  } catch (e) {
+    err.textContent = "Could not connect. Try again.";
+    err.classList.add("show");
   } finally {
-    btn.disabled = false; btn.textContent = 'Sign in';
+    btn.disabled = false;
+    btn.textContent = "Sign in";
   }
 }
 
 async function resendVerification() {
-  const email = document.getElementById('email').value.trim();
-  const err = document.getElementById('err');
-  const ok = document.getElementById('ok');
-  const btn = document.getElementById('resend-btn');
-  if (!email || !email.includes('@')) {
-    err.textContent = 'Enter your email first.';
-    err.classList.add('show');
+  const email = document.getElementById("email").value.trim();
+  const err = document.getElementById("err");
+  const ok = document.getElementById("ok");
+  const btn = document.getElementById("resend-btn");
+  if (!email || !email.includes("@")) {
+    err.textContent = "Enter your email first.";
+    err.classList.add("show");
     return;
   }
-
-  err.classList.remove('show');
-  ok.classList.remove('show');
+  err.classList.remove("show");
+  ok.classList.remove("show");
   btn.disabled = true;
-  btn.textContent = 'Sending...';
+  btn.textContent = "Sending...";
   try {
-    const response = await fetch('/auth/resend-verification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      err.textContent = apiErrorMessage(payload, 'Could not resend verification email.');
-      err.classList.add('show');
+      err.textContent = apiErrorMessage(payload, "Could not resend verification email.");
+      err.classList.add("show");
       return;
     }
-    ok.textContent = 'If your account exists and is still unverified, a new verification email is on the way.';
-    ok.classList.add('show');
+    ok.textContent = "If your account exists and is still unverified, a new verification email is on the way.";
+    ok.classList.add("show");
   } catch (error) {
-    err.textContent = 'Could not resend verification email right now.';
-    err.classList.add('show');
+    err.textContent = "Could not resend verification email right now.";
+    err.classList.add("show");
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Resend verification email';
+    btn.textContent = "Resend verification email";
   }
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Enter') signin(); });
-document.getElementById('resend-btn').addEventListener('click', resendVerification);
+document.addEventListener("keydown", (e) => { if (e.key === "Enter") signin(); });
+document.getElementById("resend-btn").addEventListener("click", resendVerification);
 </script>
 </body>
 </html>

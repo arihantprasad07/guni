@@ -3,154 +3,62 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="Guni is the security control plane for the agentic web. Inspect browser-agent execution before it clicks, submits, or leaks anything dangerous."/>
-<title>Guni - Security Control Plane for the Agentic Web</title>
+<meta name="description" content="Guni is the runtime security layer for browser agents. Inspect pages, score risk, and block hostile actions before an AI workflow clicks or submits."/>
+<title>Guni | Runtime Security For Browser Agents</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
-.page-shell{
+.landing-shell{
   position:relative;
-  overflow-x:hidden;
-  background:
-    radial-gradient(circle at 12% 12%, rgba(245,166,35,0.14), transparent 22%),
-    radial-gradient(circle at 85% 8%, rgba(74,158,255,0.13), transparent 24%),
-    radial-gradient(circle at 50% 60%, rgba(0,217,126,0.06), transparent 34%);
+  overflow:hidden;
 }
-.g-wrap,
-main,
-section{
-  position:relative;
-  z-index:1;
-}
-.section-intro{
-  display:block;
-  padding:1rem 1.15rem 1.1rem;
-  margin-bottom:1.4rem;
-  border:1px solid rgba(245,166,35,0.16);
-  background:linear-gradient(180deg, rgba(12,12,18,0.9), rgba(10,10,14,0.82));
-  box-shadow:0 16px 38px rgba(0,0,0,0.14);
-}
-.g-title-md,
-.g-title,
-.hero-title,
-.platform-card h3,
-.command-card h3,
-.ecosystem-card h3,
-.big-quote blockquote,
-.mission-panel h2{
-  color:var(--text);
-  text-shadow:none;
-}
-.g-subtitle,
-.hero-sub,
-.mission-panel p,
-.platform-card p,
-.command-card p,
-.ecosystem-card p,
-.big-quote p,
-.cta-band p{
-  color:#b3b8d4;
-}
-[id]{
-  scroll-margin-top:88px;
-}
-.page-shell::before{
+.landing-shell::before{
   content:"";
   position:fixed;
   inset:0;
   pointer-events:none;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.006), transparent 18%),
-    linear-gradient(90deg, rgba(245,166,35,0.016) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(245,166,35,0.016) 1px, transparent 1px);
+    linear-gradient(180deg, rgba(255,255,255,0.01), transparent 20%),
+    linear-gradient(90deg, rgba(245,166,35,0.025) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(245,166,35,0.02) 1px, transparent 1px);
   background-size:auto, 120px 120px, 120px 120px;
   mask-image:radial-gradient(circle at center, black 45%, transparent 100%);
   z-index:0;
 }
 .hero{
   position:relative;
-  z-index:1;
-  min-height:100vh;
-  padding:clamp(5rem,10vh,8rem) 0 3rem;
+  min-height:calc(100vh - 60px);
   display:grid;
   align-items:center;
+  padding:4.5rem 0 2.5rem;
 }
-.mobile-nav-toggle{
-  display:none;
-  align-items:center;
-  justify-content:center;
-  width:40px;
-  height:40px;
-  border:1px solid var(--border2);
-  background:rgba(255,255,255,0.03);
-  color:var(--text);
-  cursor:pointer;
+.hero-grid,
+.platform-grid,
+.proof-grid,
+.journey-grid,
+.footer-cta{
   position:relative;
-}
-.mobile-nav-toggle span,
-.mobile-nav-toggle::before,
-.mobile-nav-toggle::after{
-  content:"";
-  display:block;
-  position:absolute;
-  width:16px;
-  height:1.5px;
-  background:currentColor;
-  transition:transform 0.2s ease, opacity 0.2s ease;
-}
-.mobile-nav-toggle::before{transform:translateY(-5px)}
-.mobile-nav-toggle::after{transform:translateY(5px)}
-.mobile-nav-toggle.open span{opacity:0}
-.mobile-nav-toggle.open::before{transform:rotate(45deg)}
-.mobile-nav-toggle.open::after{transform:rotate(-45deg)}
-.mobile-nav{
-  display:none;
-  position:fixed;
-  top:56px;
-  left:0;
-  right:0;
-  z-index:190;
-  padding:0.75rem var(--pad) 1rem;
-  background:rgba(7,7,10,0.96);
-  border-bottom:1px solid var(--border2);
-  backdrop-filter:blur(18px);
-}
-.mobile-nav.open{display:block}
-.mobile-nav-links{
-  display:grid;
-  gap:8px;
-}
-.mobile-nav-links a{
-  text-decoration:none;
-  color:var(--text);
-  font-size:12px;
-  letter-spacing:0.08em;
-  text-transform:uppercase;
-  padding:12px 14px;
-  border:1px solid var(--border);
-  background:rgba(255,255,255,0.02);
-}
-.mobile-nav-links a:hover{
-  border-color:var(--amber);
-  color:var(--amber);
+  z-index:1;
 }
 .hero-grid{
   display:grid;
-  grid-template-columns:minmax(0,1.18fr) minmax(320px,0.82fr);
+  grid-template-columns:minmax(0,1.2fr) minmax(320px,0.8fr);
   gap:1rem;
   align-items:stretch;
 }
-.hero-main,.hero-side,.mission-band,.platform-grid,.command-grid,.ecosystem-grid,.quote-strip{
-  position:relative;
-  z-index:1;
+.hero-main,
+.hero-side-card,
+.section-card,
+.proof-card,
+.journey-card,
+.footer-cta{
+  background:linear-gradient(180deg, rgba(15,19,27,0.94), rgba(9,12,18,0.92));
+  border:1px solid var(--border2);
+  border-radius:24px;
+  box-shadow:var(--shadow-lg);
 }
 .hero-main{
-  padding:clamp(1.6rem,3vw,2.5rem);
-  border:1px solid var(--border2);
-  background:linear-gradient(180deg, rgba(7,7,10,0.82), rgba(7,7,10,0.64));
-  box-shadow:0 30px 80px rgba(0,0,0,0.35);
-  transform:translate3d(0,0,0);
-  transition:transform 0.22s ease;
+  padding:clamp(1.5rem,3vw,2.5rem);
 }
 .hero-chip{
   display:inline-flex;
@@ -160,10 +68,11 @@ section{
   color:var(--amber);
   border:1px solid var(--border2);
   background:rgba(245,166,35,0.08);
-  padding:6px 14px;
+  padding:7px 14px;
   letter-spacing:0.1em;
   text-transform:uppercase;
-  margin-bottom:1.25rem;
+  border-radius:999px;
+  margin-bottom:1.2rem;
 }
 .hero-chip::before{
   content:"";
@@ -175,64 +84,77 @@ section{
 }
 .hero-title{
   font-family:var(--display);
-  font-size:clamp(3.4rem,8.6vw,7.8rem);
-  line-height:0.9;
+  font-size:clamp(3rem,8vw,7rem);
+  line-height:0.92;
   letter-spacing:-0.06em;
-  margin-bottom:1.25rem;
+  margin-bottom:1.15rem;
 }
-.hero-title .dim{display:block;color:var(--muted2);font-weight:500}
-.hero-title .accent{display:block;color:var(--amber)}
+.hero-title .dim{
+  display:block;
+  color:var(--muted2);
+  font-weight:500;
+}
+.hero-title .accent{
+  display:block;
+  color:var(--amber);
+}
 .hero-sub{
-  max-width:58ch;
-  font-size:clamp(14px,1.7vw,16px);
+  max-width:60ch;
+  font-size:15px;
   color:var(--muted3);
-  line-height:1.85;
-  margin-bottom:1.8rem;
+  line-height:1.9;
+  margin-bottom:1.5rem;
 }
 .hero-actions{
   display:flex;
   flex-wrap:wrap;
   gap:10px;
-  margin-bottom:1.6rem;
+  margin-bottom:1.4rem;
 }
 .signal-row{
   display:flex;
   flex-wrap:wrap;
   gap:10px;
-  margin-bottom:1.8rem;
+  margin-bottom:1.4rem;
 }
 .signal-pill{
-  padding:8px 12px;
+  padding:9px 12px;
   font-size:11px;
   letter-spacing:0.08em;
   text-transform:uppercase;
   border:1px solid var(--border2);
   background:rgba(255,255,255,0.02);
-  color:var(--muted3);
+  color:var(--muted2);
+  border-radius:999px;
 }
-.signal-pill strong{color:var(--text);font-weight:600}
+.signal-pill strong{
+  color:var(--text);
+}
 .hero-metrics{
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:1px;
-  border:1px solid var(--border);
-  background:var(--border);
+  gap:10px;
+  margin-top:1rem;
 }
 .hero-metric{
-  background:rgba(7,7,10,0.82);
-  padding:1rem 1rem 1.1rem;
+  padding:1rem;
+  border-radius:18px;
+  background:rgba(255,255,255,0.02);
+  border:1px solid var(--border);
 }
 .hero-metric strong{
   display:block;
   font-family:var(--display);
-  font-size:clamp(1.7rem,3vw,2.4rem);
+  font-size:clamp(1.6rem,3vw,2.4rem);
   line-height:1;
   color:var(--amber);
 }
-.hero-metric strong.alt{color:var(--green)}
+.hero-metric strong.alt{
+  color:var(--green);
+}
 .hero-metric span{
   display:block;
-  margin-top:6px;
+  margin-top:7px;
   font-size:10px;
   letter-spacing:0.1em;
   text-transform:uppercase;
@@ -242,379 +164,235 @@ section{
   display:grid;
   gap:1rem;
 }
-.control-card,.thesis-card,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band{
-  background:linear-gradient(180deg, rgba(13,13,17,0.92), rgba(7,7,10,0.9));
-  border:1px solid var(--border2);
-  transform:translate3d(0,0,0);
-  transition:transform 0.22s ease,border-color 0.22s ease,box-shadow 0.22s ease;
+.hero-side-card{
+  padding:1.2rem;
 }
-.control-card:hover,.thesis-card:hover,.platform-card:hover,.command-card:hover,.ecosystem-card:hover,.big-quote:hover,.cta-band:hover{
-  transform:translateY(-3px);
-  border-color:var(--border3);
-  box-shadow:0 22px 50px rgba(0,0,0,0.22);
-}
-.control-card{overflow:hidden}
-.control-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:0.9rem 1rem;
-  border-bottom:1px solid var(--border);
-  background:rgba(255,255,255,0.02);
-}
-.control-head span{
+.card-kicker{
   font-size:10px;
-  color:var(--muted2);
-  text-transform:uppercase;
-  letter-spacing:0.1em;
-}
-.control-body{padding:1rem}
-.status-line{
-  display:flex;
-  justify-content:space-between;
-  gap:1rem;
-  padding:0.7rem 0;
-  border-bottom:1px solid var(--border);
-  font-size:12px;
-  color:var(--muted3);
-}
-.status-line:last-child{border-bottom:none}
-.status-line strong{color:var(--text);font-weight:500}
-.status-line .good{color:var(--green)}
-.status-line .warn{color:var(--amber)}
-.status-line .block{color:var(--red)}
-.thesis-card{
-  padding:1.1rem 1.1rem 1.2rem;
-}
-.thesis-kicker{
-  font-size:10px;
-  color:var(--muted2);
   letter-spacing:0.1em;
   text-transform:uppercase;
-  margin-bottom:0.7rem;
+  color:var(--muted2);
+  margin-bottom:0.65rem;
 }
-.thesis-title{
+.card-title{
   font-family:var(--display);
   font-size:1.7rem;
   line-height:1;
-  margin-bottom:0.6rem;
-}
-.thesis-copy{
-  font-size:12px;
-  color:#a1a8ca;
-  line-height:1.8;
-}
-.mission-band{
-  margin-top:1rem;
-  display:grid;
-  grid-template-columns:1.2fr 0.8fr;
-  gap:1rem;
-}
-.mission-panel{
-  padding:1.4rem;
-  border:1px solid var(--border2);
-  background:linear-gradient(180deg, rgba(16,16,22,0.96), rgba(9,9,13,0.96));
-}
-.mission-panel h2{
-  font-family:var(--display);
-  font-size:clamp(1.9rem,3.8vw,3rem);
-  line-height:1.03;
   margin-bottom:0.7rem;
 }
-.mission-panel p{
-  max-width:62ch;
-  font-size:13px;
-  color:#9ea5c8;
-  line-height:1.85;
-}
-.mission-list{
-  display:grid;
-  gap:10px;
-}
-.mission-item{
-  padding:1rem 1.05rem;
-  border:1px solid var(--border);
-  background:rgba(10,10,14,0.94);
-}
-.mission-item strong{
-  display:block;
-  font-size:12px;
-  color:var(--amber);
-  margin-bottom:0.25rem;
-  letter-spacing:0.06em;
-  text-transform:uppercase;
-}
-.mission-item span{
-  display:block;
+.card-copy{
   font-size:12px;
   color:var(--muted3);
-  line-height:1.7;
+  line-height:1.8;
 }
-.platform-grid,.command-grid,.ecosystem-grid{
-  display:grid;
-  gap:1rem;
-}
-.platform-grid{grid-template-columns:1.06fr 0.94fr}
-.command-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-.ecosystem-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band{
-  padding:1.35rem;
-}
-.platform-card h3,.command-card h3,.ecosystem-card h3{
-  font-family:var(--display);
-  font-size:1.45rem;
-  line-height:1.05;
-  margin-bottom:0.5rem;
-}
-.g-eyebrow{
-  position:relative;
-  z-index:2;
-}
-.platform-card p,.command-card p,.ecosystem-card p{
-  font-size:12px;
-  color:#a1a8ca;
-  line-height:1.85;
-}
-.section-intro .g-title-md{
-  color:#f5f6fb;
-}
-.section-intro .g-subtitle{
-  color:#b1b7d2;
-  max-width:720px;
-}
-.platform-stack{
+.status-list,
+.stack-list,
+.proof-list{
   display:grid;
   gap:10px;
-  margin-top:1rem;
 }
-.stack-row{
-  display:grid;
-  grid-template-columns:92px 1fr;
-  gap:12px;
-  align-items:start;
-  padding:0.8rem 0;
-  border-bottom:1px solid var(--border);
-}
-.stack-row:last-child{border-bottom:none}
-.stack-row strong{
-  font-size:10px;
-  color:var(--amber);
-  letter-spacing:0.1em;
-  text-transform:uppercase;
-}
-.stack-row span{
-  font-size:12px;
-  color:#a1a8ca;
-  line-height:1.7;
-}
-.live-panel{
-  margin-top:1rem;
-  border:1px solid var(--border2);
-  background:rgba(0,0,0,0.22);
-  overflow:hidden;
-}
-.live-panel .g-card-header{
-  background:rgba(255,255,255,0.02);
-  border-bottom:1px solid var(--border);
-}
-.term-strip{
-  padding:1rem 1.2rem 1.2rem;
-}
-.tl{
-  opacity:0;
-  animation:tlin 0.3s forwards;
-  font-size:clamp(11px,1.35vw,13px);
-  line-height:1.65;
-  white-space:pre;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.tl.p{color:var(--green2)}
-.tl.c{color:var(--muted2)}
-.tl.ok{color:var(--green)}
-.tl.w{color:var(--amber)}
-.tl.e{color:var(--red)}
-.tl.d{color:var(--muted);font-size:11px}
-@keyframes tlin{to{opacity:1}}
-.big-quote{
-  display:grid;
-  grid-template-columns:1.15fr 0.85fr;
+.status-line,
+.stack-item,
+.proof-item{
+  display:flex;
+  justify-content:space-between;
   gap:1rem;
-  align-items:center;
+  padding:0.85rem 0;
+  border-bottom:1px solid var(--border);
+  font-size:12px;
+  color:var(--muted3);
 }
-.big-quote blockquote{
+.status-line:last-child,
+.stack-item:last-child,
+.proof-item:last-child{
+  border-bottom:none;
+}
+.status-line strong,
+.stack-item strong,
+.proof-item strong{
+  color:var(--text);
+  font-weight:600;
+}
+.good{color:var(--green)}
+.warn{color:var(--amber)}
+.block{color:var(--red)}
+.section-card,
+.proof-card,
+.journey-card,
+.footer-cta{
+  padding:1.35rem;
+}
+.platform-grid,
+.proof-grid,
+.journey-grid{
+  display:grid;
+  gap:1rem;
+}
+.platform-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.proof-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.journey-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.section-card h3,
+.proof-card h3,
+.journey-card h3,
+.footer-cta h3{
   font-family:var(--display);
-  font-size:clamp(1.8rem,3.5vw,3rem);
-  line-height:1.02;
-  letter-spacing:-0.04em;
+  font-size:1.5rem;
+  line-height:1.05;
+  margin-bottom:0.55rem;
 }
-.big-quote blockquote span{color:var(--amber)}
-.big-quote p{
-  font-size:13px;
-  color:#a1a8ca;
+.section-card p,
+.proof-card p,
+.journey-card p,
+.footer-cta p{
+  font-size:12px;
+  color:var(--muted3);
   line-height:1.85;
 }
-.cta-band{
+.proof-number{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  border:1px solid var(--border2);
+  color:var(--amber);
+  margin-bottom:0.9rem;
+  font-size:12px;
+}
+.waitlist{
+  margin-top:1rem;
+  display:grid;
+  gap:12px;
+}
+.waitlist-copy{
+  font-size:12px;
+  color:var(--muted2);
+  line-height:1.8;
+}
+.footer-cta{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:1rem;
   flex-wrap:wrap;
-  background:linear-gradient(135deg, rgba(245,166,35,0.08), rgba(74,158,255,0.05));
+  background:linear-gradient(135deg, rgba(245,166,35,0.08), rgba(85,168,255,0.05));
 }
-.cta-band h3{
-  font-family:var(--display);
-  font-size:2rem;
-  line-height:1;
-  margin-bottom:0.45rem;
+@media (max-width: 1080px){
+  .hero-grid,
+  .platform-grid,
+  .proof-grid,
+  .journey-grid{
+    grid-template-columns:1fr;
+  }
+  .hero{
+    min-height:auto;
+  }
 }
-.cta-band p{
-  font-size:13px;
-  color:var(--muted3);
-  line-height:1.8;
-  max-width:58ch;
-}
-@media(max-width:1080px){
-  .hero-grid,.mission-band,.platform-grid,.big-quote{grid-template-columns:1fr}
-  .command-grid{grid-template-columns:1fr 1fr}
-  .hero{min-height:auto}
-}
-@media(max-width:760px){
-  .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr 1fr}
-  .g-nav-links{display:none}
-  .mobile-nav-toggle{display:inline-flex}
-  .g-nav-right .g-live,
-  .g-nav-right .g-btn-outline{display:none}
-  .hero{padding:4.4rem 0 2.2rem}
-  .hero-main,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band,.mission-panel,.mission-item{padding:1.1rem}
-  .section-intro{padding:0.95rem 1rem}
-  .hero-sub,
-  .mission-panel p,
-  .platform-card p,
-  .command-card p,
-  .ecosystem-card p,
-  .big-quote p,
-  .cta-band p{font-size:12px;line-height:1.75}
-  .hero-actions,.signal-row{display:grid;grid-template-columns:1fr}
+@media (max-width: 760px){
+  .hero{
+    padding-top:4rem;
+  }
+  .hero-actions,
+  .signal-row,
+  .hero-metrics{
+    grid-template-columns:1fr;
+  }
+  .hero-actions,
+  .signal-row{
+    display:grid;
+  }
   .hero-actions .g-btn,
-  .cta-band .g-btn{width:100%;text-align:center}
-  .stack-row{grid-template-columns:1fr;gap:4px}
-  [id]{scroll-margin-top:76px}
+  .footer-cta .g-btn{
+    width:100%;
+  }
+  .hero-metrics{
+    grid-template-columns:1fr 1fr;
+  }
 }
-@media(max-width:520px){
-  .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr}
-  .tl{white-space:normal;font-size:10px}
-  .hero-title{font-size:clamp(2.5rem,16vw,4.2rem);line-height:0.94}
-  .hero-chip{font-size:10px;padding:6px 10px}
-  .signal-pill{width:100%}
-  .hero-metric{padding:0.9rem 0.9rem 1rem}
-  .control-head,.control-body{padding:0.85rem}
-  .status-line{flex-direction:column;gap:4px;align-items:flex-start}
-  .big-quote blockquote{font-size:clamp(1.5rem,9vw,2.2rem)}
-}
-@media(prefers-reduced-motion:reduce){
-  .hero-main,
-  .control-card,.thesis-card,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band,
-  .mobile-nav-toggle span,
-  .mobile-nav-toggle::before,
-  .mobile-nav-toggle::after{transition:none}
+@media (max-width: 520px){
+  .hero-metrics{
+    grid-template-columns:1fr;
+  }
+  .hero-title{
+    font-size:clamp(2.5rem,15vw,4rem);
+  }
 }
 </style>
 </head>
-<body class="g-page page-shell">
+<body class="g-page landing-shell">
 <nav class="g-nav">
   <a class="g-logo" href="/">guni<em>.dev</em></a>
   <div class="g-nav-links">
     <a href="#platform">Platform</a>
-    <a href="#control-plane">Control Plane</a>
-    <a href="#ecosystem">Ecosystem</a>
-    <a href="/enterprise">Enterprise</a>
-    <a href="/security">Security</a>
-    <a href="/pilot">Pilot</a>
+    <a href="#proof">Proof</a>
+    <a href="#journey">Journey</a>
     <a href="/demo">Demo</a>
+    <a href="/enterprise">Enterprise</a>
     <a href="/docs">Docs</a>
   </div>
   <div class="g-nav-right">
-    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Agent runtime active</span></div>
-    <a class="g-btn g-btn-outline g-btn-sm" href="/signin" style="margin-right:6px">Sign in</a>
-    <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Start pilot</a>
-    <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-nav"><span></span></button>
+    <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Runtime online</span></div>
+    <a class="g-btn g-btn-outline g-btn-sm" href="/signin">Sign in</a>
+    <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Start free</a>
   </div>
 </nav>
-<div class="mobile-nav" id="mobile-nav">
-  <div class="mobile-nav-links">
-    <a href="#platform">Platform</a>
-    <a href="#control-plane">Control Plane</a>
-    <a href="#ecosystem">Ecosystem</a>
-    <a href="/enterprise">Enterprise</a>
-    <a href="/security">Security</a>
-    <a href="/pilot">Pilot</a>
-    <a href="/demo">Demo</a>
-    <a href="/docs">Docs</a>
-    <a href="/signin">Sign in</a>
-    <a href="/signup">Start pilot</a>
-  </div>
-</div>
 
 <main>
   <section class="hero">
     <div class="g-wrap">
       <div class="hero-grid">
         <div class="hero-main">
-          <div class="hero-chip">Protect your agent</div>
-          <h1 class="hero-title">The security layer <span class="dim">for agents operating</span> <span class="accent">on the real web.</span></h1>
-          <p class="hero-sub">Guni is not a wrapper, plugin, or basic website scanner. It is the runtime policy layer between your browser agent and a hostile internet. Before an autonomous workflow clicks, submits, or follows instructions, Guni inspects the page, scores the risk, and decides whether execution is allowed, confirmed, or blocked.</p>
+          <div class="hero-chip">Runtime trust boundary</div>
+          <h1 class="hero-title">Secure browser agents <span class="dim">before the page</span> <span class="accent">changes their behavior.</span></h1>
+          <p class="hero-sub">Guni inspects page content, hidden instructions, forms, redirects, scripts, and UI traps before an agent clicks, submits, or leaks anything sensitive. Instead of trusting the web, your workflow gets an execution policy: allow, confirm, or block.</p>
           <div class="hero-actions">
-            <a class="g-btn g-btn-primary g-btn-lg" href="/demo">See live command center</a>
-            <a class="g-btn g-btn-outline g-btn-lg" href="/enterprise">Explore enterprise motion</a>
-            <a class="g-btn g-btn-outline g-btn-lg" href="/integrate">Read integration path</a>
+            <a class="g-btn g-btn-primary g-btn-lg" href="/demo">Open live demo</a>
+            <a class="g-btn g-btn-outline g-btn-lg" href="/integrate">See integration path</a>
+            <a class="g-btn g-btn-outline g-btn-lg" href="/enterprise">Talk enterprise</a>
           </div>
           <div class="signal-row">
-            <div class="signal-pill"><strong>Runtime posture</strong> Browser-agent aware</div>
-            <div class="signal-pill"><strong>Deployment</strong> SDK, API, realtime stream</div>
-            <div class="signal-pill"><strong>Decision model</strong> Allow / Confirm / Block</div>
+            <div class="signal-pill"><strong>Deploy</strong> SDK, API, realtime stream</div>
+            <div class="signal-pill"><strong>Protect</strong> Hidden prompts, phishing, goal hijacks</div>
+            <div class="signal-pill"><strong>Decide</strong> Allow / Confirm / Block</div>
           </div>
           <div class="hero-metrics">
-            <div class="hero-metric"><strong id="s-blocked">0</strong><span>Threats blocked</span></div>
-            <div class="hero-metric"><strong id="s-scans">0</strong><span>Pages inspected</span></div>
-            <div class="hero-metric"><strong class="alt">0.001s</strong><span>Heuristic detection</span></div>
-            <div class="hero-metric"><strong>8</strong><span>Threat vectors</span></div>
+            <div class="hero-metric"><strong id="metric-scans">0</strong><span>Pages inspected</span></div>
+            <div class="hero-metric"><strong id="metric-blocked">0</strong><span>Threats blocked</span></div>
+            <div class="hero-metric"><strong class="alt" id="metric-rate">0%</strong><span>Block rate</span></div>
+            <div class="hero-metric"><strong id="metric-waitlist">0</strong><span>Pilot requests</span></div>
           </div>
         </div>
 
         <div class="hero-side">
-          <div class="control-card">
-            <div class="control-head">
-              <span>Execution control plane</span>
-              <div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div>
-            </div>
-            <div class="control-body">
-              <div class="status-line"><strong>Agent goal</strong><span>Complete login and proceed to dashboard</span></div>
-              <div class="status-line"><strong>Feed status</strong><span class="good" id="feed-status-line">Connecting to live feed</span></div>
-              <div class="status-line"><strong>Page risk</strong><span class="block" id="feed-risk-line">0 / ALLOW</span></div>
-              <div class="status-line"><strong>Primary threat</strong><span id="feed-threat-line">Waiting for public signal</span></div>
-              <div class="status-line"><strong>Action path</strong><span class="warn" id="feed-action-line">Evaluating public feed</span></div>
-              <div class="status-line"><strong>Audit output</strong><span class="good" id="feed-updated-line">Waiting for snapshot</span></div>
+          <div class="hero-side-card">
+            <div class="card-kicker">Public runtime signal</div>
+            <div class="card-title">What the system is seeing right now.</div>
+            <div class="status-list">
+              <div class="status-line"><strong>Feed status</strong><span class="good" id="feed-status">Loading live summary</span></div>
+              <div class="status-line"><strong>Top threat</strong><span id="feed-threat">Waiting for signal</span></div>
+              <div class="status-line"><strong>24h scans</strong><span id="feed-day-scans">0</span></div>
+              <div class="status-line"><strong>24h blocks</strong><span class="block" id="feed-day-blocks">0</span></div>
+              <div class="status-line"><strong>Deployment mode</strong><span class="warn" id="feed-mode">Protected</span></div>
+              <div class="status-line"><strong>Reasoning layer</strong><span id="feed-llm">Unavailable</span></div>
             </div>
           </div>
 
-          <div class="thesis-card">
-            <div class="thesis-kicker">Why this matters now</div>
-            <div class="thesis-title">Agents turned the DOM into an attack surface.</div>
-            <div class="thesis-copy">Humans ignore hidden text and deceptive overlays. Browser agents do not. Guni exists because agent execution needs its own trust boundary, not just traditional app security.</div>
+          <div class="hero-side-card">
+            <div class="card-kicker">Why teams buy</div>
+            <div class="card-title">Security that fits how agents actually operate.</div>
+            <div class="stack-list">
+              <div class="stack-item"><strong>Product teams</strong><span>Ship with visible guardrails instead of hidden heuristics.</span></div>
+              <div class="stack-item"><strong>Security reviewers</strong><span>See evidence, policy outcome, and operational controls in one place.</span></div>
+              <div class="stack-item"><strong>Operators</strong><span>Know why a flow was stopped before customers feel the failure.</span></div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div class="mission-band g-fade-up">
-        <div class="mission-panel">
-          <h2>Present Guni like infrastructure, because that is what it is.</h2>
-          <p>Security for the agentic web cannot look like another brochure site. The product has to read like critical runtime infrastructure: a layer that governs execution, explains decisions, and gives operators a system they can trust in front of customers, security reviewers, and internal teams.</p>
-        </div>
-        <div class="mission-list">
-          <div class="mission-item"><strong>Platform story</strong><span>Move the narrative from "website scanner" to "execution control plane."</span></div>
-          <div class="mission-item"><strong>Operator confidence</strong><span>Show that Guni does not just detect threats, it actively governs browser-agent behavior.</span></div>
-          <div class="mission-item"><strong>Buyer proof</strong><span>Frame every page, metric, and demo as evidence for a serious platform purchase.</span></div>
         </div>
       </div>
     </div>
@@ -622,120 +400,103 @@ section{
 
   <section class="g-section g-fade-up" id="platform">
     <div class="g-wrap">
-      <div class="section-intro">
-        <div class="g-eyebrow">Platform</div>
-        <h2 class="g-title-md" style="max-width:760px;margin-bottom:0.75rem">A runtime trust layer for the next generation of browser software.</h2>
-        <p class="g-subtitle" style="margin-bottom:0">Guni sits at the point of execution, where autonomous browsers are most fragile. It evaluates hostile pages before they shape the agent's next move.</p>
-      </div>
+      <div class="g-eyebrow">Platform</div>
+      <h2 class="g-title-md" style="max-width:760px;margin-bottom:0.8rem">One runtime layer for browser automation, copilots, and agent workflows.</h2>
+      <p class="g-subtitle" style="margin-bottom:1.2rem">Guni turns hostile page behavior into an explicit decision system. That gives engineering, security, and customer teams a shared control plane instead of scattered checks.</p>
 
       <div class="platform-grid">
-        <div class="platform-card">
-          <h3>What Guni becomes in a mature stack</h3>
-          <p>Not a point feature. Not a checkbox. Guni becomes the control layer that product, security, and customer teams all point to when they ask a single question: why did the agent act, or why was it stopped?</p>
-          <div class="platform-stack">
-            <div class="stack-row"><strong>Inspect</strong><span>Parse raw HTML, visible text, hidden elements, forms, scripts, buttons, and redirects before the next action fires.</span></div>
-            <div class="stack-row"><strong>Reason</strong><span>Blend fast heuristics with LLM analysis so both obvious and novel attacks are caught in the same decision path.</span></div>
-            <div class="stack-row"><strong>Decide</strong><span>Translate threat evidence into a policy boundary every operator can understand: allow, confirm, or block.</span></div>
-            <div class="stack-row"><strong>Prove</strong><span>Persist evidence, expose history, and turn blocked actions into usable audit artifacts for reviews and pilots.</span></div>
+        <article class="section-card">
+          <h3>Inspect what agents really read</h3>
+          <p>Visible text is only part of the threat surface. Guni parses raw HTML, hidden DOM, external forms, clickjacking overlays, redirects, script behavior, and goal mismatch signals before the next step executes.</p>
+          <div class="proof-list" style="margin-top:1rem">
+            <div class="proof-item"><strong>Prompt injection</strong><span>Catch hidden or visible instructions that override the task.</span></div>
+            <div class="proof-item"><strong>Phishing forms</strong><span>Detect suspicious credential collection and off-domain submissions.</span></div>
+            <div class="proof-item"><strong>Action safety</strong><span>Keep risky clicks and submissions behind a policy gate.</span></div>
           </div>
-        </div>
+        </article>
 
-        <div class="platform-card">
-          <h3>Why the market is bigger than a single feature</h3>
-          <p>Every serious browser agent will need a trust boundary. As autonomous systems move from demos to procurement, finance, support, and operations, the category expands from "security add-on" to "mandatory runtime layer."</p>
-          <div class="platform-stack">
-            <div class="stack-row"><strong>For builders</strong><span>Ship safer browser agents without designing a custom threat model from scratch.</span></div>
-            <div class="stack-row"><strong>For operators</strong><span>Understand why a workflow stopped, not just that it failed.</span></div>
-            <div class="stack-row"><strong>For buyers</strong><span>See technical proof, trust pages, deployment guidance, and a path from evaluation to rollout.</span></div>
-            <div class="stack-row"><strong>For the ecosystem</strong><span>Create a recognizable security layer for the agentic web, not another isolated product page.</span></div>
+        <article class="section-card">
+          <h3>Explain the decision in plain language</h3>
+          <p>The platform does not stop at a score. It returns evidence, detector breakdowns, audit visibility, and an operator-readable decision that can be shown in a portal, a pilot, or a buyer security review.</p>
+          <div class="proof-list" style="margin-top:1rem">
+            <div class="proof-item"><strong>Allow</strong><span>Proceed when the page is low risk.</span></div>
+            <div class="proof-item"><strong>Confirm</strong><span>Pause when the workflow may need human approval.</span></div>
+            <div class="proof-item"><strong>Block</strong><span>Stop hostile execution before the agent can act.</span></div>
           </div>
-        </div>
+        </article>
       </div>
     </div>
   </section>
 
-  <section class="g-section g-fade-up" id="control-plane">
+  <section class="g-section g-fade-up" id="proof">
     <div class="g-wrap">
-      <div class="section-intro">
-        <div class="g-eyebrow">Control Plane</div>
-        <h2 class="g-title-md" style="margin-bottom:0.75rem">From detection engine to visible command center.</h2>
-        <p class="g-subtitle" style="margin-bottom:0">The site should feel like the front door to a serious system. That means showing how Guni sees the world, what it intercepts, and how it explains itself under pressure.</p>
-      </div>
+      <div class="g-eyebrow">Proof</div>
+      <h2 class="g-title-md" style="margin-bottom:0.8rem">Everything needed to make the product feel deployable.</h2>
+      <p class="g-subtitle" style="margin-bottom:1.2rem">The app now presents itself like infrastructure: clear data, clear actions, and clear operator outcomes across the demo, portal, and supporting pages.</p>
 
-      <div class="command-grid">
-        <div class="command-card">
-          <h3>Threat intelligence</h3>
-          <p>Prompt injection, phishing, deceptive UI, clickjacking, redirect abuse, CSRF, script attacks, and goal hijacking are presented as one cohesive threat model, not a disconnected list of features.</p>
-        </div>
-        <div class="command-card">
-          <h3>Execution policy</h3>
-          <p>The core visual language is operational. Risk scores, evidence trails, and policy decisions make Guni feel like a live safety system instead of static content.</p>
-        </div>
-        <div class="command-card">
-          <h3>Operator narrative</h3>
-          <p>Every section answers the same question from a different angle: what happens when an agent reaches a hostile page, and how does Guni prevent the wrong action?</p>
-        </div>
-      </div>
-
-      <div class="live-panel">
-        <div class="g-card-header" style="padding:0.85rem 1rem">
-          <div class="g-card-dots"><div class="g-dot g-dot-r"></div><div class="g-dot g-dot-y"></div><div class="g-dot g-dot-g"></div></div>
-          <span class="g-card-title">guni runtime stream</span>
-        </div>
-        <div class="term-strip" id="term-out"></div>
+      <div class="proof-grid">
+        <article class="proof-card">
+          <div class="proof-number">01</div>
+          <h3>Live demo</h3>
+          <p>Paste HTML, run a scan, inspect breakdowns, compare pages, and turn the result into a credible product conversation instead of a toy demo.</p>
+        </article>
+        <article class="proof-card">
+          <div class="proof-number">02</div>
+          <h3>Customer portal</h3>
+          <p>Session-based access, usage tracking, alert config, billing state, and admin controls make the hosted experience feel ready for real accounts.</p>
+        </article>
+        <article class="proof-card">
+          <div class="proof-number">03</div>
+          <h3>Trust surface</h3>
+          <p>Security, enterprise, docs, status, and changelog pages support procurement, onboarding, and internal review without leaving the product story behind.</p>
+        </article>
       </div>
     </div>
   </section>
 
-  <section class="g-section g-fade-up" id="ecosystem">
+  <section class="g-section g-fade-up" id="journey">
     <div class="g-wrap">
-      <div class="section-intro">
-        <div class="g-eyebrow">Ecosystem</div>
-        <h2 class="g-title-md" style="margin-bottom:0.75rem">Built to anchor a larger category.</h2>
-        <p class="g-subtitle" style="margin-bottom:0">Guni already has the ingredients of something bigger than a landing page: SDK, API, dashboard, realtime scanning, trust artifacts, and buyer-facing proof. The presentation now treats that surface area like a platform.</p>
-      </div>
+      <div class="g-eyebrow">Journey</div>
+      <h2 class="g-title-md" style="margin-bottom:0.8rem">Start with a scan. Grow into a runtime control plane.</h2>
+      <p class="g-subtitle" style="margin-bottom:1.2rem">The best first use is still simple: protect one important browser workflow. From there, teams expand into alerts, audit history, billing, and organization-wide trust posture.</p>
 
-      <div class="ecosystem-grid">
-        <div class="ecosystem-card">
-          <h3>SDK</h3>
-          <p>Embed security directly into browser automation, agent frameworks, and execution wrappers.</p>
-        </div>
-        <div class="ecosystem-card">
-          <h3>API</h3>
-          <p>Centralize policy decisions so multiple workers and products can share one trust boundary.</p>
-        </div>
-        <div class="ecosystem-card">
-          <h3>Dashboard</h3>
-          <p>Turn blocks, confirms, and historical evidence into operational visibility and buyer proof.</p>
-        </div>
-        <div class="ecosystem-card">
-          <h3>Pilot motion</h3>
-          <p>Support a real evaluation path with security pages, rollout guidance, and enterprise framing.</p>
-        </div>
+      <div class="journey-grid">
+        <article class="journey-card">
+          <h3>1. Validate the threat model</h3>
+          <p>Use the live demo with hostile HTML examples to show why agent-specific security is required in the first place.</p>
+        </article>
+        <article class="journey-card">
+          <h3>2. Integrate the policy layer</h3>
+          <p>Wrap the browser flow that touches credentials, payments, operations, or other sensitive steps.</p>
+        </article>
+        <article class="journey-card">
+          <h3>3. Operate with evidence</h3>
+          <p>Use portal analytics, alerts, and exported history to make Guni part of normal production operations.</p>
+        </article>
       </div>
     </div>
   </section>
 
-  <section class="g-section g-fade-up">
+  <section class="g-section g-fade-up" style="padding-top:0" id="waitlist">
     <div class="g-wrap">
-      <div class="big-quote">
-        <blockquote>Every browser agent needs a <span>trust boundary</span> before the web becomes its operating system.</blockquote>
-        <p>That is the presentation shift. Guni is not just "a normal website" selling scans. It is the visible face of a larger platform story: the system that makes autonomous web execution safe enough to deploy, review, buy, and trust.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="g-section g-fade-up" style="padding-top:0">
-    <div class="g-wrap">
-      <div class="cta-band">
-        <div>
-          <h3>Make the category feel real.</h3>
-          <p>Show Guni as the control plane for the agentic web, then back it up with a live demo, enterprise page, security posture, and concrete integration path.</p>
+      <div class="footer-cta">
+        <div style="max-width:640px">
+          <h3>Protect the first workflow that would hurt to get wrong.</h3>
+          <p>Start with the live demo, then move into integration or a pilot. If you want hands-on help, join the waitlist and we will follow up with the right path.</p>
+          <div class="waitlist">
+            <div class="waitlist-copy">Join the pilot waitlist for guided rollout help, integration reviews, and early hosted access.</div>
+            <form class="g-wl-row" id="waitlist-form">
+              <input class="g-wl-input" id="waitlist-email" type="email" placeholder="you@company.com" autocomplete="email"/>
+              <button class="g-wl-btn" id="waitlist-btn" type="submit">Join waitlist</button>
+            </form>
+            <div class="g-wl-success" id="waitlist-success"></div>
+            <div class="g-wl-note">Current interest: <span id="waitlist-note-count">0</span> teams have requested rollout help.</div>
+          </div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a class="g-btn g-btn-primary g-btn-lg" href="/demo">Open live demo</a>
-          <a class="g-btn g-btn-outline g-btn-lg" href="/pilot">View pilot program</a>
-          <a class="g-btn g-btn-outline g-btn-lg" href="/security">Read security posture</a>
+          <a class="g-btn g-btn-primary g-btn-lg" href="/demo">Launch demo</a>
+          <a class="g-btn g-btn-outline g-btn-lg" href="/security">Review security</a>
+          <a class="g-btn g-btn-outline g-btn-lg" href="/portal">Open portal</a>
         </div>
       </div>
     </div>
@@ -750,7 +511,6 @@ section{
     <a href="/security">Security</a>
     <a href="/pilot">Pilot</a>
     <a href="/portal">Portal</a>
-    <a href="/threats">Threat feed</a>
     <a href="/docs">Docs</a>
     <a href="https://github.com/arihantprasad07/guni" target="_blank" rel="noreferrer">GitHub</a>
   </div>
@@ -759,177 +519,99 @@ section{
 
 <script>
 const API = window.location.origin;
-const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-let feedSource = null;
-let fallbackPoll = null;
 const THREAT_LABELS = {
   injection: "Prompt injection",
-  phishing: "Phishing forms",
+  phishing: "Phishing",
   goal_mismatch: "Goal hijacking",
   clickjacking: "Clickjacking",
   csrf: "CSRF and token theft",
   deception: "UI deception",
   scripts: "Malicious scripts",
-  redirect: "Open redirects",
-  none: "No dominant threat yet",
+  redirect: "Redirect abuse",
+  none: "No dominant threat",
 };
-const TERM = [
-  { c: "p", t: "$ guni runtime inspect --goal \"complete login\" --url https://portal.example" },
-  { c: "c", t: "  [01] Browser DOM normalized.......................... 0.0002s" },
-  { c: "c", t: "  [02] 8-vector heuristics executed in parallel...... clean -> suspicious" },
-  { c: "w", t: "  [03] Hidden instruction detected................... confidence rising" },
-  { c: "e", t: "  [04] Form action exits trusted domain.............. external target" },
-  { c: "e", t: "  [05] Goal mismatch found........................... requested transfer flow" },
-  { c: "c", t: "  [06] LLM reasoning layer engaged................... semantic confirmation" },
-  { c: "e", t: "  [07] POLICY ====================================== BLOCK" },
-  { c: "d", t: "  [08] Execution stopped. Evidence logged. Alert route primed." },
-  { c: "p", t: "" },
-  { c: "p", t: "$ guni runtime inspect --goal \"read pricing page\" --url https://safe.example" },
-  { c: "c", t: "  [01] DOM normalized................................ 0.0002s" },
-  { c: "ok", t: "  [02] POLICY ====================================== ALLOW" }
-];
 
-function runTerm() {
-  const container = document.getElementById("term-out");
-  if (!container) return;
-  container.innerHTML = "";
-  TERM.forEach((line, index) => {
-    const el = document.createElement("div");
-    el.className = "tl " + line.c;
-    el.textContent = line.t || "\u00a0";
-    el.style.animationDelay = index * 0.1 + "s";
-    container.appendChild(el);
-  });
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString();
 }
 
-function animTo(id, target) {
+function animateNumber(id, target, suffix = "") {
   const el = document.getElementById(id);
   if (!el) return;
-  if (target <= 0) {
-    el.textContent = "0";
+  const goal = Number(target || 0);
+  if (!goal) {
+    el.textContent = `0${suffix}`;
     return;
   }
-  let cur = 0;
-  const step = Math.max(1, Math.ceil(target / 30));
-  const timer = setInterval(() => {
-    cur = Math.min(cur + step, target);
-    el.textContent = cur.toLocaleString();
-    if (cur >= target) clearInterval(timer);
-  }, 40);
+  let current = 0;
+  const step = Math.max(1, Math.ceil(goal / 28));
+  const timer = window.setInterval(() => {
+    current = Math.min(goal, current + step);
+    el.textContent = `${current.toLocaleString()}${suffix}`;
+    if (current >= goal) window.clearInterval(timer);
+  }, 36);
 }
 
-function setText(id, value) {
-  const node = document.getElementById(id);
-  if (node) node.textContent = value;
+async function loadSummary() {
+  try {
+    const response = await fetch(`${API}/site/summary`);
+    const payload = await response.json();
+    const signals = payload.signals || {};
+    const product = payload.product || {};
+
+    animateNumber("metric-scans", signals.total_scans || 0);
+    animateNumber("metric-blocked", signals.total_blocked || 0);
+    animateNumber("metric-waitlist", signals.waitlist_total || 0);
+    document.getElementById("metric-rate").textContent = `${Math.round(Number(signals.block_rate || 0))}%`;
+    document.getElementById("feed-status").textContent = "Live public summary";
+    document.getElementById("feed-threat").textContent = THREAT_LABELS[signals.top_threat] || "No dominant threat";
+    document.getElementById("feed-day-scans").textContent = formatNumber(signals.last_24h_scans);
+    document.getElementById("feed-day-blocks").textContent = formatNumber(signals.last_24h_blocked);
+    document.getElementById("feed-mode").textContent = String(product.deployment_mode || "protected").toUpperCase();
+    document.getElementById("feed-llm").textContent = product.llm_available ? "Available" : "Optional";
+    document.getElementById("waitlist-note-count").textContent = formatNumber(signals.waitlist_total);
+  } catch (error) {
+    document.getElementById("feed-status").textContent = "Summary unavailable";
+  }
 }
 
-function applyFeedSnapshot(stats) {
-  const totalScans = Number(stats.total_scans || 0);
-  const blocked = Number(stats.total_blocked || 0);
-  const blockRate = Number(stats.block_rate || 0);
-  const topThreat = THREAT_LABELS[stats.top_threat] || "No dominant threat yet";
-  const riskLabel = blocked > 0 ? "BLOCK" : "ALLOW";
-  const riskValue = blocked > 0 ? Math.min(100, Math.max(70, Math.round(blockRate || 70))) : 0;
+async function submitWaitlist(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById("waitlist-email");
+  const success = document.getElementById("waitlist-success");
+  const button = document.getElementById("waitlist-btn");
+  const email = emailInput.value.trim();
 
-  animTo("s-scans", totalScans);
-  animTo("s-blocked", blocked);
-  setText("feed-status-line", "Streaming public threat feed");
-  setText("feed-risk-line", `${riskValue} / ${riskLabel}`);
-  setText("feed-threat-line", topThreat);
-  setText("feed-action-line", blocked > 0 ? `${blocked.toLocaleString()} blocked events reflected` : "No blocked events reflected yet");
-  setText("feed-updated-line", `Updated ${new Date().toLocaleTimeString()}`);
-}
+  if (!email || !email.includes("@")) {
+    success.textContent = "Enter a valid work email first.";
+    success.classList.add("show");
+    return;
+  }
 
-async function loadFeedSnapshot() {
-  const response = await fetch(`${API}/threats/feed`);
-  const payload = await response.json();
-  applyFeedSnapshot(payload?.data || payload || {});
-}
+  button.disabled = true;
+  button.textContent = "Joining...";
 
-function startFeedStream() {
-  if (feedSource) feedSource.close();
-  feedSource = new EventSource(`${API}/threats/stream`);
-
-  feedSource.addEventListener("snapshot", (event) => {
-    applyFeedSnapshot(JSON.parse(event.data || "{}"));
-  });
-
-  feedSource.addEventListener("heartbeat", () => {
-    setText("feed-status-line", "Streaming public threat feed");
-  });
-
-  feedSource.onerror = async () => {
-    setText("feed-status-line", "Feed stream interrupted");
-    if (!fallbackPoll) {
-      try {
-        await loadFeedSnapshot();
-      } catch (error) {
-        setText("feed-status-line", "Public feed unavailable");
-        setText("feed-action-line", "Could not read the threat feed right now");
-      }
-      fallbackPoll = window.setInterval(async () => {
-        try {
-          await loadFeedSnapshot();
-        } catch (error) {
-          setText("feed-status-line", "Public feed unavailable");
-        }
-      }, 30000);
+  try {
+    const response = await fetch(`${API}/waitlist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || payload.detail || "Could not join waitlist.");
     }
-  };
-}
-
-function setupMobileNav() {
-  const toggle = document.getElementById("mobile-nav-toggle");
-  const mobileNav = document.getElementById("mobile-nav");
-  if (!toggle || !mobileNav) return;
-
-  const closeNav = () => {
-    toggle.classList.remove("open");
-    mobileNav.classList.remove("open");
-    toggle.setAttribute("aria-expanded", "false");
-  };
-
-  toggle.addEventListener("click", () => {
-    const nextOpen = !mobileNav.classList.contains("open");
-    toggle.classList.toggle("open", nextOpen);
-    mobileNav.classList.toggle("open", nextOpen);
-    toggle.setAttribute("aria-expanded", String(nextOpen));
-  });
-
-  mobileNav.querySelectorAll("a").forEach((link) => {
-    link.addEventListener("click", closeNav);
-  });
-
-  window.addEventListener("resize", () => {
-    if (window.innerWidth > 760) closeNav();
-  });
-}
-
-function setupPointerDepth() {
-  if (prefersReducedMotion || window.innerWidth <= 760) return;
-  const heroMain = document.querySelector(".hero-main");
-  const hoverCards = document.querySelectorAll(".control-card, .thesis-card");
-  if (!heroMain) return;
-
-  const reset = () => {
-    heroMain.style.transform = "translate3d(0,0,0)";
-    hoverCards.forEach((card) => {
-      card.style.transform = "translate3d(0,0,0)";
-    });
-  };
-
-  window.addEventListener("mousemove", (event) => {
-    const x = (event.clientX / window.innerWidth - 0.5) * 10;
-    const y = (event.clientY / window.innerHeight - 0.5) * 10;
-    heroMain.style.transform = `translate3d(${x * -0.4}px, ${y * -0.5}px, 0)`;
-    hoverCards.forEach((card, index) => {
-      const strength = index === 0 ? 0.25 : 0.18;
-      card.style.transform = `translate3d(${x * strength}px, ${y * strength}px, 0)`;
-    });
-  });
-
-  window.addEventListener("blur", reset);
-  document.addEventListener("mouseleave", reset);
+    success.textContent = `${payload.message} Position #${payload.position}.`;
+    success.classList.add("show");
+    emailInput.value = "";
+    loadSummary();
+  } catch (error) {
+    success.textContent = error.message || "Could not join waitlist right now.";
+    success.classList.add("show");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Join waitlist";
+  }
 }
 
 const observer = new IntersectionObserver((entries) => {
@@ -939,13 +621,8 @@ const observer = new IntersectionObserver((entries) => {
 }, { threshold: 0.1 });
 
 document.querySelectorAll(".g-fade-up").forEach((el) => observer.observe(el));
-window.addEventListener("load", () => {
-  setupMobileNav();
-  setupPointerDepth();
-  startFeedStream();
-  runTerm();
-  setInterval(runTerm, 20000);
-});
+document.getElementById("waitlist-form").addEventListener("submit", submitWaitlist);
+window.addEventListener("load", loadSummary);
 </script>
 </body>
 </html>
