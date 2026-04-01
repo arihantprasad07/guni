@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Page Not Found | Guni</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="stylesheet" href="/static/guni.css"/>
+<style>
+.error-shell{min-height:100vh;display:grid;place-items:center;padding:calc(56px + 2rem) var(--pad) 3rem}
+.error-card{max-width:760px;width:100%;padding:clamp(1.5rem,4vw,3rem);border:1px solid var(--border2);background:linear-gradient(135deg,rgba(245,166,35,0.08),rgba(74,158,255,0.05))}
+.error-code{font-family:var(--display);font-size:clamp(4rem,14vw,8rem);line-height:.9;color:var(--amber);margin-bottom:1rem}
+.error-copy{max-width:560px;font-size:13px;color:var(--muted3);line-height:1.8;margin-bottom:1.5rem}
+.error-actions{display:flex;gap:10px;flex-wrap:wrap}
+</style>
+</head>
+<body class="g-page">
+<main class="error-shell">
+  <div class="error-card">
+    <div class="g-eyebrow">404</div>
+    <div class="error-code">Lost in the web.</div>
+    <h1 class="g-title-md" style="margin-bottom:.75rem">This page does not exist.</h1>
+    <p class="error-copy">The link may be stale, or the page may have moved. You can jump back to the landing page, try the live demo, or open the docs from here.</p>
+    <div class="error-actions">
+      <a class="g-btn g-btn-primary" href="/">Back home</a>
+      <a class="g-btn g-btn-outline" href="/demo">Open demo</a>
+      <a class="g-btn g-btn-outline" href="/docs">Read docs</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

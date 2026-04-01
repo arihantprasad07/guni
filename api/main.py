@@ -10,6 +10,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, W
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -209,6 +210,41 @@ def _send_waitlist_confirmation_task(email: str):
     log_system_event("email.waitlist_confirmation", "delivered" if sent else ("skipped" if not configured else "failed"), recipient=email)
 
 
+def _send_welcome_email_task(email: str):
+    from api.email_service import email_sender_configured, send_welcome_email
+    configured = email_sender_configured()
+    sent = send_welcome_email(email)
+    log_system_event("email.welcome", "delivered" if sent else ("skipped" if not configured else "failed"), recipient=email)
+
+
+def _send_pilot_alert_email_task(payload: dict):
+    from api.email_service import email_sender_configured, send_admin_alert
+    configured = email_sender_configured()
+    recipients = sorted(_owner_emails() or _admin_emails())
+    if not recipients:
+        log_system_event("email.pilot_alert", "skipped", details="No admin recipients configured")
+        return
+    statuses = []
+    for recipient in recipients:
+        sent = send_admin_alert(
+            recipient,
+            "New Guni pilot request",
+            "New pilot request submitted",
+            [
+                f"Name: {payload['name']}",
+                f"Company: {payload['company']}",
+                f"Email: {payload['email']}",
+                f"Use case: {payload['use_case']}",
+            ],
+        )
+        statuses.append(sent)
+    log_system_event(
+        "email.pilot_alert",
+        "delivered" if any(statuses) else ("skipped" if not configured else "failed"),
+        recipient_count=len(recipients),
+    )
+
+
 def _is_api_json_path(path: str) -> bool:
     excluded = {"/", "/signup", "/signin", "/auth/verify", "/auth/forgot", "/auth/reset", "/portal", "/owner", "/about", "/dashboard", "/demo", "/integrate", "/threats", "/changelog", "/enterprise", "/security", "/pilot", "/docs", "/api-docs", "/redoc", "/openapi.json"}
     if path in excluded:
@@ -240,10 +276,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=422, content=_json_payload(False, {}, _validation_error_message(exc)))
 
 
+def _render_error_page(page_name: str, status_code: int) -> HTMLResponse:
+    response = render_dashboard_page(page_name, f"<h1>{status_code}</h1>")
+    return HTMLResponse(content=response.body.decode("utf-8"), status_code=status_code)
+
+
 @app.exception_handler(HTTPException)
+@app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if not _is_api_json_path(request.url.path):
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        if exc.status_code == 404:
+            return _render_error_page("404.html", 404)
+        if exc.status_code >= 500:
+            return _render_error_page("500.html", exc.status_code)
+        return HTMLResponse(content=f"<html><body><h1>{exc.status_code}</h1><p>{exc.detail}</p></body></html>", status_code=exc.status_code)
     return JSONResponse(status_code=exc.status_code, content=_json_payload(False, {}, str(exc.detail)))
 
 
@@ -251,7 +297,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def unhandled_exception_handler(request: Request, exc: Exception):
     log_system_event("request.unhandled_exception", "500", details=str(exc), path=request.url.path)
     if not _is_api_json_path(request.url.path):
-        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+        return _render_error_page("500.html", 500)
     return JSONResponse(status_code=500, content=_json_payload(False, {}, "Internal server error"))
 
 
@@ -324,12 +370,21 @@ class NewPasswordRequest(BaseModel):
 
 class BillingCheckoutRequest(BaseModel):
     plan: str = "starter"
+    interval: str = "monthly"
     company: str | None = None
+
+
+class PilotRequest(BaseModel):
+    name: str
+    company: str
+    email: str
+    use_case: str
 
 @app.post("/auth/signup", tags=["Auth"])
 async def auth_signup(body: SignupRequest, request: Request, background_tasks: BackgroundTasks):
-    from api.auth_system import generate_token, hash_password
-    from api.database import db_create_organization, db_create_user, db_get_user_by_email, db_log_audit_event, db_mark_user_verified
+    from api.auth_system import create_session, generate_token, hash_password
+    from api.database import db_create_organization, db_create_user, db_get_user_by_email, db_log_audit_event, db_mark_user_verified, db_update_user_login
+    from api.key_manager import PLAN_LIMITS, generate_api_key
     email = body.email.lower().strip()
     plan = (body.plan or "free").lower().strip()
     if not email or "@" not in email:
@@ -347,13 +402,29 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
+    api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS.get(plan, 0), org_id=org["id"])["key"]
+    db_update_user_login(email, api_key)
     if email in _owner_emails():
         db_mark_user_verified(email)
         user = db_get_user_by_email(email) or user
     db_log_audit_event(actor_email=email, org_id=org["id"], action="auth.signup", target_type="user", target_id=email, metadata={"plan": plan, "role": _display_role(user)})
     if email not in _owner_emails():
         background_tasks.add_task(_send_verification_email_task, email, token, str(request.base_url).rstrip("/"))
-    return {"success": True, "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.", "email": email, "plan": plan, "role": _display_role(user), "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]}}
+    background_tasks.add_task(_send_welcome_email_task, email)
+    session = create_session(email)
+    payload = {
+        "success": True,
+        "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.",
+        "email": email,
+        "plan": plan,
+        "role": _display_role(user),
+        "api_key": api_key,
+        "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]},
+        "next_action": "checkout" if plan in {"starter", "pro"} else "portal",
+    }
+    response = JSONResponse(payload)
+    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request))
+    return response
 
 
 @app.post("/auth/signin", tags=["Auth"])
@@ -530,12 +601,54 @@ async def billing_checkout(body: BillingCheckoutRequest, request: Request):
     from api.webhook import create_checkout_link
     user = _require_session_user(request)
     plan = (body.plan or "starter").lower().strip()
+    interval = (body.interval or "monthly").lower().strip()
     if plan not in {"starter", "pro"}:
         raise HTTPException(status_code=422, detail="Invalid billing plan")
+    if interval not in {"monthly", "yearly"}:
+        raise HTTPException(status_code=422, detail="Invalid billing interval")
     company = (body.company or "").strip() or _default_org_name(user["email"])
-    checkout = await create_checkout_link(email=user["email"], plan=plan, company=company, base_url=str(request.base_url).rstrip("/"))
-    db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="billing.checkout_created", target_type="payment_link", target_id=checkout.get("provider_payment_link_id", ""), metadata={"plan": plan})
+    checkout = await create_checkout_link(email=user["email"], plan=plan, interval=interval, company=company, base_url=str(request.base_url).rstrip("/"))
+    db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="billing.checkout_created", target_type="payment_link", target_id=checkout.get("provider_payment_link_id", ""), metadata={"plan": plan, "interval": interval})
     return checkout
+
+
+@app.get("/api/platform/stats", tags=["Platform"], include_in_schema=False)
+def platform_stats():
+    from api.database import db_get_threat_feed
+    data = db_get_threat_feed()
+    return {
+        "threats_blocked": data.get("total_blocked", 0),
+        "scans_run": data.get("total_scans", 0),
+        "block_rate": data.get("block_rate", 0),
+        "last_24h_scans": data.get("last_24h_scans", 0),
+        "last_24h_blocked": data.get("last_24h_blocked", 0),
+    }
+
+
+@app.post("/pilot/request", include_in_schema=False)
+def pilot_request(body: PilotRequest, request: Request, background_tasks: BackgroundTasks):
+    from api.database import db_log_audit_event
+    name = body.name.strip()
+    company = body.company.strip()
+    email = body.email.lower().strip()
+    use_case = body.use_case.strip()
+    if not name or not company or not email or "@" not in email or not use_case:
+        raise HTTPException(status_code=422, detail="Name, company, email, and use case are required.")
+    db_log_audit_event(
+        actor_email=email,
+        org_id=None,
+        action="pilot.request",
+        target_type="lead",
+        target_id=email,
+        metadata={
+            "name": name,
+            "company": company,
+            "use_case": use_case,
+            "path": request.url.path,
+        },
+    )
+    background_tasks.add_task(_send_pilot_alert_email_task, {"name": name, "company": company, "email": email, "use_case": use_case})
+    return {"success": True, "message": "Pilot request received. We will reach out shortly."}
 
 
 @app.post("/billing/cancel", tags=["Payments"])

@@ -334,6 +334,22 @@ def test_scan_quota_is_enforced_before_processing(client: TestClient):
     assert "quota exceeded" in payload["error"].lower()
 
 
+def test_scan_quota_is_enforced_after_monthly_limit_is_reached(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="plus-quota@example.com", plan="starter", scans_limit=1)["key"]
+    headers = {"X-API-Key": key}
+
+    first = client.post("/scan", json={"html": "<p>first</p>", "goal": "Read page"}, headers=headers)
+    assert first.status_code == 200
+
+    second = client.post("/scan", json={"html": "<p>second</p>", "goal": "Read page"}, headers=headers)
+    assert second.status_code == 402
+    payload = second.json()
+    assert payload["success"] is False
+    assert "monthly reset" in payload["error"].lower()
+
+
 def test_public_demo_history_works_without_api_key(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
@@ -1103,7 +1119,7 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
     )
     assert signin.status_code == 200
 
-    async def fake_create_checkout_link(*, email: str, plan: str, company: str = "", base_url: str):
+    async def fake_create_checkout_link(*, email: str, plan: str, interval: str = "monthly", company: str = "", base_url: str):
         from api.database import db_upsert_subscription
 
         subscription = db_upsert_subscription(
@@ -1115,7 +1131,8 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
         )
         return {
             "plan": plan,
-            "amount": 74900,
+            "interval": interval,
+            "amount": 99900,
             "checkout_url": "https://payments.example/checkout",
             "provider_payment_link_id": "plink_test_123",
             "subscription": subscription,
@@ -1123,10 +1140,12 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
 
     monkeypatch.setattr("api.webhook.create_checkout_link", fake_create_checkout_link)
 
-    checkout = client.post("/billing/checkout", json={"plan": "starter"})
+    checkout = client.post("/billing/checkout", json={"plan": "starter", "interval": "monthly"})
     assert checkout.status_code == 200
     checkout_data = unwrap(checkout.json())
     assert checkout_data["checkout_url"] == "https://payments.example/checkout"
+    assert checkout_data["interval"] == "monthly"
+    assert checkout_data["amount"] == 99900
 
     billing_before = client.get("/billing/me")
     assert billing_before.status_code == 200
@@ -1140,7 +1159,7 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
                 "entity": {
                     "id": "pay_test_123",
                     "email": "buyer@example.com",
-                    "amount": 74900,
+                    "amount": 99900,
                     "currency": "INR",
                     "status": "captured",
                     "notes": {
@@ -1225,6 +1244,17 @@ def test_webhook_rejects_unsigned_payloads_when_secret_missing(client: TestClien
         headers={"Content-Type": "application/json", "x-razorpay-signature": "bad"},
     )
     assert webhook.status_code == 401
+
+
+def test_verify_razorpay_signature_accepts_valid_payload(monkeypatch: pytest.MonkeyPatch):
+    from api.webhook import verify_razorpay_signature
+
+    payload = b'{"event":"payment.captured"}'
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "unit-secret")
+    signature = hmac.new(b"unit-secret", payload, hashlib.sha256).hexdigest()
+
+    assert verify_razorpay_signature(payload, signature) is True
+    assert verify_razorpay_signature(payload, "bad-signature") is False
 
 
 def test_alert_configuration_rejects_private_targets(client: TestClient):

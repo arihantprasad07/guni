@@ -28,6 +28,10 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
+def _month_prefix() -> str:
+    return time.strftime("%Y-%m")
+
+
 def _use_mock_mongo() -> bool:
     return (os.environ.get("GUNI_USE_MOCK_MONGO", "") or "").strip().lower() in {
         "1", "true", "yes", "on"
@@ -248,17 +252,27 @@ def db_increment_usage(key: str) -> bool:
     return (int(current.get("scans_used", 0)) + 1) <= int(current.get("scans_limit", 0))
 
 
+def db_get_monthly_scan_count(key: str, month_prefix: str | None = None) -> int:
+    month_prefix = month_prefix or _month_prefix()
+    return _collections()["scans"].count_documents(
+        {"api_key": key, "timestamp": {"$regex": f"^{month_prefix}"}}
+    )
+
+
 def db_get_usage(key: str) -> dict:
     row = _collections()["api_keys"].find_one({"key": key})
     if not row:
         return {}
     item = _with_id(row)
-    used = int(item["scans_used"])
+    used = db_get_monthly_scan_count(key)
     limit = int(item["scans_limit"])
+    monthly_limit = limit
     return {
         "scans_used": used,
         "scans_limit": limit,
-        "scans_remaining": max(0, limit - used),
+        "monthly_limit": monthly_limit,
+        "limit_label": f"{monthly_limit:,}/month",
+        "scans_remaining": max(0, monthly_limit - used),
         "plan": item["plan"],
         "active": bool(item["active"]),
         "created_at": item["created_at"],
@@ -266,13 +280,21 @@ def db_get_usage(key: str) -> dict:
         "email": item["email"],
         "org_id": item["org_id"],
         "revoked_at": item["revoked_at"],
+        "period": _month_prefix(),
+        "hosted_api_enabled": monthly_limit > 0,
     }
 
 
 def db_list_keys(org_id: int | None = None) -> list:
     query = {} if org_id is None else {"org_id": org_id}
-    rows = _collections()["api_keys"].find(query).sort("created_at", DESCENDING)
-    return _docs_with_id(rows)
+    rows = _docs_with_id(_collections()["api_keys"].find(query).sort("created_at", DESCENDING))
+    for row in rows:
+        usage = db_get_usage(row["key"])
+        row["scans_used"] = usage.get("scans_used", row.get("scans_used", 0))
+        row["monthly_limit"] = usage.get("monthly_limit")
+        row["scans_remaining"] = usage.get("scans_remaining")
+        row["period"] = usage.get("period")
+    return rows
 
 
 def db_revoke_key(key: str) -> bool:

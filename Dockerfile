@@ -1,37 +1,30 @@
-# Guni API — Production Dockerfile
-# Uses Python 3.11 slim for small image size
+FROM python:3.11.9-slim
 
-FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000 \
+    GUNI_LOG_PATH=/tmp/guni_audit.log
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies needed by lxml
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libxml2-dev \
     libxslt-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (layer caching — only reinstalls if requirements change)
-COPY requirements.txt .
+RUN groupadd --system guni && useradd --system --gid guni --create-home --home-dir /home/guni guni
 
-# Install Python dependencies
-# Note: playwright browsers NOT installed — API doesn't need browser execution
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy the entire project
 COPY . .
+RUN pip install setuptools wheel && pip install -e .
 
-# Install the guni package itself
-RUN pip install --no-cache-dir setuptools wheel && pip install --no-cache-dir -e .
+RUN chown -R guni:guni /app /home/guni
+USER guni
 
-# Railway injects PORT env variable — uvicorn must bind to it
-ENV PORT=8000
-ENV GUNI_LOG_PATH=/tmp/guni_audit.log
-
-# Expose port (documentation only — Railway uses PORT env var)
 EXPOSE 8000
 
-# Start the API server using Python to read PORT env var
 CMD ["sh", "-c", "gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}"]

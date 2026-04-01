@@ -58,3 +58,11 @@ def check_rate_limit(api_key: str):
         stale_keys = [key for key, entries in _request_log.items() if not entries]
         for stale_key in stale_keys:
             _request_log.pop(stale_key, None)
+
+
+def quota_exceeded_error(plan: str, period: str) -> HTTPException:
+    readable_plan = "Plus" if str(plan).lower() == "starter" else str(plan).title()
+    return HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail=f"Quota exceeded. Your {readable_plan} hosted API quota is exhausted for {period}. Upgrade or wait for the monthly reset to continue scanning.",
+    )

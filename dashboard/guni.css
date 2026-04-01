@@ -394,4 +394,9 @@ body::after {
   .g-wl-row { flex-direction: column; }
   .g-wl-input { border-right: 1px solid var(--border2); border-bottom: none; }
   .g-wl-btn { border-left: none; }
+  .g-nav { padding-left: 12px; padding-right: 12px; }
+  .g-nav-right { gap: 8px; }
+  .g-btn { white-space: normal; text-align: center; }
+  .g-card-body { padding: 1rem 1rem; }
+  .g-title-md { line-height: 1.12; }
 }

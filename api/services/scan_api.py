@@ -38,20 +38,17 @@ def enforce_scan_quota(api_key: str, scans_needed: int = 1) -> None:
         return
 
     from api.key_manager import get_usage
+    from api.rate_limit import quota_exceeded_error
 
     usage = get_usage(api_key)
     if not usage:
         return
 
-    remaining = usage.get("scans_remaining", 0)
+    remaining = usage.get("scans_remaining")
+    if remaining is None:
+        return
     if remaining < scans_needed:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=(
-                f"Scan quota exceeded for plan '{usage.get('plan', 'unknown')}'. "
-                f"{remaining} scans remaining."
-            ),
-        )
+        raise quota_exceeded_error(usage.get("plan", "free"), usage.get("period", "this month"))
 
 
 def prepare_alert_target(url: str | None) -> str | None:

@@ -212,6 +212,53 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
         return False
 
 
+def send_welcome_email(to_email: str) -> bool:
+    dashboard_url = "https://guni.up.railway.app/portal"
+    docs_url = "https://guni.up.railway.app/integrate"
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/>
+<style>
+body{{font-family:'Courier New',monospace;background:#0a0a0b;color:#eeeef0;margin:0;padding:0}}
+.wrap{{max-width:560px;margin:0 auto;padding:40px 24px}}
+.logo{{font-size:24px;color:#f5a623;font-weight:700;margin-bottom:28px}}
+.logo em{{color:#8888a0;font-style:normal;font-weight:400}}
+h1{{font-size:26px;font-weight:400;margin-bottom:12px}}
+p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
+.btn{{display:inline-block;background:#f5a623;color:#000;font-family:'Courier New',monospace;font-size:12px;padding:12px 28px;text-decoration:none;letter-spacing:2px;text-transform:uppercase;margin:8px 8px 8px 0}}
+.btn.alt{{background:transparent;color:#f5a623;border:1px solid rgba(245,166,35,0.35)}}
+.footer{{font-size:11px;color:#4a4a58;margin-top:28px;padding-top:20px;border-top:1px solid rgba(245,166,35,0.1)}}
+</style></head><body>
+<div class="wrap">
+  <div class="logo">guni<em>.dev</em></div>
+  <h1>Welcome to Guni</h1>
+  <p>Guni protects AI web agents from prompt injection, phishing, clickjacking, redirects, and goal hijacking before your agent executes a risky action.</p>
+  <p>You can use the hosted dashboard to inspect scans, billing, and API keys, or self-host the middleware for local evaluation.</p>
+  <a class="btn" href="{dashboard_url}">Open dashboard</a>
+  <a class="btn alt" href="{docs_url}">Integration docs</a>
+  <div class="footer">You’re receiving this because a Guni account was created with this email. &copy; 2026 Guni</div>
+</div></body></html>"""
+    text = (
+        "Welcome to Guni.\n\n"
+        "Guni protects AI web agents from prompt injection, phishing, clickjacking, redirects, and goal hijacking.\n\n"
+        f"Dashboard: {dashboard_url}\n"
+        f"Integration docs: {docs_url}\n"
+    )
+    return _send_html_email(to_email, "Welcome to Guni", html, text)
+
+
+def send_admin_alert(to_email: str, subject: str, title: str, body_lines: list[str]) -> bool:
+    safe_lines = "".join(f"<li>{line}</li>" for line in body_lines)
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head><body style="font-family:'Courier New',monospace;background:#0a0a0b;color:#eeeef0;padding:24px">
+<div style="max-width:560px;margin:0 auto;border:1px solid rgba(245,166,35,0.18);padding:24px;background:#0d0d11">
+<div style="font-size:22px;color:#f5a623;font-weight:700;margin-bottom:18px">guni<em style="color:#8888a0;font-style:normal;font-weight:400">.dev</em></div>
+<h1 style="font-size:22px;font-weight:400;margin:0 0 14px">{title}</h1>
+<ul style="color:#a0a0c0;line-height:1.8;padding-left:18px">{safe_lines}</ul>
+</div></body></html>"""
+    text = "\n".join(body_lines)
+    return _send_html_email(to_email, subject, html, text)
+
+
 def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> bool:
     """Generic HTML email sender used by auth system."""
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")

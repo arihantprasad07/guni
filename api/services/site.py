@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -32,6 +33,7 @@ def _read_dashboard_html(name: str) -> str:
 
 def _decorate_dashboard_html(name: str, html: str) -> str:
     private_pages = {"owner.html", "portal.html"}
+    html = _apply_seo_metadata(name, html)
     if name in private_pages:
         return html
 
@@ -46,6 +48,87 @@ def _replace_last(source: str, needle: str, replacement: str) -> str:
     if not sep:
         return source
     return f"{head}{replacement}{tail}"
+
+
+def _page_metadata(name: str) -> dict[str, str]:
+    page = name.replace(".html", "")
+    defaults = {
+        "title": "Guni | AI Agent Security Middleware",
+        "description": "Guni secures AI web agents against prompt injection, phishing, clickjacking, malicious redirects, and goal hijacking.",
+        "image": "/static/favicon.svg",
+    }
+    per_page = {
+        "landing": {
+            "title": "Guni | Secure Your AI Agents",
+            "description": "Protect AI web agents from prompt injection, phishing, clickjacking, and goal hijacking with Guni's security middleware.",
+        },
+        "index": {
+            "title": "Guni Demo | Live AI Agent Threat Scan",
+            "description": "Try the live Guni demo to scan pages for prompt injection, phishing, clickjacking, and other AI-agent threats.",
+        },
+        "signup": {
+            "title": "Sign up | Guni",
+            "description": "Create your Guni account, choose a plan, and start protecting AI agents with hosted scanning and dashboard access.",
+        },
+        "signin": {
+            "title": "Sign in | Guni",
+            "description": "Sign in to the Guni portal to manage scans, alerts, billing, and API keys for your AI agents.",
+        },
+        "portal": {
+            "title": "Customer Portal | Guni",
+            "description": "Manage API keys, usage, billing, alerts, and scan history from the Guni customer portal.",
+        },
+        "pilot": {
+            "title": "Pilot Program | Guni",
+            "description": "Request a focused Guni pilot for high-risk browser workflows and autonomous web-agent evaluations.",
+        },
+        "enterprise": {
+            "title": "Enterprise | Guni",
+            "description": "Evaluate Guni for production AI-agent security, hosted scanning, trust workflows, and enterprise rollout planning.",
+        },
+        "docs": {
+            "title": "Docs | Guni",
+            "description": "Integrate Guni into browser agents, Playwright flows, and web automation stacks with hosted or self-hosted options.",
+        },
+        "integrate": {
+            "title": "Integrate | Guni",
+            "description": "Learn how to add Guni to your AI web agent stack and protect live browser workflows in production.",
+        },
+        "threats": {
+            "title": "Threat Feed | Guni",
+            "description": "Monitor the Guni threat feed to see live scans, blocked threats, and platform-wide AI-agent attack trends.",
+        },
+    }
+    return {**defaults, **per_page.get(page, {})}
+
+
+def _upsert_meta(html: str, attr: str, value: str, *, property_attr: bool = False) -> str:
+    key = "property" if property_attr else "name"
+    pattern = rf'<meta\s+{key}="{re.escape(attr)}"\s+content="[^"]*"\s*/?>'
+    tag = f'<meta {key}="{attr}" content="{value}"/>'
+    if re.search(pattern, html, flags=re.IGNORECASE):
+        return re.sub(pattern, tag, html, count=1, flags=re.IGNORECASE)
+    return _replace_last(html, "</head>", f"{tag}\n</head>")
+
+
+def _replace_title(html: str, title: str) -> str:
+    if re.search(r"<title>.*?</title>", html, flags=re.IGNORECASE | re.DOTALL):
+        return re.sub(r"<title>.*?</title>", f"<title>{title}</title>", html, count=1, flags=re.IGNORECASE | re.DOTALL)
+    return html
+
+
+def _apply_seo_metadata(name: str, html: str) -> str:
+    metadata = _page_metadata(name)
+    html = _replace_title(html, metadata["title"])
+    html = _upsert_meta(html, "description", metadata["description"])
+    html = _upsert_meta(html, "og:title", metadata["title"], property_attr=True)
+    html = _upsert_meta(html, "og:description", metadata["description"], property_attr=True)
+    html = _upsert_meta(html, "og:image", metadata["image"], property_attr=True)
+    html = _upsert_meta(html, "twitter:card", "summary_large_image")
+    html = _upsert_meta(html, "twitter:title", metadata["title"])
+    html = _upsert_meta(html, "twitter:description", metadata["description"])
+    html = _upsert_meta(html, "twitter:image", metadata["image"])
+    return html
 
 
 def _site_shell_assets(name: str) -> dict[str, str]:

@@ -16,7 +16,13 @@
 .list{display:grid;gap:10px;margin-top:1rem}
 .list div{padding:0.85rem 0.9rem;background:var(--bg2);border:1px solid var(--border)}
 .template{white-space:pre-wrap;font-size:12px;line-height:1.8;background:var(--bg2);border:1px solid var(--border2);padding:1rem}
-@media (max-width: 980px){.grid{grid-template-columns:1fr}}
+.pilot-form{display:grid;gap:12px;margin-top:1rem}
+.pilot-row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.pilot-msg{display:none;font-size:12px;padding:10px 12px;border:1px solid}
+.pilot-msg.show{display:block}
+.pilot-msg.ok{color:var(--green);border-color:rgba(0,217,126,.2);background:rgba(0,217,126,.05)}
+.pilot-msg.err{color:var(--red);border-color:rgba(240,64,64,.2);background:rgba(240,64,64,.05)}
+@media (max-width: 980px){.grid,.pilot-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="g-page">
@@ -103,14 +109,73 @@
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:1rem">
-          <a class="g-btn g-btn-primary" href="mailto:hello@guni.dev?subject=Guni%20Security%20Evaluation">Request evaluation</a>
-          <a class="g-btn g-btn-outline" href="/security">Review security architecture</a>
-          <a class="g-btn g-btn-outline" href="/demo">Open demo</a>
-        </div>
+        <form class="pilot-form" id="pilot-form">
+          <div class="pilot-row">
+            <div>
+              <label class="g-field-label" for="pilot-name">Name</label>
+              <input class="g-input" id="pilot-name" type="text" placeholder="Arihant Prasad"/>
+            </div>
+            <div>
+              <label class="g-field-label" for="pilot-company">Company</label>
+              <input class="g-input" id="pilot-company" type="text" placeholder="Guni Labs"/>
+            </div>
+          </div>
+          <div>
+            <label class="g-field-label" for="pilot-email">Email</label>
+            <input class="g-input" id="pilot-email" type="email" placeholder="you@company.com"/>
+          </div>
+          <div>
+            <label class="g-field-label" for="pilot-use-case">Use case</label>
+            <textarea class="g-textarea" id="pilot-use-case" placeholder="Which browser workflow or agent behavior do you want to evaluate?"></textarea>
+          </div>
+          <div class="pilot-msg ok" id="pilot-ok">Pilot request received.</div>
+          <div class="pilot-msg err" id="pilot-err">Could not send pilot request.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="g-btn g-btn-primary" id="pilot-submit" type="submit">Request evaluation</button>
+            <a class="g-btn g-btn-outline" href="/security">Review security architecture</a>
+            <a class="g-btn g-btn-outline" href="/demo">Open demo</a>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </main>
+<script>
+document.getElementById('pilot-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const ok = document.getElementById('pilot-ok');
+  const err = document.getElementById('pilot-err');
+  const btn = document.getElementById('pilot-submit');
+  ok.classList.remove('show');
+  err.classList.remove('show');
+  const payload = {
+    name: document.getElementById('pilot-name').value.trim(),
+    company: document.getElementById('pilot-company').value.trim(),
+    email: document.getElementById('pilot-email').value.trim(),
+    use_case: document.getElementById('pilot-use-case').value.trim(),
+  };
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  try {
+    const response = await fetch('/pilot/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error((result && (result.error || result.detail)) || 'Could not send pilot request.');
+    }
+    ok.classList.add('show');
+    event.target.reset();
+  } catch (error) {
+    err.textContent = error.message || 'Could not send pilot request.';
+    err.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Request evaluation';
+  }
+});
+</script>
 </body>
 </html>

@@ -31,6 +31,11 @@
 .plan-opt.selected .plan-name{color:var(--amber)}
 .inline-action{display:none}
 .inline-action.show{display:block}
+.billing-cycle{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem}
+.cycle-opt{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;cursor:pointer}
+.cycle-opt.selected{border-color:var(--amber);background:var(--amber3)}
+.cycle-title{font-size:12px;color:var(--text);font-family:var(--display)}
+.cycle-copy{font-size:11px;color:var(--muted2);margin-top:3px;line-height:1.5}
 @media (max-width: 640px){.plan-select{grid-template-columns:1fr}}
 </style>
 </head>
@@ -60,6 +65,20 @@
             <div class="plan-name">Pro</div>
             <div class="plan-price">Production workflows · Priority support</div>
           </label>
+        </div>
+      </div>
+
+      <div class="field" id="interval-wrap" style="display:none">
+        <label class="g-field-label">Billing cycle</label>
+        <div class="billing-cycle">
+          <div class="cycle-opt selected" id="interval-monthly" onclick="selectInterval('monthly')">
+            <div class="cycle-title">Monthly</div>
+            <div class="cycle-copy" id="interval-monthly-copy">₹999/mo</div>
+          </div>
+          <div class="cycle-opt" id="interval-yearly" onclick="selectInterval('yearly')">
+            <div class="cycle-title">Yearly</div>
+            <div class="cycle-copy" id="interval-yearly-copy">₹7,490/yr</div>
+          </div>
         </div>
       </div>
 
@@ -93,12 +112,23 @@
 
 <script>
 let selectedPlan = 'free';
+let selectedInterval = 'monthly';
 
 function selectPlan(plan) {
   selectedPlan = plan;
   document.getElementById('plan-free').classList.toggle('selected', plan === 'free');
   document.getElementById('plan-starter').classList.toggle('selected', plan === 'starter');
   document.getElementById('plan-pro').classList.toggle('selected', plan === 'pro');
+  const intervalWrap = document.getElementById('interval-wrap');
+  intervalWrap.style.display = plan === 'free' ? 'none' : 'block';
+  document.getElementById('interval-monthly-copy').textContent = plan === 'pro' ? '₹4,999/mo' : '₹999/mo';
+  document.getElementById('interval-yearly-copy').textContent = plan === 'pro' ? '₹23,990/yr' : '₹7,490/yr';
+}
+
+function selectInterval(interval) {
+  selectedInterval = interval;
+  document.getElementById('interval-monthly').classList.toggle('selected', interval === 'monthly');
+  document.getElementById('interval-yearly').classList.toggle('selected', interval === 'yearly');
 }
 
 function apiErrorMessage(payload, fallback) {
@@ -152,19 +182,35 @@ async function signup(btnEl) {
 
     resend.classList.add('show');
 
-    if (selectedPlan === 'starter') {
-      ok.textContent = 'Account created. Check your email to verify. Your Plus access can be activated after review.';
-      ok.classList.add('show');
-      setTimeout(() => window.location.href = '/pilot', 3000);
-    } else if (selectedPlan === 'pro') {
-      ok.textContent = 'Account created. Check your email to verify. We will follow up to activate your Pro workspace.';
-      ok.classList.add('show');
-      setTimeout(() => window.location.href = '/enterprise', 3000);
-    } else {
+    if (selectedPlan === 'free') {
       ok.textContent = 'Account created. Check your email to verify your account.';
       ok.classList.add('show');
-      setTimeout(() => window.location.href = '/signin', 3000);
+      setTimeout(() => window.location.href = '/portal', 1600);
+      return;
     }
+
+    ok.textContent = `Account created. Redirecting to ${selectedPlan === 'pro' ? 'Pro' : 'Plus'} checkout...`;
+    ok.classList.add('show');
+
+    const checkoutResponse = await fetch('/billing/checkout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: selectedPlan, interval: selectedInterval }),
+    });
+    const checkoutPayload = await checkoutResponse.json().catch(() => null);
+    if (!checkoutResponse.ok) {
+      err.textContent = apiErrorMessage(checkoutPayload, 'Your account was created, but checkout could not be started. Open billing from the portal to continue.');
+      err.classList.add('show');
+      return;
+    }
+    const checkoutData = checkoutPayload && checkoutPayload.data ? checkoutPayload.data : checkoutPayload;
+    if (!checkoutData || !checkoutData.checkout_url) {
+      err.textContent = 'Your account was created, but the checkout link was missing. Open billing from the portal to continue.';
+      err.classList.add('show');
+      return;
+    }
+    window.location.href = checkoutData.checkout_url;
   } catch (e) {
     err.textContent = 'Could not connect. Try again.';
     err.classList.add('show');
@@ -214,6 +260,14 @@ async function resendVerification() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Enter') signup(); });
 document.getElementById('resend-btn').addEventListener('click', resendVerification);
+
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const plan = params.get('plan');
+  const interval = params.get('interval');
+  if (plan === 'starter' || plan === 'pro' || plan === 'free') selectPlan(plan);
+  if (interval === 'monthly' || interval === 'yearly') selectInterval(interval);
+})();
 </script>
 </body>
 </html>

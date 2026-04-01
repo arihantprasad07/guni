@@ -25,8 +25,8 @@ PLAN_LIMITS = {
 }
 
 PLAN_AMOUNTS = {
-    "starter": 74900,
-    "pro": 239900,
+    "starter": {"monthly": 99900, "yearly": 749000},
+    "pro": {"monthly": 499900, "yearly": 2399000},
 }
 
 ACTIVE_BILLING_EVENTS = {"payment.captured", "subscription.activated"}
@@ -55,14 +55,17 @@ def _razorpay_auth_header() -> str:
     return f"Basic {token}"
 
 
-def _plan_amount(plan: str) -> int:
-    return PLAN_AMOUNTS.get(plan, PLAN_AMOUNTS["starter"])
+def _plan_amount(plan: str, interval: str = "monthly") -> int:
+    normalized_plan = plan if plan in PLAN_AMOUNTS else "starter"
+    normalized_interval = interval if interval in {"monthly", "yearly"} else "monthly"
+    return PLAN_AMOUNTS[normalized_plan][normalized_interval]
 
 
 async def create_checkout_link(
     *,
     email: str,
     plan: str,
+    interval: str = "monthly",
     company: str = "",
     base_url: str,
 ) -> dict:
@@ -73,13 +76,16 @@ async def create_checkout_link(
         raise RuntimeError("Razorpay credentials are not configured")
 
     plan = plan.lower().strip()
-    amount = _plan_amount(plan)
+    interval = interval.lower().strip() or "monthly"
+    if interval not in {"monthly", "yearly"}:
+        raise RuntimeError("Invalid billing interval")
+    amount = _plan_amount(plan, interval)
     base_url = base_url.rstrip("/")
 
     payload = {
         "amount": amount,
         "currency": "INR",
-        "description": f"Guni {plan.title()} plan",
+        "description": f"Guni {plan.title()} plan ({interval})",
         "customer": {
             "email": email,
             "name": company or email.split("@", 1)[0],
@@ -92,6 +98,7 @@ async def create_checkout_link(
         "callback_method": "get",
         "notes": {
             "plan": plan,
+            "interval": interval,
             "email": email,
             "company": company or "",
         },
@@ -118,6 +125,7 @@ async def create_checkout_link(
     )
     return {
         "plan": plan,
+        "interval": interval,
         "amount": amount,
         "checkout_url": data.get("short_url"),
         "provider_payment_link_id": data.get("id"),
@@ -141,12 +149,14 @@ def _extract_payment_context(data: dict) -> dict:
 
     email = payment.get("email") or notes.get("email", "")
     amount = payment.get("amount", 0)
-    plan = (notes.get("plan") or ("pro" if amount >= PLAN_AMOUNTS["pro"] else "starter")).lower()
+    plan = (notes.get("plan") or ("pro" if amount >= PLAN_AMOUNTS["pro"]["monthly"] else "starter")).lower()
+    interval = (notes.get("interval") or "monthly").lower()
 
     return {
         "event": event,
         "email": email.lower().strip(),
         "plan": plan,
+        "interval": interval,
         "amount": amount,
         "currency": payment.get("currency", "INR"),
         "payment_id": payment.get("id", ""),
@@ -233,7 +243,7 @@ def apply_billing_event(data: dict) -> dict:
             send_api_key_email(
                 email,
                 key_data["key"],
-                context["plan"],
+                f"{context['plan']} ({context['interval']})",
                 PLAN_LIMITS.get(context["plan"], 1000),
             )
         except Exception as exc:
