@@ -37,6 +37,65 @@
   display:grid;
   align-items:center;
 }
+.mobile-nav-toggle{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  width:40px;
+  height:40px;
+  border:1px solid var(--border2);
+  background:rgba(255,255,255,0.03);
+  color:var(--text);
+  cursor:pointer;
+  position:relative;
+}
+.mobile-nav-toggle span,
+.mobile-nav-toggle::before,
+.mobile-nav-toggle::after{
+  content:"";
+  display:block;
+  position:absolute;
+  width:16px;
+  height:1.5px;
+  background:currentColor;
+  transition:transform 0.2s ease, opacity 0.2s ease;
+}
+.mobile-nav-toggle::before{transform:translateY(-5px)}
+.mobile-nav-toggle::after{transform:translateY(5px)}
+.mobile-nav-toggle.open span{opacity:0}
+.mobile-nav-toggle.open::before{transform:rotate(45deg)}
+.mobile-nav-toggle.open::after{transform:rotate(-45deg)}
+.mobile-nav{
+  display:none;
+  position:fixed;
+  top:56px;
+  left:0;
+  right:0;
+  z-index:190;
+  padding:0.75rem var(--pad) 1rem;
+  background:rgba(7,7,10,0.96);
+  border-bottom:1px solid var(--border2);
+  backdrop-filter:blur(18px);
+}
+.mobile-nav.open{display:block}
+.mobile-nav-links{
+  display:grid;
+  gap:8px;
+}
+.mobile-nav-links a{
+  text-decoration:none;
+  color:var(--text);
+  font-size:12px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,0.02);
+}
+.mobile-nav-links a:hover{
+  border-color:var(--amber);
+  color:var(--amber);
+}
 .hero-grid{
   display:grid;
   grid-template-columns:minmax(0,1.18fr) minmax(320px,0.82fr);
@@ -52,6 +111,8 @@
   border:1px solid var(--border2);
   background:linear-gradient(180deg, rgba(7,7,10,0.82), rgba(7,7,10,0.64));
   box-shadow:0 30px 80px rgba(0,0,0,0.35);
+  transform:translate3d(0,0,0);
+  transition:transform 0.22s ease;
 }
 .hero-chip{
   display:inline-flex;
@@ -146,6 +207,13 @@
 .control-card,.thesis-card,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band{
   background:linear-gradient(180deg, rgba(13,13,17,0.92), rgba(7,7,10,0.9));
   border:1px solid var(--border2);
+  transform:translate3d(0,0,0);
+  transition:transform 0.22s ease,border-color 0.22s ease,box-shadow 0.22s ease;
+}
+.control-card:hover,.thesis-card:hover,.platform-card:hover,.command-card:hover,.ecosystem-card:hover,.big-quote:hover,.cta-band:hover{
+  transform:translateY(-3px);
+  border-color:var(--border3);
+  box-shadow:0 22px 50px rgba(0,0,0,0.22);
 }
 .control-card{overflow:hidden}
 .control-head{
@@ -360,13 +428,45 @@
 @media(max-width:1080px){
   .hero-grid,.mission-band,.platform-grid,.big-quote{grid-template-columns:1fr}
   .command-grid{grid-template-columns:1fr 1fr}
+  .hero{min-height:auto}
 }
 @media(max-width:760px){
   .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr 1fr}
+  .g-nav-links{display:none}
+  .mobile-nav-toggle{display:inline-flex}
+  .g-nav-right .g-live,
+  .g-nav-right .g-btn-outline{display:none}
+  .hero{padding:4.4rem 0 2.2rem}
+  .hero-main,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band,.mission-panel,.mission-item{padding:1.1rem}
+  .hero-sub,
+  .mission-panel p,
+  .platform-card p,
+  .command-card p,
+  .ecosystem-card p,
+  .big-quote p,
+  .cta-band p{font-size:12px;line-height:1.75}
+  .hero-actions,.signal-row{display:grid;grid-template-columns:1fr}
+  .hero-actions .g-btn,
+  .cta-band .g-btn{width:100%;text-align:center}
+  .stack-row{grid-template-columns:1fr;gap:4px}
 }
 @media(max-width:520px){
   .hero-metrics,.command-grid,.ecosystem-grid{grid-template-columns:1fr}
   .tl{white-space:normal;font-size:10px}
+  .hero-title{font-size:clamp(2.5rem,16vw,4.2rem);line-height:0.94}
+  .hero-chip{font-size:10px;padding:6px 10px}
+  .signal-pill{width:100%}
+  .hero-metric{padding:0.9rem 0.9rem 1rem}
+  .control-head,.control-body{padding:0.85rem}
+  .status-line{flex-direction:column;gap:4px;align-items:flex-start}
+  .big-quote blockquote{font-size:clamp(1.5rem,9vw,2.2rem)}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-main,
+  .control-card,.thesis-card,.platform-card,.command-card,.ecosystem-card,.big-quote,.cta-band,
+  .mobile-nav-toggle span,
+  .mobile-nav-toggle::before,
+  .mobile-nav-toggle::after{transition:none}
 }
 </style>
 </head>
@@ -387,8 +487,23 @@
     <div class="g-live"><div class="g-live-dot"></div><span class="g-hide-mobile">Agent runtime active</span></div>
     <a class="g-btn g-btn-outline g-btn-sm" href="/signin" style="margin-right:6px">Sign in</a>
     <a class="g-btn g-btn-primary g-btn-sm" href="/signup">Start pilot</a>
+    <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-nav"><span></span></button>
   </div>
 </nav>
+<div class="mobile-nav" id="mobile-nav">
+  <div class="mobile-nav-links">
+    <a href="#platform">Platform</a>
+    <a href="#control-plane">Control Plane</a>
+    <a href="#ecosystem">Ecosystem</a>
+    <a href="/enterprise">Enterprise</a>
+    <a href="/security">Security</a>
+    <a href="/pilot">Pilot</a>
+    <a href="/demo">Demo</a>
+    <a href="/docs">Docs</a>
+    <a href="/signin">Sign in</a>
+    <a href="/signup">Start pilot</a>
+  </div>
+</div>
 
 <main>
   <section class="hero">
@@ -586,6 +701,7 @@
 
 <script>
 const API = window.location.origin;
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TERM = [
   { c: "p", t: "$ guni runtime inspect --goal \"complete login\" --url https://portal.example" },
   { c: "c", t: "  [01] Browser DOM normalized.......................... 0.0002s" },
@@ -640,6 +756,60 @@ async function fetchStats() {
   } catch (error) {}
 }
 
+function setupMobileNav() {
+  const toggle = document.getElementById("mobile-nav-toggle");
+  const mobileNav = document.getElementById("mobile-nav");
+  if (!toggle || !mobileNav) return;
+
+  const closeNav = () => {
+    toggle.classList.remove("open");
+    mobileNav.classList.remove("open");
+    toggle.setAttribute("aria-expanded", "false");
+  };
+
+  toggle.addEventListener("click", () => {
+    const nextOpen = !mobileNav.classList.contains("open");
+    toggle.classList.toggle("open", nextOpen);
+    mobileNav.classList.toggle("open", nextOpen);
+    toggle.setAttribute("aria-expanded", String(nextOpen));
+  });
+
+  mobileNav.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", closeNav);
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 760) closeNav();
+  });
+}
+
+function setupPointerDepth() {
+  if (prefersReducedMotion || window.innerWidth <= 760) return;
+  const heroMain = document.querySelector(".hero-main");
+  const hoverCards = document.querySelectorAll(".control-card, .thesis-card");
+  if (!heroMain) return;
+
+  const reset = () => {
+    heroMain.style.transform = "translate3d(0,0,0)";
+    hoverCards.forEach((card) => {
+      card.style.transform = "translate3d(0,0,0)";
+    });
+  };
+
+  window.addEventListener("mousemove", (event) => {
+    const x = (event.clientX / window.innerWidth - 0.5) * 10;
+    const y = (event.clientY / window.innerHeight - 0.5) * 10;
+    heroMain.style.transform = `translate3d(${x * -0.4}px, ${y * -0.5}px, 0)`;
+    hoverCards.forEach((card, index) => {
+      const strength = index === 0 ? 0.25 : 0.18;
+      card.style.transform = `translate3d(${x * strength}px, ${y * strength}px, 0)`;
+    });
+  });
+
+  window.addEventListener("blur", reset);
+  document.addEventListener("mouseleave", reset);
+}
+
 const observer = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (entry.isIntersecting) entry.target.classList.add("visible");
@@ -648,6 +818,8 @@ const observer = new IntersectionObserver((entries) => {
 
 document.querySelectorAll(".g-fade-up").forEach((el) => observer.observe(el));
 window.addEventListener("load", () => {
+  setupMobileNav();
+  setupPointerDepth();
   fetchStats();
   runTerm();
   setInterval(runTerm, 20000);
