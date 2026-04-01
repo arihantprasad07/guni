@@ -22,7 +22,7 @@ from api.models import (
     ScanResponse,
     ScanURLRequest,
 )
-from api.rate_limit import check_rate_limit
+from api.rate_limit import check_rate_limit, quota_exceeded_error
 from api.services.scan_api import (
     analyze_action_payload,
     build_scan_response,
@@ -67,7 +67,14 @@ def scan_html(
     api_key: str = Depends(verify_api_key_or_demo),
 ):
     check_rate_limit(api_key)
-    enforce_scan_quota(api_key)
+    if api_key != "open":
+        from api.database import db_get_usage
+
+        usage = db_get_usage(api_key)
+        if usage and int(usage.get("monthly_limit", 0) or 0) <= int(usage.get("scans_used", 0) or 0):
+            raise quota_exceeded_error(usage.get("plan", "free"), usage.get("period", "this month"))
+    else:
+        enforce_scan_quota(api_key)
     _read_json_body_sync_guard(body.html)
 
     demo_mode_request = request.headers.get("x-guni-demo", "").strip().lower() in {"1", "true", "yes"}

@@ -54,6 +54,7 @@ def _collections():
         "organizations": db.organizations,
         "api_keys": db.api_keys,
         "scans": db.scans,
+        "pilot_requests": db.pilot_requests,
         "alerts": db.alerts,
         "custom_rules": db.custom_rules,
         "audit_events": db.audit_events,
@@ -120,6 +121,8 @@ def init_db():
     cols["api_keys"].create_index([("email", ASCENDING), ("active", ASCENDING)])
     cols["scans"].create_index([("api_key", ASCENDING)])
     cols["scans"].create_index([("timestamp", DESCENDING)])
+    cols["pilot_requests"].create_index([("id", ASCENDING)], unique=True)
+    cols["pilot_requests"].create_index([("created_at", DESCENDING)])
     cols["alerts"].create_index([("api_key", ASCENDING)], unique=True)
     cols["custom_rules"].create_index([("id", ASCENDING)], unique=True)
     cols["custom_rules"].create_index([("api_key", ASCENDING)])
@@ -181,6 +184,26 @@ def db_log_audit_event(
         "metadata": metadata or {},
         "created_at": _now(),
     })
+
+
+def db_create_pilot_request(name: str, company: str, email: str, use_case: str) -> dict:
+    request_id = _next_counter("pilot_requests")
+    doc = {
+        "_id": request_id,
+        "id": request_id,
+        "name": name,
+        "company": company,
+        "email": email.lower().strip(),
+        "use_case": use_case,
+        "created_at": _now(),
+    }
+    _collections()["pilot_requests"].insert_one(doc)
+    return _with_id(doc) or {}
+
+
+def db_get_pilot_requests(limit: int = 50) -> list:
+    rows = _collections()["pilot_requests"].find({}).sort("created_at", DESCENDING).limit(min(limit, 100))
+    return _docs_with_id(rows)
 
 
 def db_get_audit_events(org_id: int, limit: int = 50) -> list:

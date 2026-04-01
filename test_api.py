@@ -1151,6 +1151,7 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
     assert billing_before.status_code == 200
     billing_before_data = unwrap(billing_before.json())
     assert billing_before_data["plan"] == "starter"
+    assert "usage" in billing_before_data
 
     webhook_payload = {
         "event": "payment.captured",
@@ -1244,6 +1245,29 @@ def test_webhook_rejects_unsigned_payloads_when_secret_missing(client: TestClien
         headers={"Content-Type": "application/json", "x-razorpay-signature": "bad"},
     )
     assert webhook.status_code == 401
+
+
+def test_pilot_request_persists_to_collection(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_ADMIN_EMAIL", "founder@guni.dev")
+
+    response = client.post(
+        "/pilot/request",
+        json={
+            "name": "Arihant",
+            "company": "Guni Labs",
+            "email": "arihant@example.com",
+            "use_case": "Protecting an autonomous browser workflow",
+        },
+    )
+
+    assert response.status_code == 200
+    data = unwrap(response.json())
+    assert data["success"] is True
+
+    from api.database import db_get_pilot_requests
+
+    requests = db_get_pilot_requests(limit=10)
+    assert any(item["email"] == "arihant@example.com" and item["company"] == "Guni Labs" for item in requests)
 
 
 def test_verify_razorpay_signature_accepts_valid_payload(monkeypatch: pytest.MonkeyPatch):

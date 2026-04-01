@@ -107,6 +107,14 @@ def _admin_emails() -> set[str]:
     return set(load_settings().admin_emails)
 
 
+def _primary_admin_email() -> str:
+    explicit = os.environ.get("GUNI_ADMIN_EMAIL", "").strip().lower()
+    if explicit:
+        return explicit
+    admin_emails = sorted(_admin_emails())
+    return admin_emails[0] if admin_emails else ""
+
+
 def _owner_emails() -> set[str]:
     return set(load_settings().owner_emails)
 
@@ -220,28 +228,25 @@ def _send_welcome_email_task(email: str):
 def _send_pilot_alert_email_task(payload: dict):
     from api.email_service import email_sender_configured, send_admin_alert
     configured = email_sender_configured()
-    recipients = sorted(_owner_emails() or _admin_emails())
-    if not recipients:
+    recipient = _primary_admin_email()
+    if not recipient:
         log_system_event("email.pilot_alert", "skipped", details="No admin recipients configured")
         return
-    statuses = []
-    for recipient in recipients:
-        sent = send_admin_alert(
-            recipient,
-            "New Guni pilot request",
-            "New pilot request submitted",
-            [
-                f"Name: {payload['name']}",
-                f"Company: {payload['company']}",
-                f"Email: {payload['email']}",
-                f"Use case: {payload['use_case']}",
-            ],
-        )
-        statuses.append(sent)
+    sent = send_admin_alert(
+        recipient,
+        "New Guni pilot request",
+        "New pilot request submitted",
+        [
+            f"Name: {payload['name']}",
+            f"Company: {payload['company']}",
+            f"Email: {payload['email']}",
+            f"Use case: {payload['use_case']}",
+        ],
+    )
     log_system_event(
         "email.pilot_alert",
-        "delivered" if any(statuses) else ("skipped" if not configured else "failed"),
-        recipient_count=len(recipients),
+        "delivered" if sent else ("skipped" if not configured else "failed"),
+        recipient=recipient,
     )
 
 
@@ -590,9 +595,10 @@ async def razorpay_webhook(request: Request):
 
 @app.get("/billing/me", tags=["Payments"])
 def billing_me(request: Request):
-    from api.database import db_get_billing_events, db_get_subscription_by_email
+    from api.database import db_get_billing_events, db_get_subscription_by_email, db_get_usage
     user = _require_session_user(request)
-    return {"email": user["email"], "plan": user.get("plan", "free"), "subscription": db_get_subscription_by_email(user["email"]), "events": db_get_billing_events(email=user["email"], limit=10)}
+    usage = db_get_usage(user.get("api_key", "")) if user.get("api_key") else {}
+    return {"email": user["email"], "plan": user.get("plan", "free"), "subscription": db_get_subscription_by_email(user["email"]), "events": db_get_billing_events(email=user["email"], limit=10), "usage": usage}
 
 
 @app.post("/billing/checkout", tags=["Payments"])
@@ -627,19 +633,20 @@ def platform_stats():
 
 @app.post("/pilot/request", include_in_schema=False)
 def pilot_request(body: PilotRequest, request: Request, background_tasks: BackgroundTasks):
-    from api.database import db_log_audit_event
+    from api.database import db_create_pilot_request, db_log_audit_event
     name = body.name.strip()
     company = body.company.strip()
     email = body.email.lower().strip()
     use_case = body.use_case.strip()
     if not name or not company or not email or "@" not in email or not use_case:
         raise HTTPException(status_code=422, detail="Name, company, email, and use case are required.")
+    pilot = db_create_pilot_request(name=name, company=company, email=email, use_case=use_case)
     db_log_audit_event(
         actor_email=email,
         org_id=None,
         action="pilot.request",
         target_type="lead",
-        target_id=email,
+        target_id=str(pilot.get("id", email)),
         metadata={
             "name": name,
             "company": company,
@@ -648,7 +655,7 @@ def pilot_request(body: PilotRequest, request: Request, background_tasks: Backgr
         },
     )
     background_tasks.add_task(_send_pilot_alert_email_task, {"name": name, "company": company, "email": email, "use_case": use_case})
-    return {"success": True, "message": "Pilot request received. We will reach out shortly."}
+    return {"success": True}
 
 
 @app.post("/billing/cancel", tags=["Payments"])
