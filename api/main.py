@@ -341,10 +341,13 @@ app.include_router(threats_router)
 
 
 @app.get("/auth/verify", response_class=HTMLResponse, include_in_schema=False)
-def verify_email(token: str = ""):
-    from api.database import db_verify_user
+def verify_email(token: str = "", background_tasks: BackgroundTasks = None):
+    from api.database import db_get_email_by_verify_token, db_verify_user
+    email = db_get_email_by_verify_token(token) if token else None
     success = db_verify_user(token) if token else False
     if success:
+        if background_tasks and email:
+            background_tasks.add_task(_send_welcome_email_task, email)
         return HTMLResponse(content='<html><head><meta http-equiv="refresh" content="3;url=/signin?verified=1"/><link rel="stylesheet" href="/static/guni.css"/></head><body class="g-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="text-align:center"><div style="font-size:48px;color:#00d97e;margin-bottom:1rem">&#10003;</div><div style="font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem">Email verified!</div><div style="color:var(--muted2);font-size:13px">Redirecting to sign in...</div></div></body></html>')
     return HTMLResponse(content='<html><head><meta http-equiv="refresh" content="3;url=/signup"/><link rel="stylesheet" href="/static/guni.css"/></head><body class="g-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="text-align:center"><div style="font-size:48px;color:#f04040;margin-bottom:1rem">&#10007;</div><div style="font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem">Invalid or expired link</div><div style="color:var(--muted2);font-size:13px">Redirecting...</div></div></body></html>')
 
@@ -403,7 +406,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         raise HTTPException(status_code=422, detail="Invalid plan")
     pw_hash = hash_password(body.password)
     token = generate_token()
-    role = "owner" if email in _owner_emails() else ("admin" if email in _admin_emails() else "owner")
+    role = "owner" if email in _owner_emails() else ("admin" if email in _admin_emails() else "user")
     org = db_create_organization((body.company or "").strip() or _default_org_name(email))
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
     if not user:
@@ -416,7 +419,6 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     db_log_audit_event(actor_email=email, org_id=org["id"], action="auth.signup", target_type="user", target_id=email, metadata={"plan": plan, "role": _display_role(user)})
     if email not in _owner_emails():
         background_tasks.add_task(_send_verification_email_task, email, token, str(request.base_url).rstrip("/"))
-    background_tasks.add_task(_send_welcome_email_task, email)
     session = create_session(email)
     payload = {
         "success": True,
@@ -518,6 +520,8 @@ def portal(request: Request):
     user = _session_user(request)
     if not user:
         return RedirectResponse(url="/signin", status_code=302)
+    if not user.get("verified"):
+        return RedirectResponse(url="/signin?unverified=1", status_code=302)
     if _is_owner_user(user):
         return RedirectResponse(url="/owner", status_code=302)
     return render_dashboard_page("portal.html", "<h1>Portal</h1>")

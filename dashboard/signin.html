@@ -17,6 +17,8 @@
 .field{display:flex;flex-direction:column;gap:5px}
 .err{font-size:12px;color:var(--red);padding:10px 14px;border:1px solid rgba(240,64,64,0.2);background:var(--red2);display:none}
 .err.show{display:block}
+.warn{font-size:12px;color:#ffb800;padding:10px 14px;border:1px solid rgba(255,184,0,0.28);background:rgba(255,184,0,0.08);display:none}
+.warn.show{display:block}
 .ok{font-size:12px;color:var(--green);padding:10px 14px;border:1px solid rgba(0,217,126,0.2);background:rgba(0,217,126,0.06);display:none}
 .ok.show{display:block}
 .auth-footer{margin-top:1.5rem;font-size:12px;color:var(--muted2);text-align:center;line-height:2}
@@ -26,6 +28,7 @@
 .forgot:hover{color:var(--amber)}
 .inline-action{display:none;font-size:12px}
 .inline-action.show{display:block}
+.inline-link{color:#ffb800;text-decoration:underline;background:none;border:none;padding:0;font:inherit;cursor:pointer}
 </style>
 </head>
 <body class="g-page">
@@ -36,6 +39,7 @@
     <p class="auth-sub">Sign in to your Guni account to access your API key and portal.</p>
 
     <div id="verified-msg" class="ok" style="margin-bottom:1rem"></div>
+    <div id="unverified-msg" class="warn" style="margin-bottom:1rem"></div>
 
     <div class="auth-form">
 
@@ -68,12 +72,17 @@
 </div>
 
 <script>
-// Show verified message if redirected from email verification
 const params = new URLSearchParams(window.location.search);
 if (params.get('verified')) {
   const msg = document.getElementById('verified-msg');
-  msg.textContent = '✓ Email verified! You can now sign in.';
+  msg.textContent = 'Email verified! You can now sign in.';
   msg.classList.add('show');
+}
+if (params.get('unverified') === '1') {
+  const msg = document.getElementById('unverified-msg');
+  msg.innerHTML = 'Please verify your email before signing in. Check your inbox for the verification link. <button type="button" class="inline-link" id="inline-resend-link">Resend verification email</button>';
+  msg.classList.add('show');
+  document.getElementById('resend-btn').classList.add('show');
 }
 
 function apiErrorMessage(payload, fallback) {
@@ -89,20 +98,25 @@ function apiErrorMessage(payload, fallback) {
 }
 
 async function signin(btnEl) {
-  const email    = document.getElementById('email').value.trim();
+  const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  const err      = document.getElementById('err');
-  const ok       = document.getElementById('ok');
-  const resend   = document.getElementById('resend-btn');
+  const err = document.getElementById('err');
+  const ok = document.getElementById('ok');
+  const resend = document.getElementById('resend-btn');
 
   err.classList.remove('show');
   ok.classList.remove('show');
   resend.classList.remove('show');
 
-  if (!email || !password) { err.textContent = 'Enter your email and password.'; err.classList.add('show'); return; }
+  if (!email || !password) {
+    err.textContent = 'Enter your email and password.';
+    err.classList.add('show');
+    return;
+  }
 
   const btn = btnEl || document.getElementById('signin-btn');
-  btn.disabled = true; btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
 
   try {
     const r = await fetch('/auth/signin', {
@@ -124,25 +138,23 @@ async function signin(btnEl) {
       return;
     }
 
-    // Store session and API key in localStorage for portal use
-    localStorage.setItem('guni_email',   d.email);
-    localStorage.setItem('guni_plan',    d.plan);
-    localStorage.setItem('guni_role',    d.role || 'owner');
+    localStorage.setItem('guni_email', d.email);
+    localStorage.setItem('guni_plan', d.plan);
+    localStorage.setItem('guni_role', d.role || 'owner');
     localStorage.setItem('guni_api_key', d.api_key || '');
     localStorage.setItem('guni_session', d.session || '');
 
-    ok.textContent = '✓ Signed in! Redirecting to your portal...';
     ok.classList.add('show');
-
     const target = d.is_owner ? '/owner' : '/portal';
     ok.textContent = d.is_owner ? 'Signed in. Redirecting to your owner console...' : 'Signed in. Redirecting to your portal...';
     setTimeout(() => window.location.href = target, 1000);
 
-  } catch(e) {
+  } catch (e) {
     err.textContent = 'Could not connect. Try again.';
     err.classList.add('show');
   } finally {
-    btn.disabled = false; btn.textContent = 'Sign in';
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
   }
 }
 
@@ -186,6 +198,11 @@ async function resendVerification() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Enter') signin(); });
 document.getElementById('resend-btn').addEventListener('click', resendVerification);
+document.addEventListener('click', e => {
+  if (e.target && e.target.id === 'inline-resend-link') {
+    resendVerification();
+  }
+});
 </script>
 </body>
 </html>

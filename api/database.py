@@ -706,6 +706,11 @@ def db_get_user_by_token(token: str, token_type: str = "verify") -> dict | None:
     return _with_id(_collections()["users"].find_one({column: token}))
 
 
+def db_get_email_by_verify_token(token: str) -> str | None:
+    user = _collections()["users"].find_one({"verify_token": token}, {"email": 1})
+    return str(user.get("email", "")).strip().lower() if user and user.get("email") else None
+
+
 def db_verify_user(verify_token: str) -> bool:
     result = _collections()["users"].update_one(
         {"verify_token": verify_token},

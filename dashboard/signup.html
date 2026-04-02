@@ -182,11 +182,11 @@ async function signup(btnEl) {
     }
 
     resend.classList.add('show');
+    const data = payload && payload.data ? payload.data : payload;
 
-    if (selectedPlan === 'free') {
-      ok.textContent = 'Account created. Check your email to verify your account.';
+    if (data && data.next_action === 'portal') {
+      ok.textContent = 'Account created! Check your email to verify your account before signing in.';
       ok.classList.add('show');
-      setTimeout(() => window.location.href = '/portal', 1600);
       return;
     }
 

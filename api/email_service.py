@@ -3,7 +3,7 @@ Guni Email Service
 Sends waitlist confirmation emails via Gmail SMTP.
 
 Setup (one time):
-  1. Go to myaccount.google.com → Security → 2-Step Verification → App Passwords
+  1. Go to myaccount.google.com -> Security -> 2-Step Verification -> App Passwords
   2. Create an app password for "Mail"
   3. Set env variables:
      GUNI_EMAIL_FROM = your.email@gmail.com
@@ -12,10 +12,10 @@ Setup (one time):
 If env vars not set, email sending is silently skipped.
 """
 
-import smtplib
 import os
-from email.mime.text import MIMEText
+import smtplib
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from api.logging_utils import get_logger
 
@@ -25,8 +25,8 @@ logger = get_logger("email")
 
 def email_sender_configured() -> bool:
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    app_pass = os.environ.get("GUNI_EMAIL_PASS", "")
-    return bool(from_email and app_pass)
+    has_pass = bool(os.environ.get("GUNI_EMAIL_PASS") or os.environ.get("SMTP_PASS"))
+    return bool(from_email and has_pass)
 
 
 CONFIRMATION_HTML = """<!DOCTYPE html>
@@ -64,14 +64,14 @@ p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
   <h1>Welcome to <span>Guni.</span></h1>
 
   <p>
-    You're now on the early access waitlist for Guni &mdash; 
-    AI agent security middleware that detects prompt injection, 
+    You're now on the early access waitlist for Guni &mdash;
+    AI agent security middleware that detects prompt injection,
     phishing, and goal hijacking before your agent executes anything dangerous.
   </p>
 
   <p>
-    <span class="highlight">What happens next:</span> We're onboarding 
-    early users in batches. You'll hear from us within 48 hours with 
+    <span class="highlight">What happens next:</span> We're onboarding
+    early users in batches. You'll hear from us within 48 hours with
     your API key and access to the hosted dashboard.
   </p>
 
@@ -94,9 +94,9 @@ result = <span class="fn">scan</span>(html=page_html, goal=<span class="str">"Lo
 
   <div class="footer">
     You're receiving this because you joined the Guni waitlist.<br/>
-    Questions? Reply to this email or reach us at 
+    Questions? Reply to this email or reach us at
     <a href="mailto:hello@guni.dev">hello@guni.dev</a><br/><br/>
-    &copy; 2026 Guni 
+    &copy; 2026 Guni
   </div>
 </div>
 </body>
@@ -108,44 +108,20 @@ def send_confirmation(to_email: str) -> bool:
     Send a waitlist confirmation email.
     Returns True if sent, False if skipped or failed.
     """
-    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
-
     if not email_sender_configured():
-        # Not configured — skip silently
         return False
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "You're on the Guni waitlist ✓"
-        msg["From"]    = f"Guni <{from_email}>"
-        msg["To"]      = to_email
-
-        # Plain text fallback
-        text = MIMEText(
-            f"You're on the Guni waitlist!\n\n"
-            f"Guni is AI agent security middleware — detects prompt injection, "
-            f"phishing and goal hijacking before your agent executes anything.\n\n"
-            f"We'll reach out within 48 hours with your API key.\n\n"
-            f"Try the live demo: https://guni.up.railway.app/dashboard\n"
-            f"GitHub: https://github.com/arihantprasad07/guni\n\n"
-            f"— Arihant & the Guni team",
-            "plain"
+        text = (
+            "You're on the Guni waitlist!\n\n"
+            "Guni is AI agent security middleware - detects prompt injection, "
+            "phishing and goal hijacking before your agent executes anything.\n\n"
+            "We'll reach out within 48 hours with your API key.\n\n"
+            "Try the live demo: https://guni.up.railway.app/dashboard\n"
+            "GitHub: https://github.com/arihantprasad07/guni\n\n"
+            "- Arihant & the Guni team"
         )
-        html = MIMEText(
-            CONFIRMATION_HTML,
-            "html"
-        )
-
-        msg.attach(text)
-        msg.attach(html)
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.login(from_email, app_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-
-        return True
-
+        return _send_html_email(to_email, "You're on the Guni waitlist", CONFIRMATION_HTML, text)
     except Exception as e:
         logger.warning("Confirmation email send failed: %s", e)
         return False
@@ -153,8 +129,6 @@ def send_confirmation(to_email: str) -> bool:
 
 def send_api_key_email(to_email: str, api_key: str, plan: str, scans_limit: int) -> bool:
     """Send API key delivery email after payment."""
-    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
     if not email_sender_configured():
         return False
 
@@ -178,7 +152,7 @@ p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
   <div class="logo">guni<em>.dev</em></div>
   <div class="badge">&#9889; YOUR API KEY IS READY</div>
   <h1>Welcome to <span>Guni {plan.title()}.</span></h1>
-  <p>Your payment was successful. Here is your API key — keep it secret, keep it safe.</p>
+  <p>Your payment was successful. Here is your API key &mdash; keep it secret, keep it safe.</p>
   <div class="key-box">{api_key}</div>
   <p>Your plan: <strong style="color:#ffb800">{plan.upper()}</strong> &mdash; {scans_limit:,} scans/month</p>
   <div class="code-box">from guni import scan
@@ -197,16 +171,8 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
 </div></body></html>"""
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Your Guni API key is ready"
-        msg["From"]    = f"Guni <{from_email}>"
-        msg["To"]      = to_email
-        msg.attach(MIMEText(f"Your Guni API key: {api_key}\nPlan: {plan} ({scans_limit} scans/month)", "plain"))
-        msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.login(from_email, app_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-        return True
+        text = f"Your Guni API key: {api_key}\nPlan: {plan} ({scans_limit} scans/month)"
+        return _send_html_email(to_email, "Your Guni API key is ready", html, text)
     except Exception as e:
         logger.warning("API key email failed: %s", e)
         return False
@@ -235,7 +201,7 @@ p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
   <p>You can use the hosted dashboard to inspect scans, billing, and API keys, or self-host the middleware for local evaluation.</p>
   <a class="btn" href="{dashboard_url}">Open dashboard</a>
   <a class="btn alt" href="{docs_url}">Integration docs</a>
-  <div class="footer">You’re receiving this because a Guni account was created with this email. &copy; 2026 Guni</div>
+  <div class="footer">You're receiving this because a Guni account was created with this email. &copy; 2026 Guni</div>
 </div></body></html>"""
     text = (
         "Welcome to Guni.\n\n"
@@ -262,19 +228,25 @@ def send_admin_alert(to_email: str, subject: str, title: str, body_lines: list[s
 def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> bool:
     """Generic HTML email sender used by auth system."""
     from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    app_pass   = os.environ.get("GUNI_EMAIL_PASS", "")
+    app_pass = os.environ.get("GUNI_EMAIL_PASS", "")
     if not email_sender_configured():
         return False
     try:
+        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.environ.get("SMTP_PORT", "465"))
+        smtp_user = os.environ.get("SMTP_USER", "") or from_email
+        smtp_pass = os.environ.get("SMTP_PASS", "") or app_pass
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"]    = f"Guni <{from_email}>"
-        msg["To"]      = to_email
+        msg["From"] = f"Guni <{from_email}>"
+        msg["To"] = to_email
         if text:
             msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.login(from_email, app_pass)
+
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=SMTP_TIMEOUT_SECONDS) as server:
+            server.login(smtp_user, smtp_pass)
             server.sendmail(from_email, to_email, msg.as_string())
         return True
     except Exception as e:
