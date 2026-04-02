@@ -13,7 +13,6 @@ If env vars not set, email sending is silently skipped.
 """
 
 import os
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -24,9 +23,7 @@ logger = get_logger("email")
 
 
 def email_sender_configured() -> bool:
-    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    has_pass = bool(os.environ.get("GUNI_EMAIL_PASS") or os.environ.get("SMTP_PASS"))
-    return bool(from_email and has_pass)
+    return bool(os.environ.get("RESEND_API_KEY"))
 
 
 CONFIRMATION_HTML = """<!DOCTYPE html>
@@ -226,29 +223,33 @@ def send_admin_alert(to_email: str, subject: str, title: str, body_lines: list[s
 
 
 def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> bool:
-    """Generic HTML email sender used by auth system."""
-    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
-    app_pass = os.environ.get("GUNI_EMAIL_PASS", "")
-    if not email_sender_configured():
+    import json
+    import urllib.request
+
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    from_email = os.environ.get("GUNI_EMAIL_FROM", "onboarding@resend.dev")
+    if not api_key:
+        logger.warning("HTML email failed: RESEND_API_KEY not set")
         return False
     try:
-        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.environ.get("SMTP_PORT", "465"))
-        smtp_user = os.environ.get("SMTP_USER", "") or from_email
-        smtp_pass = os.environ.get("SMTP_PASS", "") or app_pass
-
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Guni <{from_email}>"
-        msg["To"] = to_email
-        if text:
-            msg.attach(MIMEText(text, "plain"))
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=SMTP_TIMEOUT_SECONDS) as server:
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-        return True
+        payload = json.dumps({
+            "from": f"Guni <{from_email}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+            "text": text or subject,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
     except Exception as e:
         logger.warning("HTML email failed: %s", e)
         return False
