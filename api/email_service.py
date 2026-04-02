@@ -1,18 +1,16 @@
 """
 Guni Email Service
-Sends waitlist confirmation emails via Gmail SMTP.
+Sends transactional emails through Resend.
 
-Setup (one time):
-  1. Go to myaccount.google.com -> Security -> 2-Step Verification -> App Passwords
-  2. Create an app password for "Mail"
-  3. Set env variables:
-     GUNI_EMAIL_FROM = your.email@gmail.com
-     GUNI_EMAIL_PASS = your-16-char-app-password
+Set these environment variables to enable delivery:
+  RESEND_API_KEY
+  GUNI_EMAIL_FROM
 
-If env vars not set, email sending is silently skipped.
+If env vars are not set, email sending is skipped.
 """
 
 import os
+from html import escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -24,6 +22,13 @@ logger = get_logger("email")
 
 def email_sender_configured() -> bool:
     return bool(os.environ.get("RESEND_API_KEY"))
+
+
+def _public_app_url() -> str:
+    from api.config import load_settings
+
+    configured = load_settings().app_base_url
+    return configured or "http://localhost:8000"
 
 
 CONFIRMATION_HTML = """<!DOCTYPE html>
@@ -84,7 +89,7 @@ result = <span class="fn">scan</span>(html=page_html, goal=<span class="str">"Lo
 
   <p>In the meantime, you can:</p>
 
-  <a class="btn" href="https://guni.up.railway.app/dashboard">Try the live demo</a>
+  <a class="btn" href="{_public_app_url()}/demo">Try the live demo</a>
   <a class="btn outline" href="https://github.com/arihantprasad07/guni">View on GitHub</a>
 
   <hr class="divider"/>
@@ -114,7 +119,7 @@ def send_confirmation(to_email: str) -> bool:
             "Guni is AI agent security middleware - detects prompt injection, "
             "phishing and goal hijacking before your agent executes anything.\n\n"
             "We'll reach out within 48 hours with your API key.\n\n"
-            "Try the live demo: https://guni.up.railway.app/dashboard\n"
+            f"Try the live demo: {_public_app_url()}/demo\n"
             "GitHub: https://github.com/arihantprasad07/guni\n\n"
             "- Arihant & the Guni team"
         )
@@ -160,7 +165,7 @@ result = scan(
     api_key="{api_key}"
 )
 print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
-  <a class="btn" href="https://guni.up.railway.app/dashboard">Open dashboard</a>
+  <a class="btn" href="{_public_app_url()}/portal">Open dashboard</a>
   <div class="footer">
     Questions? Reply to this email.<br/>
     &copy; 2026 Guni
@@ -176,8 +181,9 @@ print(result["decision"])  # ALLOW / CONFIRM / BLOCK</div>
 
 
 def send_welcome_email(to_email: str) -> bool:
-    dashboard_url = "https://guni.up.railway.app/portal"
-    docs_url = "https://guni.up.railway.app/integrate"
+    base_url = _public_app_url()
+    dashboard_url = f"{base_url}/portal"
+    docs_url = f"{base_url}/integrate"
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/>
 <style>
@@ -210,12 +216,13 @@ p{{color:#8888a0;font-size:14px;line-height:1.8;margin-bottom:16px}}
 
 
 def send_admin_alert(to_email: str, subject: str, title: str, body_lines: list[str]) -> bool:
-    safe_lines = "".join(f"<li>{line}</li>" for line in body_lines)
+    safe_title = escape(title)
+    safe_lines = "".join(f"<li>{escape(line)}</li>" for line in body_lines)
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/></head><body style="font-family:'Courier New',monospace;background:#0a0a0b;color:#eeeef0;padding:24px">
 <div style="max-width:560px;margin:0 auto;border:1px solid rgba(245,166,35,0.18);padding:24px;background:#0d0d11">
 <div style="font-size:22px;color:#f5a623;font-weight:700;margin-bottom:18px">guni<em style="color:#8888a0;font-style:normal;font-weight:400">.dev</em></div>
-<h1 style="font-size:22px;font-weight:400;margin:0 0 14px">{title}</h1>
+<h1 style="font-size:22px;font-weight:400;margin:0 0 14px">{safe_title}</h1>
 <ul style="color:#a0a0c0;line-height:1.8;padding-left:18px">{safe_lines}</ul>
 </div></body></html>"""
     text = "\n".join(body_lines)
@@ -249,7 +256,7 @@ def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> 
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
+            return 200 <= resp.status < 300
     except Exception as e:
         logger.warning("HTML email failed: %s", e)
         return False

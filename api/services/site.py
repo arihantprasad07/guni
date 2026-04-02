@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.config import load_settings
+
 
 DASHBOARD_DIR = Path(__file__).resolve().parents[2] / "dashboard"
+MOJIBAKE_REPLACEMENTS = {
+    "â€”": "&mdash;",
+    "â†’": "&rarr;",
+    "â‚¹": "&#8377;",
+    "Ã—": "&times;",
+    "Â·": "&middot;",
+    "Â": "",
+}
 
 
 def mount_dashboard_assets(app: FastAPI) -> None:
@@ -30,11 +41,45 @@ def _read_dashboard_html(name: str) -> str:
     return _decorate_dashboard_html(name, html)
 
 
+def _public_base_url() -> str:
+    configured = load_settings().app_base_url
+    return configured or "http://localhost:8000"
+
+
+def _normalize_public_page_html(name: str, html: str) -> str:
+    base_url = _public_base_url().rstrip("/")
+    path = "/" if name == "landing.html" else f"/{name.replace('.html', '')}"
+    image_url = f"{base_url}/static/og-image.svg"
+
+    html = html.replace("https://guni.up.railway.app", base_url)
+
+    for broken, fixed in MOJIBAKE_REPLACEMENTS.items():
+        html = html.replace(broken, fixed)
+
+    html = html.replace('href="#"', 'href="/"')
+
+    canonical = f'<link rel="canonical" href="{base_url}{path}"/>'
+    if 'rel="canonical"' in html:
+        html = re.sub(r'<link rel="canonical" href="[^"]*"\s*/?>', canonical, html, count=1)
+    else:
+        html = _replace_last(html, "</head>", f"{canonical}\n</head>")
+
+    if 'property="og:url"' in html:
+        html = re.sub(r'(<meta property="og:url" content=")[^"]*(" */?>)', rf"\1{base_url}{path}\2", html, count=1)
+    if 'property="og:image"' in html:
+        html = re.sub(r'(<meta property="og:image" content=")[^"]*(" */?>)', rf"\1{image_url}\2", html, count=1)
+    if 'name="twitter:image"' in html:
+        html = re.sub(r'(<meta name="twitter:image" content=")[^"]*(" */?>)', rf"\1{image_url}\2", html, count=1)
+
+    return html
+
+
 def _decorate_dashboard_html(name: str, html: str) -> str:
     private_pages = {"owner.html", "portal.html"}
     if name in private_pages:
         return html
 
+    html = _normalize_public_page_html(name, html)
     shell = _site_shell_assets(name)
     html = _replace_last(html, "</head>", f"{shell['style']}</head>")
     html = _replace_last(html, "</body>", f"{shell['script']}</body>")

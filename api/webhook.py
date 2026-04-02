@@ -33,8 +33,12 @@ ACTIVE_BILLING_EVENTS = {"payment.captured", "subscription.activated"}
 INACTIVE_BILLING_EVENTS = {"subscription.cancelled", "payment.failed"}
 
 
+def _razorpay_webhook_secret() -> str:
+    return os.environ.get("RAZORPAY_WEBHOOK_SECRET", "").strip()
+
+
 def verify_razorpay_signature(payload: bytes, signature: str) -> bool:
-    secret = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
+    secret = _razorpay_webhook_secret()
     if not secret or not signature:
         return False
 
@@ -67,6 +71,7 @@ async def create_checkout_link(
     plan: str,
     interval: str = "monthly",
     company: str = "",
+    org_id: int | None = None,
     base_url: str,
 ) -> dict:
     from api.database import db_upsert_subscription
@@ -118,6 +123,7 @@ async def create_checkout_link(
     data = response.json()
     subscription = db_upsert_subscription(
         email=email,
+        org_id=org_id,
         plan=plan,
         status="pending",
         provider_payment_link_id=data.get("id"),
@@ -140,15 +146,29 @@ def _extract_payment_context(data: dict) -> dict:
         .get("payment", {})
         .get("entity", {})
     )
+    payment_link = (
+        data.get("payload", {})
+        .get("payment_link", {})
+        .get("entity", {})
+    )
     subscription = (
         data.get("payload", {})
         .get("subscription", {})
         .get("entity", {})
     )
-    notes = payment.get("notes", {}) or subscription.get("notes", {}) or {}
+    notes = (
+        payment.get("notes", {})
+        or payment_link.get("notes", {})
+        or subscription.get("notes", {})
+        or {}
+    )
 
-    email = payment.get("email") or notes.get("email", "")
-    amount = payment.get("amount", 0)
+    email = (
+        payment.get("email")
+        or payment_link.get("customer", {}).get("email")
+        or notes.get("email", "")
+    )
+    amount = payment.get("amount") or payment_link.get("amount", 0)
     plan = (notes.get("plan") or ("pro" if amount >= PLAN_AMOUNTS["pro"]["monthly"] else "starter")).lower()
     interval = (notes.get("interval") or "monthly").lower()
 
@@ -158,12 +178,12 @@ def _extract_payment_context(data: dict) -> dict:
         "plan": plan,
         "interval": interval,
         "amount": amount,
-        "currency": payment.get("currency", "INR"),
+        "currency": payment.get("currency") or payment_link.get("currency", "INR"),
         "payment_id": payment.get("id", ""),
-        "payment_link_id": payment.get("order_id", "") or notes.get("payment_link_id", ""),
+        "payment_link_id": payment_link.get("id", "") or notes.get("payment_link_id", ""),
         "subscription_id": subscription.get("id", ""),
         "customer_id": subscription.get("customer_id", ""),
-        "status": payment.get("status", "") or subscription.get("status", ""),
+        "status": payment.get("status", "") or payment_link.get("status", "") or subscription.get("status", ""),
         "notes": notes,
         "raw": data,
     }
@@ -286,6 +306,8 @@ def apply_billing_event(data: dict) -> dict:
 
 
 async def handle_razorpay_webhook(payload: bytes, signature: str) -> dict:
+    if not _razorpay_webhook_secret():
+        return {"status": "error", "message": "Razorpay webhook secret is not configured"}
     if not verify_razorpay_signature(payload, signature):
         return {"status": "error", "message": "Invalid signature"}
 

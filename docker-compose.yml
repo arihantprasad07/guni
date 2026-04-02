@@ -12,18 +12,21 @@ services:
       - GUNI_LLM_API_KEY=${GUNI_LLM_API_KEY:-}
       - GUNI_LLM_BASE_URL=${GUNI_LLM_BASE_URL:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GUNI_APP_BASE_URL=${GUNI_APP_BASE_URL:-http://localhost:8000}
+      - GUNI_CORS_ORIGINS=${GUNI_CORS_ORIGINS:-}
+      - GUNI_TRUSTED_HOSTS=${GUNI_TRUSTED_HOSTS:-localhost,127.0.0.1}
       - GUNI_LOG_PATH=/data/guni_audit.log
       - GUNI_WAITLIST_PATH=/data/guni_waitlist.json
       - GUNI_KEYS_PATH=/data/guni_keys.json
       - GUNI_DB_PATH=/data/guni.db
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
       - GUNI_EMAIL_FROM=${GUNI_EMAIL_FROM:-}
-      - GUNI_EMAIL_PASS=${GUNI_EMAIL_PASS:-}
       - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
     volumes:
       - guni_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()\""]
       interval: 30s
       timeout: 10s
       retries: 3

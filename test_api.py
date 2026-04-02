@@ -1119,11 +1119,12 @@ def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, mon
     )
     assert signin.status_code == 200
 
-    async def fake_create_checkout_link(*, email: str, plan: str, interval: str = "monthly", company: str = "", base_url: str):
+    async def fake_create_checkout_link(*, email: str, plan: str, interval: str = "monthly", company: str = "", org_id: int | None = None, base_url: str):
         from api.database import db_upsert_subscription
 
         subscription = db_upsert_subscription(
             email=email,
+            org_id=org_id,
             plan=plan,
             status="pending",
             checkout_url="https://payments.example/checkout",
@@ -1244,7 +1245,88 @@ def test_webhook_rejects_unsigned_payloads_when_secret_missing(client: TestClien
         content=json.dumps({"event": "payment.captured", "payload": {}}),
         headers={"Content-Type": "application/json", "x-razorpay-signature": "bad"},
     )
-    assert webhook.status_code == 401
+    assert webhook.status_code == 503
+
+
+def test_billing_webhook_reads_payment_link_notes_when_payment_notes_are_missing(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    from api.database import db_create_organization, db_create_user, db_get_subscription_by_email
+    from api.auth_system import hash_password
+
+    org = db_create_organization("Webhook Co")
+    created = db_create_user(
+        "webhook-buyer@example.com",
+        hash_password("strong-pass-123"),
+        "verify-token-webhook",
+        plan="free",
+        role="owner",
+        org_id=org["id"],
+    )
+    assert created is not None
+
+    webhook_payload = {
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": "pay_test_from_payment_link",
+                    "amount": 99900,
+                    "currency": "INR",
+                    "status": "captured",
+                    "notes": {},
+                }
+            },
+            "payment_link": {
+                "entity": {
+                    "id": "plink_from_event",
+                    "amount": 99900,
+                    "currency": "INR",
+                    "status": "paid",
+                    "customer": {"email": "webhook-buyer@example.com"},
+                    "notes": {
+                        "plan": "starter",
+                        "interval": "monthly",
+                        "email": "webhook-buyer@example.com",
+                    },
+                }
+            },
+        },
+    }
+
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "test-webhook-secret")
+    signature = hmac.new(
+        b"test-webhook-secret",
+        json.dumps(webhook_payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    webhook = client.post(
+        "/webhook/razorpay",
+        content=json.dumps(webhook_payload),
+        headers={"Content-Type": "application/json", "x-razorpay-signature": signature},
+    )
+
+    assert webhook.status_code == 200
+    webhook_data = unwrap(webhook.json())
+    assert webhook_data["status"] == "provisioned"
+
+    subscription = db_get_subscription_by_email("webhook-buyer@example.com")
+    assert subscription is not None
+    assert subscription["plan"] == "starter"
+    assert subscription["provider_payment_link_id"] == "plink_from_event"
+
+
+def test_waitlist_join_returns_500_when_persistence_fails(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def fail_open(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("builtins.open", fail_open)
+
+    response = client.post("/waitlist", json={"email": "diskfull@example.com"})
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert payload["success"] is False
+    assert "Could not save waitlist entry" in payload["error"]
 
 
 def test_pilot_request_persists_to_collection(client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -1279,6 +1361,134 @@ def test_verify_razorpay_signature_accepts_valid_payload(monkeypatch: pytest.Mon
 
     assert verify_razorpay_signature(payload, signature) is True
     assert verify_razorpay_signature(payload, "bad-signature") is False
+
+
+def test_sitemap_uses_configured_public_base_url(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(api_main, "SETTINGS", api_main.SETTINGS.__class__(**{**api_main.SETTINGS.__dict__, "app_base_url": "https://guni.example.com"}))
+
+    response = client.get("/sitemap.xml")
+
+    assert response.status_code == 200
+    assert "https://guni.example.com/demo" in response.text
+    assert "guni.up.railway.app" not in response.text
+
+
+def test_landing_page_uses_configured_public_metadata_and_canonical(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_APP_BASE_URL", "https://guni.example.com")
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'rel="canonical" href="https://guni.example.com/"' in response.text
+    assert 'property="og:url" content="https://guni.example.com/"' in response.text
+    assert 'property="og:image" content="https://guni.example.com/static/og-image.svg"' in response.text
+    assert "guni.up.railway.app" not in response.text
+
+
+def test_demo_page_strips_mojibake_sequences_from_public_copy(client: TestClient):
+    response = client.get("/demo")
+
+    assert response.status_code == 200
+    assert "â" not in response.text
+    assert "Â" not in response.text
+    assert "Ã" not in response.text
+
+
+def test_security_headers_are_added_to_http_responses(client: TestClient):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+def test_sensitive_auth_responses_are_marked_no_store(client: TestClient):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": "cachecheck@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+
+
+def test_signin_sets_secure_cookie_when_https_base_url_is_configured(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    from api.database import db_get_user_by_email, db_verify_user
+
+    monkeypatch.setattr(api_main, "SETTINGS", api_main.SETTINGS.__class__(**{**api_main.SETTINGS.__dict__, "app_base_url": "https://guni.example.com"}))
+
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "securecookie@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    assert signup.status_code == 200
+
+    user = db_get_user_by_email("securecookie@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "securecookie@example.com", "password": "strong-pass-123"},
+    )
+
+    assert signin.status_code == 200
+    set_cookie = signin.headers["set-cookie"].lower()
+    assert "secure" in set_cookie
+    assert "httponly" in set_cookie
+
+
+def test_validate_runtime_settings_rejects_open_mode_in_production(monkeypatch: pytest.MonkeyPatch):
+    from api.config import validate_runtime_settings
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
+    monkeypatch.setenv("GUNI_MONGO_URI", "mongodb://db.example.com:27017/guni")
+    monkeypatch.setenv("GUNI_APP_BASE_URL", "https://guni.example.com")
+    monkeypatch.setenv("GUNI_TRUSTED_HOSTS", "guni.example.com")
+    monkeypatch.setenv("GUNI_SESSION_SECRET", "prod-secret")
+
+    with pytest.raises(RuntimeError, match="GUNI_ALLOW_OPEN_MODE must be disabled in production"):
+        validate_runtime_settings()
+
+
+def test_validate_runtime_settings_requires_public_https_base_url_in_production(monkeypatch: pytest.MonkeyPatch):
+    from api.config import validate_runtime_settings
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "false")
+    monkeypatch.setenv("GUNI_MONGO_URI", "mongodb://db.example.com:27017/guni")
+    monkeypatch.setenv("GUNI_APP_BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("GUNI_TRUSTED_HOSTS", "localhost")
+    monkeypatch.setenv("GUNI_SESSION_SECRET", "prod-secret")
+
+    with pytest.raises(RuntimeError, match="GUNI_APP_BASE_URL must use https in production"):
+        validate_runtime_settings()
+
+
+def test_validate_runtime_settings_requires_trusted_host_match_in_production(monkeypatch: pytest.MonkeyPatch):
+    from api.config import validate_runtime_settings
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "false")
+    monkeypatch.setenv("GUNI_MONGO_URI", "mongodb://db.example.com:27017/guni")
+    monkeypatch.setenv("GUNI_APP_BASE_URL", "https://guni.example.com")
+    monkeypatch.setenv("GUNI_TRUSTED_HOSTS", "api.example.com")
+    monkeypatch.setenv("GUNI_SESSION_SECRET", "prod-secret")
+
+    with pytest.raises(RuntimeError, match="GUNI_TRUSTED_HOSTS must include the host from GUNI_APP_BASE_URL"):
+        validate_runtime_settings()
 
 
 def test_alert_configuration_rejects_private_targets(client: TestClient):

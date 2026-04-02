@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
 
 from api.auth import verify_api_key
@@ -49,10 +50,14 @@ print(r.json()["decision"])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=list(SETTINGS.cors_origins),
+    allow_credentials=bool(SETTINGS.cors_origins),
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
+
+if SETTINGS.trusted_hosts:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(SETTINGS.trusted_hosts))
 
 EVENT_LOG_LOCK = threading.Lock()
 
@@ -96,6 +101,18 @@ def log_system_event(action: str, status_code: str, details: str = "", **metadat
 def _request_is_secure(request: Request) -> bool:
     proto = request.headers.get("x-forwarded-proto", "")
     return request.url.scheme == "https" or proto.lower() == "https"
+
+
+def _configured_https_base_url() -> bool:
+    return SETTINGS.app_base_url.startswith("https://")
+
+
+def _public_base_url(request: Request | None = None) -> str:
+    if SETTINGS.app_base_url:
+        return SETTINGS.app_base_url
+    if request is not None:
+        return str(request.base_url).rstrip("/")
+    return "http://localhost:8000"
 
 
 def _default_org_name(email: str) -> str:
@@ -287,6 +304,16 @@ def _render_error_page(page_name: str, status_code: int) -> HTMLResponse:
     return HTMLResponse(content=response.body.decode("utf-8"), status_code=status_code)
 
 
+def _is_sensitive_path(path: str) -> bool:
+    return (
+        path.startswith("/auth/")
+        or path.startswith("/billing/")
+        or path.startswith("/keys/")
+        or path.startswith("/audit/")
+        or path in {"/portal", "/owner", "/owner/summary"}
+    )
+
+
 @app.exception_handler(HTTPException)
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -329,6 +356,22 @@ async def log_requests(request: Request, call_next):
             wrapped_payload = payload if isinstance(payload, dict) and {"success", "data", "error"}.issubset(payload.keys()) else _json_payload(response.status_code < 400, payload, None if response.status_code < 400 else "Request failed")
             response = JSONResponse(status_code=response.status_code, content=wrapped_payload, headers={k: v for k, v in response.headers.items() if k.lower() != "content-length"}, background=response.background)
     log_event(action, url, str(response.status_code))
+    return response
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https: ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https:")
+    if _request_is_secure(request):
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if _is_sensitive_path(request.url.path):
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
     return response
 
 
@@ -418,7 +461,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         user = db_get_user_by_email(email) or user
     db_log_audit_event(actor_email=email, org_id=org["id"], action="auth.signup", target_type="user", target_id=email, metadata={"plan": plan, "role": _display_role(user)})
     if email not in _owner_emails():
-        background_tasks.add_task(_send_verification_email_task, email, token, str(request.base_url).rstrip("/"))
+        background_tasks.add_task(_send_verification_email_task, email, token, _public_base_url(request))
     session = create_session(email)
     payload = {
         "success": True,
@@ -431,7 +474,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         "next_action": "checkout" if plan in {"starter", "pro"} else "portal",
     }
     response = JSONResponse(payload)
-    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request))
+    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
 
@@ -454,7 +497,7 @@ async def auth_signin(body: SigninRequest, request: Request):
     session = create_session(email)
     db_log_audit_event(actor_email=email, org_id=user.get("org_id"), action="auth.signin", target_type="user", target_id=email, metadata={"role": _display_role(user), "plan": user.get("plan", "free")})
     response = JSONResponse({"success": True, "email": email, "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "session": session, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
-    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request))
+    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
 
@@ -467,7 +510,7 @@ async def auth_reset_request(body: ResetRequest, request: Request, background_ta
         token = generate_token()
         expiry = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + 3600))
         db_set_reset_token(email, token, expiry)
-        background_tasks.add_task(_send_reset_email_task, email, token, str(request.base_url).rstrip("/"))
+        background_tasks.add_task(_send_reset_email_task, email, token, _public_base_url(request))
     return {"success": True, "message": "If that email exists, a reset link has been sent."}
 
 
@@ -480,7 +523,7 @@ async def auth_resend_verification(body: ResendVerificationRequest, request: Req
     if user and not user.get("verified"):
         token = generate_token()
         db_set_verify_token(email, token)
-        background_tasks.add_task(_send_verification_email_task, email, token, str(request.base_url).rstrip("/"))
+        background_tasks.add_task(_send_verification_email_task, email, token, _public_base_url(request))
     return {"success": True, "message": "If the account exists and is not verified, a fresh verification email has been sent."}
 
 
@@ -567,8 +610,9 @@ def join_waitlist(body: WaitlistRequest, background_tasks: BackgroundTasks):
         _ensure_parent_dir(WAITLIST_PATH)
         with open(WAITLIST_PATH, "w", encoding="utf-8") as handle:
             json.dump(waitlist, handle, indent=2)
-    except OSError:
-        pass
+    except OSError as exc:
+        log_system_event("waitlist.persist_failed", "failed", details=str(exc), recipient=email)
+        raise HTTPException(status_code=500, detail="Could not save waitlist entry right now. Please try again.") from exc
     background_tasks.add_task(_send_waitlist_confirmation_task, email)
     return WaitlistResponse(success=True, message="You're on the list! Check your email for confirmation.", position=entry["position"])
 
@@ -580,19 +624,21 @@ def waitlist_count():
 
 @app.get("/robots.txt", include_in_schema=False)
 def robots_txt():
+    base_url = _public_base_url()
     return PlainTextResponse(
         "User-agent: *\n"
         "Allow: /\n"
         "Disallow: /portal\n"
         "Disallow: /owner\n"
         "Disallow: /api/\n"
-        "Sitemap: https://guni.up.railway.app/sitemap.xml"
+        f"Sitemap: {base_url}/sitemap.xml"
     )
 
 
 @app.get("/sitemap.xml", include_in_schema=False)
 def sitemap_xml():
     today = date.today().isoformat()
+    base_url = _public_base_url()
     urls = [
         "/",
         "/demo",
@@ -613,7 +659,7 @@ def sitemap_xml():
         body.extend(
             [
                 "  <url>",
-                f"    <loc>https://guni.up.railway.app{path}</loc>",
+                f"    <loc>{base_url}{path}</loc>",
                 f"    <lastmod>{today}</lastmod>",
                 "    <priority>1.0</priority>",
                 "  </url>",
@@ -663,7 +709,7 @@ async def billing_checkout(body: BillingCheckoutRequest, request: Request):
     if interval not in {"monthly", "yearly"}:
         raise HTTPException(status_code=422, detail="Invalid billing interval")
     company = (body.company or "").strip() or _default_org_name(user["email"])
-    checkout = await create_checkout_link(email=user["email"], plan=plan, interval=interval, company=company, base_url=str(request.base_url).rstrip("/"))
+    checkout = await create_checkout_link(email=user["email"], plan=plan, interval=interval, company=company, org_id=user.get("org_id"), base_url=_public_base_url(request))
     db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="billing.checkout_created", target_type="payment_link", target_id=checkout.get("provider_payment_link_id", ""), metadata={"plan": plan, "interval": interval})
     return checkout
 

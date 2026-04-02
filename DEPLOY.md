@@ -24,6 +24,9 @@ Set these in Railway:
 | `GUNI_MONGO_URI` | MongoDB connection string |
 | `GUNI_MONGO_DB_NAME` | `guni` or your preferred database name |
 | `GUNI_RATE_LIMIT` | `60` or your preferred limit |
+| `GUNI_APP_BASE_URL` | Public base URL such as `https://guni.example.com` |
+| `GUNI_CORS_ORIGINS` | Comma-separated allowed browser origins for cross-origin API calls |
+| `GUNI_TRUSTED_HOSTS` | Comma-separated hostnames the app should serve |
 | `GUNI_API_KEYS` | Comma-separated production keys if using protected mode |
 | `GUNI_SESSION_SECRET` | Long random secret |
 | `GUNI_LLM_API_KEY` | Optional default API key for hosted LLM reasoning |
@@ -34,6 +37,8 @@ Set these in Railway:
 | `RAZORPAY_KEY_ID` | Required for hosted checkout creation |
 | `RAZORPAY_KEY_SECRET` | Required for hosted checkout creation |
 | `RAZORPAY_WEBHOOK_SECRET` | Required for webhook verification |
+| `RESEND_API_KEY` | Required for transactional email delivery |
+| `GUNI_EMAIL_FROM` | Verified sender for transactional emails |
 
 Optional overrides:
 
@@ -59,6 +64,8 @@ Optional overrides:
 curl https://YOUR_URL/health
 curl https://YOUR_URL/waitlist/count
 ```
+
+For Docker Compose users, the included healthcheck now uses Python's standard library instead of `curl`, so it works with the shipped slim image without extra packages.
 
 Scan smoke test:
 
