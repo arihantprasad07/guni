@@ -21,7 +21,7 @@ logger = get_logger("email")
 
 
 def email_sender_configured() -> bool:
-    return bool(os.environ.get("RESEND_API_KEY"))
+    return bool(os.environ.get("BREVO_API_KEY") and os.environ.get("GUNI_EMAIL_FROM"))
 
 
 def _public_app_url() -> str:
@@ -230,33 +230,32 @@ def send_admin_alert(to_email: str, subject: str, title: str, body_lines: list[s
 
 
 def _send_html_email(to_email: str, subject: str, html: str, text: str = "") -> bool:
-    import json
-    import urllib.request
-
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    from_email = os.environ.get("GUNI_EMAIL_FROM", "onboarding@resend.dev")
-    if not api_key:
-        logger.warning("HTML email failed: RESEND_API_KEY not set")
+    import urllib.request, json
+    api_key = os.environ.get("BREVO_API_KEY", "")
+    from_email = os.environ.get("GUNI_EMAIL_FROM", "")
+    if not api_key or not from_email:
+        logger.warning("HTML email failed: BREVO_API_KEY or GUNI_EMAIL_FROM not set")
         return False
     try:
         payload = json.dumps({
-            "from": f"Guni <{from_email}>",
-            "to": [to_email],
+            "sender": {"name": "Guni", "email": from_email},
+            "to": [{"email": to_email}],
             "subject": subject,
-            "html": html,
-            "text": text or subject,
+            "htmlContent": html,
+            "textContent": text or subject,
         }).encode("utf-8")
         req = urllib.request.Request(
-            "https://api.resend.com/emails",
+            "https://api.brevo.com/v3/smtp/email",
             data=payload,
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "api-key": api_key,
                 "Content-Type": "application/json",
+                "Accept": "application/json",
             },
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return 200 <= resp.status < 300
+            return resp.status == 201
     except Exception as e:
         logger.warning("HTML email failed: %s", e)
         return False
