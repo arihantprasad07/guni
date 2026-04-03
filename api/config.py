@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from urllib.parse import urlparse
 
 
@@ -22,6 +23,16 @@ def is_production_environment() -> bool:
     normalized = {(marker or "").strip().lower() for marker in markers if marker}
     return bool(normalized & {"production", "prod"}) or any(
         marker for marker in markers[:2]
+    )
+
+
+def _host_matches_trusted_hosts(hostname: str, trusted_hosts: tuple[str, ...]) -> bool:
+    normalized = hostname.strip().lower()
+    if not normalized:
+        return False
+    return any(
+        pattern == "*" or fnmatch(normalized, pattern.lower())
+        for pattern in trusted_hosts
     )
 
 
@@ -117,7 +128,7 @@ def validate_runtime_settings() -> AppSettings:
             problems.append("GUNI_APP_BASE_URL must use https in production.")
         if not hostname or hostname in {"localhost", "127.0.0.1"}:
             problems.append("GUNI_APP_BASE_URL must use a public hostname in production.")
-        if settings.trusted_hosts and hostname not in settings.trusted_hosts and "*" not in settings.trusted_hosts:
+        if settings.trusted_hosts and not _host_matches_trusted_hosts(hostname, settings.trusted_hosts):
             problems.append("GUNI_TRUSTED_HOSTS must include the host from GUNI_APP_BASE_URL.")
 
     if not settings.trusted_hosts:

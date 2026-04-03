@@ -1491,6 +1491,21 @@ def test_validate_runtime_settings_requires_trusted_host_match_in_production(mon
         validate_runtime_settings()
 
 
+def test_validate_runtime_settings_allows_wildcard_trusted_hosts_in_production(monkeypatch: pytest.MonkeyPatch):
+    from api.config import validate_runtime_settings
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "false")
+    monkeypatch.setenv("GUNI_MONGO_URI", "mongodb://db.example.com:27017/guni")
+    monkeypatch.setenv("GUNI_APP_BASE_URL", "https://guni.up.railway.app")
+    monkeypatch.setenv("GUNI_TRUSTED_HOSTS", "*.railway.app")
+    monkeypatch.setenv("GUNI_SESSION_SECRET", "prod-secret")
+
+    settings = validate_runtime_settings()
+
+    assert settings.trusted_hosts == ("*.railway.app",)
+
+
 def test_alert_configuration_rejects_private_targets(client: TestClient):
     from api.key_manager import generate_api_key
 
