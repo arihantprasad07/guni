@@ -19,7 +19,7 @@ services:
       - GUNI_WAITLIST_PATH=/data/guni_waitlist.json
       - GUNI_KEYS_PATH=/data/guni_keys.json
       - GUNI_DB_PATH=/data/guni.db
-      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
       - GUNI_EMAIL_FROM=${GUNI_EMAIL_FROM:-}
       - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
     volumes:

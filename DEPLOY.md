@@ -37,7 +37,7 @@ Set these in Railway:
 | `RAZORPAY_KEY_ID` | Required for hosted checkout creation |
 | `RAZORPAY_KEY_SECRET` | Required for hosted checkout creation |
 | `RAZORPAY_WEBHOOK_SECRET` | Required for webhook verification |
-| `RESEND_API_KEY` | Required for transactional email delivery |
+| `BREVO_API_KEY` | Required for transactional email delivery |
 | `GUNI_EMAIL_FROM` | Verified sender for transactional emails |
 
 Optional overrides:

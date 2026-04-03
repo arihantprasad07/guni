@@ -137,8 +137,8 @@ def validate_runtime_settings() -> AppSettings:
     if not os.environ.get("GUNI_SESSION_SECRET", "").strip():
         problems.append("GUNI_SESSION_SECRET must be configured in production.")
 
-    if os.environ.get("RESEND_API_KEY", "").strip() and not os.environ.get("GUNI_EMAIL_FROM", "").strip():
-        problems.append("GUNI_EMAIL_FROM must be set when RESEND_API_KEY is configured.")
+    if os.environ.get("BREVO_API_KEY", "").strip() and not os.environ.get("GUNI_EMAIL_FROM", "").strip():
+        problems.append("GUNI_EMAIL_FROM must be set when BREVO_API_KEY is configured.")
 
     if settings.cors_origins:
         for origin in settings.cors_origins:

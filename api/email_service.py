@@ -1,9 +1,9 @@
 """
 Guni Email Service
-Sends transactional emails through Resend.
+Sends transactional emails through Brevo.
 
 Set these environment variables to enable delivery:
-  RESEND_API_KEY
+  BREVO_API_KEY
   GUNI_EMAIL_FROM
 
 If env vars are not set, email sending is skipped.
