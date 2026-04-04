@@ -400,6 +400,7 @@ class SignupRequest(BaseModel):
     password: str
     plan: str = "free"
     company: str | None = None
+    full_name: str | None = None
 
 
 class SigninRequest(BaseModel):
@@ -439,6 +440,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     from api.key_manager import PLAN_LIMITS, generate_api_key
     email = body.email.lower().strip()
     plan = (body.plan or "free").lower().strip()
+    full_name = (body.full_name or "").strip()
     if not email or "@" not in email:
         raise HTTPException(status_code=422, detail="Invalid email")
     if len(body.password) < 8:
@@ -451,7 +453,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     token = generate_token()
     role = "owner" if email in _owner_emails() else ("admin" if email in _admin_emails() else "user")
     org = db_create_organization((body.company or "").strip() or _default_org_name(email))
-    user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"])
+    user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"], full_name=full_name)
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
     api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS.get(plan, 0), org_id=org["id"])["key"]
@@ -467,6 +469,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         "success": True,
         "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.",
         "email": email,
+        "full_name": user.get("full_name"),
         "plan": plan,
         "role": _display_role(user),
         "api_key": api_key,
@@ -496,7 +499,7 @@ async def auth_signin(body: SigninRequest, request: Request):
     db_update_user_login(email, api_key)
     session = create_session(email)
     db_log_audit_event(actor_email=email, org_id=user.get("org_id"), action="auth.signin", target_type="user", target_id=email, metadata={"role": _display_role(user), "plan": user.get("plan", "free")})
-    response = JSONResponse({"success": True, "email": email, "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "session": session, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
+    response = JSONResponse({"success": True, "email": email, "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "session": session, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
     response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
@@ -544,7 +547,7 @@ async def auth_me(request: Request):
     user = _require_session_user(request)
     org = db_get_organization(user["org_id"]) if user.get("org_id") else None
     subscription = db_get_subscription_by_email(user["email"])
-    return {"email": user["email"], "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": user.get("api_key"), "verified": bool(user.get("verified")), "org_id": user.get("org_id"), "organization": org, "subscription": subscription, "is_owner": _is_owner_user(user)}
+    return {"email": user["email"], "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": user.get("api_key"), "verified": bool(user.get("verified")), "org_id": user.get("org_id"), "organization": org, "subscription": subscription, "is_owner": _is_owner_user(user)}
 
 
 @app.post("/auth/signout", tags=["Auth"])

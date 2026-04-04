@@ -686,6 +686,7 @@ def db_create_user(
     plan: str = "free",
     role: str = "owner",
     org_id: int | None = None,
+    full_name: str | None = None,
 ) -> dict | None:
     users = _collections()["users"]
     email = email.lower().strip()
@@ -696,6 +697,7 @@ def db_create_user(
             "id": user_id,
             "org_id": org_id,
             "email": email,
+            "full_name": (full_name or "").strip() or None,
             "password_hash": password_hash,
             "plan": plan,
             "role": role,

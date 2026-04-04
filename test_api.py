@@ -1119,6 +1119,33 @@ def test_admin_key_lifecycle_and_audit_feed(client: TestClient):
     assert "keys.revoke" in actions
 
 
+def test_signup_accepts_optional_full_name_and_auth_me_returns_it(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "named@example.com",
+            "full_name": "Arihant Prasad",
+            "password": "strong-pass-123",
+            "plan": "free",
+            "company": "Guni",
+        },
+    )
+    assert signup.status_code == 200
+    signup_data = unwrap(signup.json())
+    assert signup_data["full_name"] == "Arihant Prasad"
+
+    from api.database import db_get_user_by_email
+
+    user = db_get_user_by_email("named@example.com")
+    assert user is not None
+    assert user["full_name"] == "Arihant Prasad"
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    me_data = unwrap(me.json())
+    assert me_data["full_name"] == "Arihant Prasad"
+
+
 def test_admin_cannot_rotate_key_from_another_org(client: TestClient):
     from api.key_manager import generate_api_key
     from api.database import db_get_user_by_email, db_verify_user

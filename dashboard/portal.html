@@ -525,10 +525,10 @@ async function hydrateSession() {
 
     authUser = unwrap(payload);
     currentKey = authUser.api_key || "";
-    document.getElementById("user-email").textContent = authUser.email;
+    document.getElementById("user-email").textContent = authUser.full_name || authUser.email;
     document.getElementById("user-role").textContent = authUser.role || "owner";
     document.getElementById("user-plan").textContent = displayPlan(authUser.plan).toUpperCase();
-    document.getElementById("user-org").textContent = authUser.organization?.name || "No organization";
+    document.getElementById("user-org").textContent = authUser.full_name ? `${authUser.email} · ${authUser.organization?.name || "No organization"}` : (authUser.organization?.name || "No organization");
     renderApiKey();
     document.getElementById("settings-plan").textContent = displayPlan(authUser.plan);
     document.getElementById("settings-role").textContent = authUser.role || "-";
