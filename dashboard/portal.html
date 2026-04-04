@@ -456,6 +456,41 @@ function esc(value) {
     .replace(/>/g, "&gt;");
 }
 
+function parseServerTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const isoLike = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+  if (isoLike) {
+    const [, year, month, day, hour, minute, second] = isoLike;
+    return new Date(Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    ));
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatLocalTimestamp(value, options = {}) {
+  const date = parseServerTimestamp(value);
+  if (!date) return value || "-";
+  return date.toLocaleString(undefined, options);
+}
+
+function formatLocalTime(value) {
+  return formatLocalTimestamp(value, {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 function maskedKey(key) {
   if (!key) return "No key issued yet";
   if (showFullKey) return key;
@@ -560,7 +595,7 @@ async function loadHistory() {
 
   body.innerHTML = data.entries.map((entry) => `
     <tr>
-      <td>${esc((entry.timestamp || "").split("T")[1] || entry.timestamp || "-")}</td>
+      <td>${esc(formatLocalTime(entry.timestamp))}</td>
       <td title="${esc(entry.url || "")}">${esc((entry.url || "-").slice(0, 32))}</td>
       <td title="${esc(entry.goal || "")}">${esc((entry.goal || "-").slice(0, 26))}</td>
       <td>${esc(entry.risk ?? 0)}</td>
@@ -700,7 +735,7 @@ async function loadBilling() {
   events.innerHTML = data.events.map((event) => `
     <div class="box" style="padding:0.8rem 1rem">
       <strong style="display:block;font-size:12px">${esc(event.event_type)}</strong>
-      <span class="note">${esc(event.status || "-")} | ${esc(event.created_at || "-")}</span>
+      <span class="note">${esc(event.status || "-")} | ${esc(formatLocalTimestamp(event.created_at))}</span>
       <div class="note" style="margin-top:6px">${esc(event.amount || 0)} ${esc(event.currency || "INR")}</div>
     </div>
   `).join("");
@@ -784,7 +819,7 @@ async function loadAudit() {
   list.innerHTML = data.events.map((event) => `
     <div class="box" style="padding:0.8rem 1rem">
       <strong style="display:block;font-size:12px">${esc(event.action)}</strong>
-      <span class="note">${esc(event.actor_email || "system")} | ${esc(event.created_at || "-")}</span>
+      <span class="note">${esc(event.actor_email || "system")} | ${esc(formatLocalTimestamp(event.created_at))}</span>
       <div class="note" style="margin-top:6px">${esc(event.target_type || "-")}: ${esc(event.target_id || "-")}</div>
     </div>
   `).join("");
