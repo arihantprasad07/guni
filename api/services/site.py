@@ -158,7 +158,7 @@ def _site_shell_assets(name: str) -> dict[str, str]:
       <div class="g-shell-col-title">Commercial</div>
       <a href="/enterprise">Enterprise</a>
       <a href="/pilot">Pilot</a>
-      <a href="mailto:hello@guni.dev">Contact</a>
+      <a href="mailto:arihantprasad45@gmail.com">Contact</a>
       <a href="https://github.com/arihantprasad07/guni" target="_blank" rel="noreferrer">GitHub</a>
     </div>
   </div>

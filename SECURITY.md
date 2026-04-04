@@ -93,7 +93,7 @@ For serious customers, the best rollout is:
 
 If you find a vulnerability, do not open a public issue with exploit details.
 
-Email: `hello@guni.dev`
+Email: `arihantprasad45@gmail.com`
 
 Include:
 
