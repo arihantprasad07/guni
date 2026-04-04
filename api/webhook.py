@@ -19,7 +19,7 @@ logger = get_logger("billing")
 
 
 PLAN_LIMITS = {
-    "free": 0,
+    "free": 100,
     "starter": 1000,
     "pro": 10000,
 }
