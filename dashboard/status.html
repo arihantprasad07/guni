@@ -73,7 +73,7 @@ async function loadStatus(){
   try{
     const health = await fetch('/health');
     const healthPayload = await health.json();
-    const ok = health.ok && healthPayload && healthPayload.status === 'ok';
+    const ok = health.ok && healthPayload?.data?.status === 'ok';
     document.getElementById('status-api').textContent = ok ? 'Online' : 'Issue';
     document.getElementById('status-api').style.color = ok ? 'var(--green)' : 'var(--red)';
     document.getElementById('status-api-copy').textContent = ok ? 'Core API responded successfully.' : 'The public health check did not return a healthy response.';
@@ -88,7 +88,7 @@ async function loadStatus(){
   try{
     const feed = await fetch('/threats/feed');
     const feedPayload = await feed.json();
-    const count = Number(feedPayload?.data?.stats?.total_scans || 0);
+    const count = Number(feedPayload?.data?.total_scans || 0);
     document.getElementById('status-feed').textContent = count > 0 ? 'Live' : 'Idle';
     document.getElementById('status-feed').style.color = count > 0 ? 'var(--green)' : 'var(--amber)';
     document.getElementById('status-feed-copy').textContent = count > 0 ? `${count.toLocaleString()} scans currently reflected in the public feed.` : 'The public feed is reachable but does not yet show sustained activity.';
