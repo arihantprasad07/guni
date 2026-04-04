@@ -994,6 +994,8 @@ def test_resend_verification_is_noop_for_verified_user(client: TestClient):
 def test_owner_dashboard_summary_is_owner_only(client: TestClient):
     forbidden = client.get("/owner/summary")
     assert forbidden.status_code == 401
+    private_static = client.get("/static/owner.html")
+    assert private_static.status_code == 404
 
     client.post(
         "/auth/signup",
@@ -1022,6 +1024,8 @@ def test_owner_dashboard_summary_is_owner_only(client: TestClient):
 
     owner_page = client.get("/owner")
     assert owner_page.status_code == 200
+    owner_static = client.get("/static/owner.html")
+    assert owner_static.status_code == 404
 
     summary = client.get("/owner/summary?limit=20")
     assert summary.status_code == 200
@@ -1056,6 +1060,8 @@ def test_owner_dashboard_rejects_non_owner_session(client: TestClient):
 
     forbidden = client.get("/owner/summary")
     assert forbidden.status_code == 403
+    private_static = client.get("/static/owner.html")
+    assert private_static.status_code == 404
 
 
 def test_admin_key_inventory_requires_admin_session(client: TestClient):

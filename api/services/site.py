@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from api.config import load_settings
 
 
 DASHBOARD_DIR = Path(__file__).resolve().parents[2] / "dashboard"
+PRIVATE_DASHBOARD_PAGES = {"owner.html", "portal.html"}
 MOJIBAKE_REPLACEMENTS = {
     "â€”": "&mdash;",
     "â†’": "&rarr;",
@@ -24,9 +26,17 @@ MOJIBAKE_REPLACEMENTS = {
 }
 
 
+class DashboardStaticFiles(StaticFiles):
+    def lookup_path(self, path: str) -> tuple[str, os.stat_result | None]:
+        normalized = Path(path).name.lower()
+        if normalized in PRIVATE_DASHBOARD_PAGES:
+            return "", None
+        return super().lookup_path(path)
+
+
 def mount_dashboard_assets(app: FastAPI) -> None:
     if DASHBOARD_DIR.exists():
-        app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static")
+        app.mount("/static", DashboardStaticFiles(directory=str(DASHBOARD_DIR)), name="static")
 
 
 def render_dashboard_page(name: str, fallback_html: str = "") -> HTMLResponse:
@@ -75,8 +85,7 @@ def _normalize_public_page_html(name: str, html: str) -> str:
 
 
 def _decorate_dashboard_html(name: str, html: str) -> str:
-    private_pages = {"owner.html", "portal.html"}
-    if name in private_pages:
+    if name in PRIVATE_DASHBOARD_PAGES:
         return html
 
     html = _normalize_public_page_html(name, html)
