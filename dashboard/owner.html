@@ -163,7 +163,8 @@ async function loadOwnerSummary() {
     return;
   }
 
-  const data = await response.json();
+  const payload = await response.json();
+  const data = payload && payload.data ? payload.data : payload;
   const totals = data.totals || {};
   document.getElementById("refresh-status").textContent = "Live company data";
   document.getElementById("m-revenue").textContent = currencyInr(totals.revenue_inr || 0);
