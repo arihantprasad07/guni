@@ -606,6 +606,7 @@ def join_waitlist(body: WaitlistRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=422, detail="Invalid email address.")
     waitlist = _read_json_file(WAITLIST_PATH)
     if any(entry.get("email") == email for entry in waitlist):
+        background_tasks.add_task(_send_waitlist_confirmation_task, email)
         return WaitlistResponse(success=True, message="You're already on the waitlist!", position=next(index + 1 for index, entry in enumerate(waitlist) if entry.get("email") == email))
     entry = {"email": email, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"), "position": len(waitlist) + 1}
     waitlist.append(entry)

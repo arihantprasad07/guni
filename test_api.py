@@ -786,6 +786,28 @@ def test_waitlist_join_sends_confirmation_email(client: TestClient, monkeypatch)
     assert delivered == [email]
 
 
+def test_waitlist_duplicate_join_resends_confirmation_email(client: TestClient, monkeypatch):
+    delivered = []
+
+    def fake_send_confirmation(email: str) -> bool:
+        delivered.append(email)
+        return True
+
+    monkeypatch.setattr("api.email_service.send_confirmation", fake_send_confirmation)
+
+    email = f"repeat-{uuid.uuid4().hex}@example.com"
+    first = client.post("/waitlist", json={"email": email})
+    assert first.status_code == 200
+
+    second = client.post("/waitlist", json={"email": email})
+    assert second.status_code == 200
+
+    second_data = unwrap(second.json())
+    assert second_data["success"] is True
+    assert "already on the waitlist" in second_data["message"].lower()
+    assert delivered == [email, email]
+
+
 def test_demo_scans_do_not_persist_history(client: TestClient):
     before = client.get("/history")
     assert before.status_code == 200
