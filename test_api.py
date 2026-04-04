@@ -456,6 +456,24 @@ def test_public_demo_history_is_isolated_per_client_session(monkeypatch: pytest.
     assert "https://demo-a.example" not in urls_b
 
 
+def test_demo_history_cookie_is_secure_on_https_requests(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
+
+    response = client.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Demo</h1></body></html>",
+            "goal": "Read page content",
+        },
+        headers={"x-forwarded-proto": "https"},
+    )
+
+    assert response.status_code == 200
+    set_cookie = response.headers.get("set-cookie", "").lower()
+    assert "guni_demo_id=" in set_cookie
+    assert "secure" in set_cookie
+
+
 def test_scan_url_requires_auth_when_unsigned(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("GUNI_ALLOW_OPEN_MODE", raising=False)
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)

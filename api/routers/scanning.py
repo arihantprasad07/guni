@@ -97,7 +97,16 @@ def scan_html(
         include_in_threat_feed=True,
     )
     if demo_cookie_created:
-        response.set_cookie(DEMO_SESSION_COOKIE, effective_api_key, max_age=30 * 24 * 3600, httponly=True, samesite="lax")
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").strip().lower()
+        secure_cookie = request.url.scheme == "https" or forwarded_proto == "https"
+        response.set_cookie(
+            DEMO_SESSION_COOKIE,
+            effective_api_key,
+            max_age=30 * 24 * 3600,
+            httponly=True,
+            samesite="lax",
+            secure=secure_cookie,
+        )
     return build_scan_response(raw)
 
 

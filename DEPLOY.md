@@ -71,9 +71,12 @@ Scan smoke test:
 
 ```bash
 curl -X POST https://YOUR_URL/scan \
+  -H "X-API-Key: guni_live_..." \
   -H "Content-Type: application/json" \
   -d "{\"html\":\"<html><body><h1>hello</h1></body></html>\",\"goal\":\"Read page\"}"
 ```
+
+If you intentionally want unauthenticated demo scans, you must explicitly set `GUNI_ALLOW_OPEN_MODE=true`. Do not enable that in production.
 
 ## Recommended customer-facing setup
 

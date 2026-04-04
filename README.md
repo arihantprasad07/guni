@@ -94,6 +94,7 @@ uvicorn api.main:app --reload --port 8000
 
 ```bash
 curl -X POST http://localhost:8000/scan ^
+  -H "X-API-Key: guni_live_..." ^
   -H "Content-Type: application/json" ^
   -d "{\"html\":\"<html>...</html>\",\"goal\":\"Login\"}"
 ```
@@ -110,6 +111,8 @@ Responses are wrapped as:
   "error": null
 }
 ```
+
+`/scan` requires `X-API-Key` unless you have explicitly enabled open demo mode with `GUNI_ALLOW_OPEN_MODE=true`.
 
 ## Integration examples
 
@@ -136,6 +139,8 @@ safe = await pre_scan_url("https://target.com", goal="Login")
 if safe:
     await page.goto("https://target.com")
 ```
+
+If pre-scan cannot safely fetch the page, it now returns `False` rather than failing open.
 
 ### LangChain
 

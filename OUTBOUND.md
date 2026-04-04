@@ -24,7 +24,7 @@ If helpful, we can run a focused evaluation on one higher-risk workflow and shar
 
 Useful links:
 
-- Live dashboard: `/dashboard`
+- Sign-in portal: `/signin`
 - Enterprise page: `/enterprise`
 - Security architecture: `/security`
 - Evaluation page: `/pilot`
