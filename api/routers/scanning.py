@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import csv
 import io
-import urllib.request
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from api.auth import verify_api_key, verify_api_key_or_demo
+from api.auth import DEMO_SESSION_COOKIE, get_demo_session_key, verify_api_key, verify_api_key_or_demo
 from api.models import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -27,9 +26,9 @@ from api.services.scan_api import (
     analyze_action_payload,
     build_scan_response,
     enforce_scan_quota,
+    fetch_safe_url_html,
     get_default_llm_api_key,
     prepare_alert_target,
-    validate_safe_fetch_url,
 )
 from guni import __version__, scan
 
@@ -64,13 +63,19 @@ def health():
 def scan_html(
     body: ScanRequest,
     request: Request,
+    response: Response,
     api_key: str = Depends(verify_api_key_or_demo),
 ):
-    check_rate_limit(api_key)
+    effective_api_key = api_key
+    demo_cookie_created = False
+    if api_key == "open":
+        effective_api_key, demo_cookie_created = get_demo_session_key(request)
+
+    check_rate_limit(effective_api_key)
     if api_key != "open":
         from api.database import db_get_usage
 
-        usage = db_get_usage(api_key)
+        usage = db_get_usage(effective_api_key)
         if usage and int(usage.get("monthly_limit", 0) or 0) <= int(usage.get("scans_used", 0) or 0):
             raise quota_exceeded_error(usage.get("plan", "free"), usage.get("period", "this month"))
     else:
@@ -86,11 +91,13 @@ def scan_html(
         llm_provider=body.llm_provider,
         llm_model=body.llm_model,
         llm_base_url=body.llm_base_url,
-        tracking_key=api_key,
+        tracking_key=effective_api_key,
         llm=body.llm,
         persist=not demo_mode_request,
         include_in_threat_feed=True,
     )
+    if demo_cookie_created:
+        response.set_cookie(DEMO_SESSION_COOKIE, effective_api_key, max_age=30 * 24 * 3600, httponly=True, samesite="lax")
     return build_scan_response(raw)
 
 
@@ -112,20 +119,12 @@ def scan_url(
 ):
     check_rate_limit(api_key)
     enforce_scan_quota(api_key)
-    safe_url = validate_safe_fetch_url(body.url)
-
     try:
-        req = urllib.request.Request(
-            safe_url,
-            headers={"User-Agent": "Guni-Scanner/1.0"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
+        safe_url, html = fetch_safe_url_html(body.url)
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to fetch URL: {str(exc)}",
-        ) from exc
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to fetch URL: {str(exc)}") from exc
 
     raw = scan(
         html=html,
@@ -148,15 +147,21 @@ def scan_url(
     summary="Get recent scan history",
 )
 def get_history(
+    request: Request,
     limit: int = 20,
     api_key: str = Depends(verify_api_key_or_demo),
 ):
     limit = min(limit, 100)
+    effective_api_key = api_key
+    if api_key == "open":
+        effective_api_key, _ = get_demo_session_key(request)
+        if not request.cookies.get(DEMO_SESSION_COOKIE):
+            return HistoryResponse(count=0, entries=[])
 
     try:
         from api.database import db_get_history
 
-        raw_entries = db_get_history(api_key, limit=limit)
+        raw_entries = db_get_history(effective_api_key, limit=limit)
         entries = [
             HistoryEntry(
                 timestamp=item.get("timestamp", ""),

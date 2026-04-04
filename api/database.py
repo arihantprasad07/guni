@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import ReturnDocument
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from runtime_config import DB_PATH, MONGO_DB_NAME, MONGO_URI
 
@@ -118,7 +118,19 @@ def init_db():
     cols["organizations"].create_index([("id", ASCENDING)], unique=True)
     cols["organizations"].create_index([("slug", ASCENDING)], unique=True)
     cols["api_keys"].create_index([("key", ASCENDING)], unique=True)
-    cols["api_keys"].create_index([("email", ASCENDING), ("active", ASCENDING)])
+    try:
+        cols["api_keys"].drop_index("email_1_active_1")
+    except OperationFailure:
+        pass
+    try:
+        cols["api_keys"].drop_index("email_1_active_1_org_id_1")
+    except OperationFailure:
+        pass
+    cols["api_keys"].create_index(
+        [("email", ASCENDING), ("org_id", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"active": 1},
+    )
     cols["scans"].create_index([("api_key", ASCENDING)])
     cols["scans"].create_index([("timestamp", DESCENDING)])
     cols["pilot_requests"].create_index([("id", ASCENDING)], unique=True)
@@ -238,7 +250,10 @@ def db_create_key(key: str, email: str, plan: str, scans_limit: int, org_id: int
     try:
         keys.insert_one(doc)
     except DuplicateKeyError:
-        pass
+        existing = keys.find_one(existing_query)
+        if existing:
+            return _with_id(existing) or {"key": key, "email": email, "plan": plan, "org_id": org_id}
+        raise
 
     result = db_get_key(key)
     if result is None:

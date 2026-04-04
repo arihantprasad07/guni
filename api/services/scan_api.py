@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from fastapi import HTTPException, status
 
 from api.models import AnalyzeResponse, LLMAnalysis, ScanResponse, ThreatItem
-from api.netutil import validate_public_url
+from api.netutil import fetch_public_url, validate_public_url
 
 
 def get_default_llm_api_key() -> str:
@@ -27,6 +27,21 @@ def validate_safe_fetch_url(raw_url: str) -> str:
             raw_url,
             allowed_schemes={"http", "https"},
             blocked_hosts={"localhost", "metadata.google.internal"},
+            subject="Target",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def fetch_safe_url_html(raw_url: str) -> tuple[str, str]:
+    try:
+        return fetch_public_url(
+            raw_url,
+            allowed_schemes={"http", "https"},
+            blocked_hosts={"localhost", "metadata.google.internal"},
+            headers={"User-Agent": "Guni-Scanner/1.0"},
+            timeout=10,
+            max_redirects=3,
             subject="Target",
         )
     except ValueError as exc:
@@ -63,40 +78,47 @@ def prepare_alert_target(url: str | None) -> str | None:
 
 
 def analyze_action_payload(action: str, url: str, data: str | None = None) -> AnalyzeResponse:
-    trusted_domains = ["google.com", "github.com"]
     action_text = (action or "").strip().lower()
     url_text = (url or "").strip().lower()
     data_text = (data or "").strip().lower()
 
     parsed = urlparse(url_text if "://" in url_text else f"https://{url_text}")
+    scheme = (parsed.scheme or "https").lower()
     domain = (parsed.netloc or parsed.path or "").split(":")[0].lower().strip(".")
-
-    def is_trusted(current_domain: str) -> bool:
-        return any(
-            current_domain == trusted or current_domain.endswith(f".{trusted}")
-            for trusted in trusted_domains
-        )
 
     sensitive_keywords = ("password", "otp", "token")
     combined_text = " ".join(part for part in (action_text, data_text) if part)
+    is_sensitive = any(keyword in combined_text for keyword in sensitive_keywords)
+    submits_data = any(
+        phrase in action_text
+        for phrase in ("form", "submit", "login", "sign in", "signin", "checkout", "pay")
+    )
+    is_local_target = domain in {"localhost", "127.0.0.1"} or domain.endswith(".local")
+    is_secure_transport = scheme == "https"
 
-    if any(keyword in combined_text for keyword in sensitive_keywords):
+    if is_sensitive and (not domain or is_local_target or not is_secure_transport):
         return AnalyzeResponse(
             decision="block",
             confidence=0.98,
-            reason=f"Blocked because sensitive input was detected for domain '{domain or 'unknown'}'.",
+            reason=f"Blocked because sensitive input was detected for an unsafe destination '{domain or 'unknown'}'.",
         )
 
     risk_reasons = []
     confidence = 0.2
 
-    if not domain or not is_trusted(domain):
-        risk_reasons.append(f"domain '{domain or 'unknown'}' is not trusted")
+    if not domain:
+        risk_reasons.append("the destination domain is missing")
         confidence = max(confidence, 0.78)
+    elif is_local_target:
+        risk_reasons.append(f"domain '{domain}' is local-only")
+        confidence = max(confidence, 0.9)
+    elif not is_secure_transport and (is_sensitive or submits_data):
+        risk_reasons.append(f"domain '{domain}' does not use https")
+        confidence = max(confidence, 0.88)
 
-    if "form" in action_text or "submit" in action_text:
+    if submits_data and not is_sensitive:
         risk_reasons.append("form submission increases risk")
-        confidence = max(confidence, 0.86 if risk_reasons else 0.72)
+        confidence = max(confidence, 0.72)
 
     if risk_reasons:
         return AnalyzeResponse(
@@ -108,7 +130,7 @@ def analyze_action_payload(action: str, url: str, data: str | None = None) -> An
     return AnalyzeResponse(
         decision="allow",
         confidence=0.96,
-        reason=f"Allowed because domain '{domain}' is trusted and no sensitive input was detected.",
+        reason=f"Allowed because domain '{domain or 'unknown'}' looks reachable over a safe public origin.",
     )
 
 

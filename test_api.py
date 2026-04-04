@@ -431,6 +431,31 @@ def test_public_demo_history_does_not_include_customer_scans(client: TestClient)
     assert "https://private.example" not in urls
 
 
+def test_public_demo_history_is_isolated_per_client_session(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("GUNI_ALLOW_OPEN_MODE", "true")
+
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    scan_a = client_a.post(
+        "/scan",
+        json={
+            "html": "<html><body><h1>Demo A</h1></body></html>",
+            "goal": "Read page content",
+            "url": "https://demo-a.example",
+        },
+    )
+    assert scan_a.status_code == 200
+
+    history_a = unwrap(client_a.get("/history?limit=20").json())
+    history_b = unwrap(client_b.get("/history?limit=20").json())
+
+    urls_a = [entry["url"] for entry in history_a["entries"]]
+    urls_b = [entry["url"] for entry in history_b["entries"]]
+    assert "https://demo-a.example" in urls_a
+    assert "https://demo-a.example" not in urls_b
+
+
 def test_scan_url_requires_auth_when_unsigned(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("GUNI_ALLOW_OPEN_MODE", raising=False)
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
@@ -452,6 +477,30 @@ def test_scan_url_blocks_private_network_targets(client: TestClient):
     assert response.status_code == 400
     payload = response.json()
     assert payload["success"] is False
+
+
+def test_scan_url_uses_validated_ip_for_fetches(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    from api.key_manager import generate_api_key
+
+    captured: dict[str, object] = {}
+
+    def fake_fetch(raw_url: str, **kwargs):
+        captured["url"] = raw_url
+        captured["kwargs"] = kwargs
+        return raw_url, "<html><body><h1>Fetched safely</h1></body></html>"
+
+    monkeypatch.setattr("api.services.scan_api.fetch_public_url", fake_fetch)
+
+    key = generate_api_key(email="safe-fetch@example.com", plan="starter", scans_limit=5)["key"]
+    response = client.post(
+        "/scan/url",
+        json={"url": "https://example.com/path?q=1", "goal": "Read page"},
+        headers={"X-API-Key": key},
+    )
+
+    assert response.status_code == 200
+    assert captured["url"] == "https://example.com/path?q=1"
+    assert captured["kwargs"]["max_redirects"] == 3
 
 
 def test_session_cannot_access_customer_history_without_api_key(client: TestClient):
@@ -549,6 +598,36 @@ def test_customer_analytics_and_export_are_isolated_from_open_scans(client, monk
     csv_text = export.text
     assert "https://open-analytics.example" not in csv_text
     assert "https://private-analytics.example" in csv_text
+
+
+def test_analyze_allows_secure_login_flow_on_public_domain(client: TestClient):
+    response = client.post(
+        "/analyze",
+        json={
+            "action": "Submit login form",
+            "url": "https://acme.example.com/login",
+            "data": "email=user@example.com&password=secret",
+        },
+    )
+
+    assert response.status_code == 200
+    data = unwrap(response.json())
+    assert data["decision"] == "allow"
+
+
+def test_analyze_blocks_sensitive_submission_to_insecure_destination(client: TestClient):
+    response = client.post(
+        "/analyze",
+        json={
+            "action": "Submit login form",
+            "url": "http://evil.example/login",
+            "data": "password=secret",
+        },
+    )
+
+    assert response.status_code == 200
+    data = unwrap(response.json())
+    assert data["decision"] == "block"
 
 
 def test_custom_rules_affect_scan_results(client: TestClient):
@@ -1559,6 +1638,23 @@ def test_session_tokens_are_cookie_safe_and_round_trip():
     assert "+" not in token
     assert "/" not in token
     assert verify_session(token) == "cookie-safe@example.com"
+
+
+def test_session_secret_persists_in_dev_when_env_var_is_missing(monkeypatch: pytest.MonkeyPatch):
+    secret_file = TEST_DATA_DIR / "session_secret.txt"
+    if secret_file.exists():
+        secret_file.unlink()
+
+    monkeypatch.delenv("GUNI_SESSION_SECRET", raising=False)
+    sys.modules.pop("api.auth_system", None)
+
+    auth_system = importlib.import_module("api.auth_system")
+    token = auth_system.create_session("persisted-secret@example.com")
+
+    sys.modules.pop("api.auth_system", None)
+    reloaded = importlib.import_module("api.auth_system")
+
+    assert reloaded.verify_session(token) == "persisted-secret@example.com"
 
 
 def test_demo_page_renders_scan_studio(client: TestClient):

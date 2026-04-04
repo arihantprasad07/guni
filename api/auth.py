@@ -1,6 +1,7 @@
 """API key and session-backed request authentication."""
 
 import os
+import secrets
 
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security.api_key import APIKeyHeader
@@ -8,6 +9,7 @@ from fastapi.security.api_key import APIKeyHeader
 from api.key_manager import validate_api_key
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+DEMO_SESSION_COOKIE = "guni_demo_id"
 
 
 def _load_valid_keys() -> set[str]:
@@ -109,3 +111,16 @@ def verify_api_key_or_demo(request: Request, api_key: str | None = Security(API_
 
 def verify_api_key_for_connection(connection) -> str:
     return _verify_api_key_from_request(connection)
+
+
+def get_demo_session_key(request: Request) -> tuple[str | None, bool]:
+    """
+    Return a stable per-browser identifier for open demo traffic.
+
+    This prevents demo users from sharing a global "open" history bucket while
+    keeping the public demo endpoints available without an API key.
+    """
+    existing = _get_cookie(request, DEMO_SESSION_COOKIE).strip()
+    if existing.startswith("demo_"):
+        return existing, False
+    return f"demo_{secrets.token_urlsafe(18)}", True

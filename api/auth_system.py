@@ -11,6 +11,9 @@ import hashlib
 import hmac
 import json
 import base64
+from pathlib import Path
+
+from runtime_config import DATA_DIR
 
 
 def _is_production_environment() -> bool:
@@ -27,11 +30,28 @@ def _is_production_environment() -> bool:
     )
 
 
-_SESSION_SECRET = os.environ.get("GUNI_SESSION_SECRET")
-if not _SESSION_SECRET:
+def _load_session_secret() -> str:
+    configured = os.environ.get("GUNI_SESSION_SECRET")
+    if configured:
+        return configured
     if _is_production_environment():
         raise RuntimeError("GUNI_SESSION_SECRET must be set in production.")
-    _SESSION_SECRET = secrets.token_urlsafe(32)
+
+    secret_path = Path(DATA_DIR) / "session_secret.txt"
+    try:
+        if secret_path.exists():
+            existing = secret_path.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+        generated = secrets.token_urlsafe(32)
+        secret_path.parent.mkdir(parents=True, exist_ok=True)
+        secret_path.write_text(generated, encoding="utf-8")
+        return generated
+    except OSError:
+        return secrets.token_urlsafe(32)
+
+
+_SESSION_SECRET = _load_session_secret()
 
 SESSION_SECRET = _SESSION_SECRET
 SESSION_EXPIRY = 7 * 24 * 3600  # 7 days
