@@ -41,6 +41,7 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
     """
     from guni import GuniScanner
     from api.auth import verify_api_key_for_connection
+    from api.database import db_get_usage
     from api.services.scan_api import get_default_llm_api_key
 
     try:
@@ -99,6 +100,16 @@ async def websocket_scan_endpoint(websocket: WebSocket, goal: str = "browse webs
                 "type": "scanning",
                 "url":  url,
             })
+
+            usage = db_get_usage(api_key)
+            if usage and int(usage.get("monthly_limit", 0)) > 0:
+                if int(usage.get("scans_used", 0)) >= int(usage.get("monthly_limit", 0)):
+                    await websocket.send_json({
+                        "error": "quota_exceeded",
+                        "message": "Monthly scan quota exhausted. Upgrade your plan."
+                    })
+                    await websocket.close()
+                    return
 
             # Run scan
             if pg_goal != scanner.goal:

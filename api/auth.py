@@ -56,11 +56,6 @@ def _get_cookie(source, name: str) -> str:
 def _get_header(source, name: str) -> str:
     return _safe_lookup(source, "headers", name)
 
-
-def _get_query_param(source, name: str) -> str:
-    return _safe_lookup(source, "query_params", name)
-
-
 def _extract_api_key(request, explicit_api_key: str | None = None) -> str:
     if isinstance(explicit_api_key, str) and explicit_api_key:
         return explicit_api_key
@@ -69,7 +64,7 @@ def _extract_api_key(request, explicit_api_key: str | None = None) -> str:
     if header_key:
         return header_key
 
-    return _get_query_param(request, "api_key")
+    return _get_header(request, "x-api-key")
 
 
 def _verify_api_key_from_request(request, api_key: str | None = None, *, allow_open_demo: bool = False) -> str:

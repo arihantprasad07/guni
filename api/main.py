@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -60,6 +61,7 @@ if SETTINGS.trusted_hosts:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(SETTINGS.trusted_hosts))
 
 EVENT_LOG_LOCK = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 def _ensure_parent_dir(file_path: str) -> None:
@@ -398,7 +400,6 @@ def verify_email(token: str = "", background_tasks: BackgroundTasks = None):
 class SignupRequest(BaseModel):
     email: str
     password: str
-    plan: str = "free"
     company: str | None = None
     full_name: str | None = None
 
@@ -439,7 +440,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     from api.database import db_create_organization, db_create_user, db_get_user_by_email, db_log_audit_event, db_mark_user_verified, db_update_user_login
     from api.key_manager import PLAN_LIMITS, generate_api_key
     email = body.email.lower().strip()
-    plan = (body.plan or "free").lower().strip()
+    plan = "free"
     full_name = (body.full_name or "").strip()
     if not email or "@" not in email:
         raise HTTPException(status_code=422, detail="Invalid email")
@@ -447,8 +448,6 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     if db_get_user_by_email(email):
         raise HTTPException(status_code=409, detail="Account already exists")
-    if plan not in {"free", "starter", "pro"}:
-        raise HTTPException(status_code=422, detail="Invalid plan")
     pw_hash = hash_password(body.password)
     token = generate_token()
     role = "owner" if email in _owner_emails() else ("admin" if email in _admin_emails() else "user")
@@ -456,7 +455,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"], full_name=full_name)
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
-    api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS.get(plan, 0), org_id=org["id"])["key"]
+    api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS["free"], org_id=org["id"])["key"]
     db_update_user_login(email, api_key)
     if email in _owner_emails():
         db_mark_user_verified(email)
@@ -474,7 +473,7 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         "role": _display_role(user),
         "api_key": api_key,
         "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]},
-        "next_action": "checkout" if plan in {"starter", "pro"} else "portal",
+        "next_action": "portal",
     }
     response = JSONResponse(payload)
     response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
@@ -499,7 +498,7 @@ async def auth_signin(body: SigninRequest, request: Request):
     db_update_user_login(email, api_key)
     session = create_session(email)
     db_log_audit_event(actor_email=email, org_id=user.get("org_id"), action="auth.signin", target_type="user", target_id=email, metadata={"role": _display_role(user), "plan": user.get("plan", "free")})
-    response = JSONResponse({"success": True, "email": email, "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "session": session, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
+    response = JSONResponse({"success": True, "email": email, "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
     response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
@@ -772,7 +771,9 @@ def billing_cancel(request: Request):
         raise HTTPException(status_code=404, detail="No active subscription found")
     updated = _subscription_update_from_current(user, current, cancel_at_period_end=True)
     db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="billing.cancel_requested", target_type="subscription", target_id=str(updated.get("id", "")), metadata={"plan": updated.get("plan", "free")})
-    return updated
+    warning = "Your local subscription has been marked for cancellation. If you paid via Razorpay, please also cancel from your Razorpay account or email hello@guni.dev to confirm cancellation."
+    logger.warning("Billing cancel requested for %s, but no Razorpay cancellation API call is performed. User must also cancel directly with Razorpay.", user["email"])
+    return {**updated, "warning": warning}
 
 
 @app.post("/billing/resume", tags=["Payments"])
@@ -784,7 +785,9 @@ def billing_resume(request: Request):
         raise HTTPException(status_code=404, detail="No subscription found")
     updated = _subscription_update_from_current(user, current, cancel_at_period_end=False)
     db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="billing.resume_requested", target_type="subscription", target_id=str(updated.get("id", "")), metadata={"plan": updated.get("plan", "free")})
-    return updated
+    warning = "Your local subscription has been marked for resumption. If you paid via Razorpay, please also confirm the subscription is active in your Razorpay account or email hello@guni.dev for help."
+    logger.warning("Billing resume requested for %s, but no Razorpay resume API call is performed. User must also verify directly with Razorpay.", user["email"])
+    return {**updated, "warning": warning}
 
 
 @app.get("/billing/success", response_class=HTMLResponse, include_in_schema=False)

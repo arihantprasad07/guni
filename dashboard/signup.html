@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-VMF9CFE4DP"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -9,9 +8,10 @@
   gtag('js', new Date());
   gtag('config', 'G-VMF9CFE4DP');
 </script>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="description" content="Secure your AI agents with Guni."/>
-<title>Guni — Secure your AI agents</title>
+<title>Guni - Secure your AI agents</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
 <link rel="stylesheet" href="/static/guni.css"/>
 <style>
@@ -30,22 +30,8 @@
 .auth-footer{margin-top:1.5rem;font-size:12px;color:var(--muted2);text-align:center}
 .auth-footer a{color:var(--amber);text-decoration:none}
 .auth-footer a:hover{text-decoration:underline}
-.plan-select{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:0.5rem}
-.plan-opt{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;cursor:pointer;transition:all 0.15s;text-align:left}
-.plan-opt:hover{border-color:var(--amber2)}
-.plan-opt.selected{border-color:var(--amber);background:var(--amber3)}
-.plan-opt input{display:none}
-.plan-name{font-size:13px;color:var(--text);font-family:var(--display);font-weight:600}
-.plan-price{font-size:11px;color:var(--muted2);margin-top:2px;line-height:1.5}
-.plan-opt.selected .plan-name{color:var(--amber)}
 .inline-action{display:none}
 .inline-action.show{display:block}
-.billing-cycle{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem}
-.cycle-opt{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;cursor:pointer}
-.cycle-opt.selected{border-color:var(--amber);background:var(--amber3)}
-.cycle-title{font-size:12px;color:var(--text);font-family:var(--display)}
-.cycle-copy{font-size:11px;color:var(--muted2);margin-top:3px;line-height:1.5}
-@media (max-width: 640px){.plan-select{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="g-page">
@@ -53,44 +39,9 @@
   <div class="auth-card">
     <a class="auth-logo" href="/">guni<em>.dev</em></a>
     <h1 class="auth-title">Create account</h1>
-    <p class="auth-sub">Start protecting your AI agents from prompt injection, phishing, and goal hijacking.</p>
+    <p class="auth-sub">Create your free Guni account. Upgrade from inside the portal after signup using billing.</p>
 
     <div class="auth-form">
-      <div class="field">
-        <label class="g-field-label">Plan</label>
-        <div class="plan-select">
-          <label class="plan-opt selected" id="plan-free" onclick="selectPlan('free')">
-            <input type="radio" name="plan" value="free" checked/>
-            <div class="plan-name">Free</div>
-            <div class="plan-price">Self-hosted · Heuristics only</div>
-          </label>
-          <label class="plan-opt" id="plan-starter" onclick="selectPlan('starter')">
-            <input type="radio" name="plan" value="starter"/>
-            <div class="plan-name">Plus</div>
-            <div class="plan-price">Hosted API · LLM layer · 1,000 scans</div>
-          </label>
-          <label class="plan-opt" id="plan-pro" onclick="selectPlan('pro')">
-            <input type="radio" name="plan" value="pro"/>
-            <div class="plan-name">Pro</div>
-            <div class="plan-price">Production workflows · Priority support</div>
-          </label>
-        </div>
-      </div>
-
-      <div class="field" id="interval-wrap" style="display:none">
-        <label class="g-field-label">Billing cycle</label>
-        <div class="billing-cycle">
-          <div class="cycle-opt selected" id="interval-monthly" onclick="selectInterval('monthly')">
-            <div class="cycle-title">Monthly</div>
-            <div class="cycle-copy" id="interval-monthly-copy">₹999/mo</div>
-          </div>
-          <div class="cycle-opt" id="interval-yearly" onclick="selectInterval('yearly')">
-            <div class="cycle-title">Yearly</div>
-            <div class="cycle-copy" id="interval-yearly-copy">₹7,490/yr</div>
-          </div>
-        </div>
-      </div>
-
       <div class="field">
         <label class="g-field-label">Email</label>
         <input class="g-input" type="email" id="email" placeholder="you@company.com" autocomplete="email"/>
@@ -114,7 +65,6 @@
       <div class="err" id="err"></div>
       <div class="ok" id="ok"></div>
       <button class="g-btn g-btn-outline inline-action" id="resend-btn" type="button">Resend verification email</button>
-
       <button class="g-btn g-btn-primary" id="signup-btn" style="padding:13px;font-size:13px" onclick="signup(this)">Create account</button>
     </div>
 
@@ -125,26 +75,6 @@
 </div>
 
 <script>
-let selectedPlan = 'free';
-let selectedInterval = 'monthly';
-
-function selectPlan(plan) {
-  selectedPlan = plan;
-  document.getElementById('plan-free').classList.toggle('selected', plan === 'free');
-  document.getElementById('plan-starter').classList.toggle('selected', plan === 'starter');
-  document.getElementById('plan-pro').classList.toggle('selected', plan === 'pro');
-  const intervalWrap = document.getElementById('interval-wrap');
-  intervalWrap.style.display = plan === 'free' ? 'none' : 'block';
-  document.getElementById('interval-monthly-copy').textContent = plan === 'pro' ? '₹4,999/mo' : '₹999/mo';
-  document.getElementById('interval-yearly-copy').textContent = plan === 'pro' ? '₹23,990/yr' : '₹7,490/yr';
-}
-
-function selectInterval(interval) {
-  selectedInterval = interval;
-  document.getElementById('interval-monthly').classList.toggle('selected', interval === 'monthly');
-  document.getElementById('interval-yearly').classList.toggle('selected', interval === 'yearly');
-}
-
 function apiErrorMessage(payload, fallback) {
   if (!payload) return fallback;
   if (typeof payload === 'string') return payload;
@@ -182,7 +112,7 @@ async function signup(btnEl) {
     const r = await fetch('/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, full_name: fullName || null, password, plan: selectedPlan }),
+      body: JSON.stringify({ email, full_name: fullName || null, password }),
     });
     const payload = await r.json().catch(() => null);
     if (!r.ok) {
@@ -195,37 +125,9 @@ async function signup(btnEl) {
       return;
     }
 
-    resend.classList.add('show');
-    const data = payload && payload.data ? payload.data : payload;
-
-    if (data && data.next_action === 'portal') {
-      ok.textContent = 'Account created! Check your email to verify your account before signing in.';
-      ok.classList.add('show');
-      return;
-    }
-
-    ok.textContent = `Account created. Redirecting to ${selectedPlan === 'pro' ? 'Pro' : 'Plus'} checkout...`;
+    ok.textContent = 'Account created. Redirecting to your portal...';
     ok.classList.add('show');
-
-    const checkoutResponse = await fetch('/billing/checkout', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan: selectedPlan, interval: selectedInterval }),
-    });
-    const checkoutPayload = await checkoutResponse.json().catch(() => null);
-    if (!checkoutResponse.ok) {
-      err.textContent = apiErrorMessage(checkoutPayload, 'Your account was created, but checkout could not be started. Open billing from the portal to continue.');
-      err.classList.add('show');
-      return;
-    }
-    const checkoutData = checkoutPayload && checkoutPayload.data ? checkoutPayload.data : checkoutPayload;
-    if (!checkoutData || !checkoutData.checkout_url) {
-      err.textContent = 'Your account was created, but the checkout link was missing. Open billing from the portal to continue.';
-      err.classList.add('show');
-      return;
-    }
-    window.location.href = checkoutData.checkout_url;
+    window.location.href = '/portal';
   } catch (e) {
     err.textContent = 'Could not connect. Try again.';
     err.classList.add('show');
@@ -275,14 +177,6 @@ async function resendVerification() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Enter') signup(); });
 document.getElementById('resend-btn').addEventListener('click', resendVerification);
-
-(() => {
-  const params = new URLSearchParams(window.location.search);
-  const plan = params.get('plan');
-  const interval = params.get('interval');
-  if (plan === 'starter' || plan === 'pro' || plan === 'free') selectPlan(plan);
-  if (interval === 'monthly' || interval === 'yearly') selectInterval(interval);
-})();
 </script>
 </body>
 </html>
