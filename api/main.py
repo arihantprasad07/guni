@@ -626,6 +626,11 @@ def waitlist_count():
     return {"count": len(_read_json_file(WAITLIST_PATH))}
 
 
+@app.get("/google440ac815599f01ff.html", include_in_schema=False)
+def google_verification():
+    return PlainTextResponse('google-site-verification: <meta name="google-site-verification" content="1E_FlR4xf-AuRM7RShzK_9pdieEM9Y5mAwra2yOE8_8" />')
+
+
 @app.get("/robots.txt", include_in_schema=False)
 def robots_txt():
     base_url = _public_base_url()
