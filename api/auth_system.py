@@ -78,12 +78,13 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 # ── Session tokens ─────────────────────────────────────────────────────────
 
-def create_session(email: str) -> str:
+def create_session(email: str, session_version: int = 0) -> str:
     """Create a signed session token."""
     payload = {
         "email": email,
         "exp":   int(time.time()) + SESSION_EXPIRY,
         "iat":   int(time.time()),
+        "sv":    int(session_version or 0),
     }
     data = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     signature = hmac.new(
@@ -94,10 +95,9 @@ def create_session(email: str) -> str:
     return f"{data}.{signature}"
 
 
-def verify_session(token: str) -> str | None:
+def decode_session(token: str) -> dict | None:
     """
-    Verify a session token.
-    Returns email if valid, None if invalid/expired.
+    Verify and decode a session token.
     """
     try:
         data, signature = token.rsplit(".", 1)
@@ -112,9 +112,16 @@ def verify_session(token: str) -> str | None:
         payload = json.loads(base64.urlsafe_b64decode(f"{data}{padding}").decode())
         if payload["exp"] < int(time.time()):
             return None
-        return payload["email"]
+        return payload
     except Exception:
         return None
+
+
+def verify_session(token: str) -> str | None:
+    payload = decode_session(token)
+    if not payload:
+        return None
+    return payload.get("email")
 
 
 # ── Email tokens ───────────────────────────────────────────────────────────

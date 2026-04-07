@@ -125,9 +125,9 @@ async function signup(btnEl) {
       return;
     }
 
-    ok.textContent = 'Account created. Redirecting to your portal...';
+    ok.textContent = 'Account created. Check your email to verify, then sign in.';
     ok.classList.add('show');
-    window.location.href = '/portal';
+    setTimeout(() => { window.location.href = '/signin'; }, 1200);
   } catch (e) {
     err.textContent = 'Could not connect. Try again.';
     err.classList.add('show');

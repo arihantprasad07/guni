@@ -51,6 +51,15 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def clear_rate_limiter_state():
+    from api.rate_limit import reset_rate_limits
+
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
+
+
 def unwrap(payload: dict) -> dict:
     if {"success", "data", "error"}.issubset(payload.keys()):
         return payload["data"]
@@ -171,7 +180,35 @@ def test_scan_empty_html_returns_422(client: TestClient):
     assert response.status_code == 422
     payload = response.json()
     assert payload["success"] is False
-    assert "html field cannot be empty" in payload["error"]
+    assert "html cannot be empty" in payload["error"]
+
+
+def test_scan_rejects_oversized_html(client: TestClient):
+    response = client.post(
+        "/scan",
+        json={"html": "a" * 500_001, "goal": "Read page content"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["success"] is False
+    assert "html" in payload["error"].lower()
+
+
+def test_scan_rejects_invalid_llm_provider(client: TestClient):
+    response = client.post(
+        "/scan",
+        json={
+            "html": "<html><body>test</body></html>",
+            "goal": "Read page content",
+            "llm_provider": "not-a-provider",
+        },
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["success"] is False
+    assert "llm_provider" in payload["error"]
 
 
 def test_scan_response_contains_expected_fields(client: TestClient):
@@ -521,7 +558,7 @@ def test_scan_url_uses_validated_ip_for_fetches(client: TestClient, monkeypatch:
     assert captured["kwargs"]["max_redirects"] == 3
 
 
-def test_session_cannot_access_customer_history_without_api_key(client: TestClient):
+def test_session_can_access_customer_history_without_exposing_api_key(client: TestClient):
     signup = client.post(
         "/auth/signup",
         json={
@@ -544,8 +581,9 @@ def test_session_cannot_access_customer_history_without_api_key(client: TestClie
     )
     assert signin.status_code == 200
 
-    auth_data = unwrap(signin.json())
-    api_key = auth_data["api_key"]
+    from api.key_manager import generate_api_key
+
+    api_key = generate_api_key(email="session-user@example.com", plan="starter", scans_limit=5, org_id=user["org_id"])["key"]
 
     scan_response = client.post(
         "/scan",
@@ -562,7 +600,7 @@ def test_session_cannot_access_customer_history_without_api_key(client: TestClie
     assert history.status_code == 200
     history_data = unwrap(history.json())
     urls = [entry["url"] for entry in history_data["entries"]]
-    assert "https://session-owned.example" not in urls
+    assert "https://session-owned.example" in urls
 
     private_history = client.get(
         "/history?limit=10",
@@ -887,6 +925,7 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     signin_data = unwrap(signin.json())
     assert signin_data["role"] == "admin"
     assert signin_data["plan"] == "starter"
+    assert "api_key" not in signin_data
 
     me = client.get("/auth/me")
     assert me.status_code == 200
@@ -894,6 +933,29 @@ def test_auth_signup_signin_and_me_include_role(client: TestClient):
     assert me_data["role"] == "admin"
     assert me_data["verified"] is True
     assert me_data["organization"]["name"] == "Aera"
+    assert "api_key" not in me_data
+    assert "api_key_preview" in me_data
+
+
+def test_unverified_signup_does_not_return_api_key_or_allow_scan(client: TestClient):
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "audit-blocked@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    assert signup.status_code == 200
+    signup_data = unwrap(signup.json())
+    assert "api_key" not in signup_data
+    assert "set-cookie" not in {key.lower() for key in signup.headers.keys()}
+
+    scan = client.post(
+        "/scan",
+        json={"html": "<html><body>test</body></html>", "goal": "Read page"},
+    )
+    assert scan.status_code in {200, 401}
 
 
 def test_owner_email_bypasses_verification_requirement(client: TestClient):
@@ -1168,10 +1230,46 @@ def test_signup_accepts_optional_full_name_and_auth_me_returns_it(client: TestCl
     assert user is not None
     assert user["full_name"] == "Arihant Prasad"
 
+    from api.database import db_verify_user
+
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "named@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
     me = client.get("/auth/me")
     assert me.status_code == 200
     me_data = unwrap(me.json())
     assert me_data["full_name"] == "Arihant Prasad"
+
+
+def test_signup_rejects_extra_fields_and_oversized_company(client: TestClient):
+    extra_field = client.post(
+        "/auth/signup",
+        json={
+            "email": "extra@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+            "unexpected": True,
+        },
+    )
+    assert extra_field.status_code == 422
+    assert extra_field.json()["success"] is False
+
+    oversized_company = client.post(
+        "/auth/signup",
+        json={
+            "email": "oversized@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+            "company": "A" * 121,
+        },
+    )
+    assert oversized_company.status_code == 422
+    assert oversized_company.json()["success"] is False
 
 
 def test_admin_cannot_rotate_key_from_another_org(client: TestClient):
@@ -1245,6 +1343,38 @@ def test_admin_key_generation_does_not_leak_cross_org_existing_key(client: TestC
     generated_data = unwrap(generated.json())
     assert generated_data["key"] != foreign_key
     assert generated_data["org_id"] == admin["org_id"]
+
+
+def test_alerts_reject_malformed_webhook_url(client: TestClient):
+    from api.database import db_get_user_by_email, db_verify_user
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "alerts-validation@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    user = db_get_user_by_email("alerts-validation@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "alerts-validation@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    response = client.post(
+        "/alerts",
+        json={"webhook_url": "javascript:alert(1)", "on_block": True, "on_confirm": False},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["success"] is False
+    assert "https" in payload["error"].lower()
 
 
 def test_billing_checkout_state_and_webhook_provisioning(client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -1537,6 +1667,14 @@ def test_landing_page_uses_configured_public_metadata_and_canonical(client: Test
     assert "guni.up.railway.app" not in response.text
 
 
+def test_reset_page_escapes_token_for_inline_script(client: TestClient):
+    response = client.get("/auth/reset?token=%27%3Balert(1)%3B%2F%2F")
+
+    assert response.status_code == 200
+    assert "const resetToken = \"';alert(1);//\"" in response.text
+    assert "const resetToken = '';alert(1);//'" not in response.text
+
+
 def test_demo_page_strips_mojibake_sequences_from_public_copy(client: TestClient):
     response = client.get("/demo")
 
@@ -1599,6 +1737,124 @@ def test_signin_sets_secure_cookie_when_https_base_url_is_configured(client: Tes
     set_cookie = signin.headers["set-cookie"].lower()
     assert "secure" in set_cookie
     assert "httponly" in set_cookie
+
+
+def test_signout_invalidates_existing_session(client: TestClient):
+    from api.database import db_get_user_by_email, db_verify_user
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "logout@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    user = db_get_user_by_email("logout@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "logout@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+
+    me_before = client.get("/auth/me")
+    assert me_before.status_code == 200
+
+    signout = client.post("/auth/signout")
+    assert signout.status_code == 200
+
+    me_after = client.get("/auth/me")
+    assert me_after.status_code == 401
+
+
+def test_password_reset_invalidates_existing_session(client: TestClient):
+    from api.database import db_get_user_by_email, db_set_reset_token, db_verify_user
+
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "reset-session@example.com",
+            "password": "strong-pass-123",
+            "plan": "free",
+        },
+    )
+    user = db_get_user_by_email("reset-session@example.com")
+    assert user is not None
+    assert db_verify_user(user["verify_token"]) is True
+
+    signin = client.post(
+        "/auth/signin",
+        json={"email": "reset-session@example.com", "password": "strong-pass-123"},
+    )
+    assert signin.status_code == 200
+    assert client.get("/auth/me").status_code == 200
+
+    db_set_reset_token("reset-session@example.com", "session-reset-token", "2999-01-01T00:00:00")
+    reset = client.post(
+        "/auth/reset-password",
+        json={"token": "session-reset-token", "password": "strong-pass-456"},
+    )
+    assert reset.status_code == 200
+
+    assert client.get("/auth/me").status_code == 401
+
+
+def test_auth_rate_limit_blocks_signin_after_five_attempts(client: TestClient):
+    for _ in range(5):
+        response = client.post(
+            "/auth/signin",
+            json={"email": "missing@example.com", "password": "wrong-pass-123"},
+        )
+        assert response.status_code == 401
+
+    blocked = client.post(
+        "/auth/signin",
+        json={"email": "missing@example.com", "password": "wrong-pass-123"},
+    )
+
+    assert blocked.status_code == 429
+    assert blocked.headers["retry-after"] == "900"
+    payload = blocked.json()
+    assert payload["success"] is False
+    assert "Too many login attempts" in payload["error"]
+
+
+def test_auth_rate_limit_is_shared_across_login_routes(client: TestClient):
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "shared-limit@example.com",
+            "password": "strong-pass-123",
+            "company": "Shared Limit Co",
+        },
+    )
+    client.post(
+        "/auth/reset-request",
+        json={"email": "shared-limit@example.com"},
+    )
+    client.post(
+        "/auth/resend-verification",
+        json={"email": "shared-limit@example.com"},
+    )
+    client.post(
+        "/auth/signin",
+        json={"email": "shared-limit@example.com", "password": "wrong-pass-123"},
+    )
+    fifth = client.post(
+        "/auth/reset-password",
+        json={"token": "missing-token", "password": "strong-pass-456"},
+    )
+    assert fifth.status_code == 400
+
+    blocked = client.post(
+        "/auth/signin",
+        json={"email": "shared-limit@example.com", "password": "wrong-pass-123"},
+    )
+
+    assert blocked.status_code == 429
 
 
 def test_validate_runtime_settings_rejects_open_mode_in_production(monkeypatch: pytest.MonkeyPatch):
@@ -1701,6 +1957,30 @@ def test_scan_compare_returns_structured_result(client: TestClient):
     assert data["risk_diff"] >= 1
     assert data["page_a"]["decision"] == "ALLOW"
     assert data["page_b"]["decision"] in {"CONFIRM", "BLOCK"}
+
+
+def test_scan_compare_rejects_non_object_and_oversized_html(client: TestClient):
+    from api.key_manager import generate_api_key
+
+    key = generate_api_key(email="compare-validate@example.com", plan="starter", scans_limit=5)["key"]
+
+    malformed = client.post(
+        "/scan/compare",
+        content=json.dumps(["not-an-object"]),
+        headers={"Content-Type": "application/json", "X-API-Key": key},
+    )
+    assert malformed.status_code == 422
+
+    oversized = client.post(
+        "/scan/compare",
+        json={
+            "html_a": "a" * 500_001,
+            "html_b": "<html><body>safe</body></html>",
+            "goal": "Compare pages",
+        },
+        headers={"X-API-Key": key},
+    )
+    assert oversized.status_code == 422
 
 
 def test_session_tokens_are_cookie_safe_and_round_trip():

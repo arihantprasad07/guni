@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -34,8 +36,8 @@ def forgot_page():
 @router.get("/auth/reset", response_class=HTMLResponse)
 def reset_page(token: str = ""):
     response = render_dashboard_page("reset.html", "<h1>Reset password</h1>")
-    if "RESET_TOKEN_PLACEHOLDER" in response.body.decode("utf-8"):
-        content = response.body.decode("utf-8").replace("RESET_TOKEN_PLACEHOLDER", token)
+    if "'RESET_TOKEN_PLACEHOLDER'" in response.body.decode("utf-8"):
+        content = response.body.decode("utf-8").replace("'RESET_TOKEN_PLACEHOLDER'", json.dumps(token))
         return HTMLResponse(content=content)
     return response
 

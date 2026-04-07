@@ -149,8 +149,6 @@ async function signin(btnEl) {
     localStorage.setItem('guni_email', d.email);
     localStorage.setItem('guni_plan', d.plan);
     localStorage.setItem('guni_role', d.role || 'owner');
-    localStorage.setItem('guni_api_key', d.api_key || '');
-    localStorage.setItem('guni_session', d.session || '');
 
     ok.classList.add('show');
     const target = d.is_owner ? '/owner' : '/portal';

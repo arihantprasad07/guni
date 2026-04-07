@@ -329,8 +329,7 @@
             <div class="box-body">
               <div class="key-box" id="api-key-display">guni_live_...</div>
               <div class="key-actions">
-                <button class="g-btn g-btn-outline" id="copy-key-btn" type="button">Copy</button>
-                <button class="g-btn g-btn-outline" id="reveal-key-btn" type="button">Show</button>
+                <span class="note">Raw keys are no longer exposed in the browser.</span>
               </div>
               <div class="key-usage">
                 <div class="key-usage-copy" id="key-usage-text">0 / 0 scans used this month</div>
@@ -420,8 +419,6 @@
 <script>
 const API = window.location.origin;
 let authUser = null;
-let currentKey = "";
-let showFullKey = false;
 let latestOverview = { total: 0 };
 let latestAlerts = {};
 let latestBilling = {};
@@ -499,16 +496,6 @@ function formatLocalTime(value) {
   });
 }
 
-function maskedKey(key) {
-  if (!key) return "No key issued yet";
-  if (showFullKey) return key;
-  return `${"\u2022".repeat(Math.max(8, key.length - 8))}${key.slice(-8)}`;
-}
-
-function renderApiKey() {
-  document.getElementById("api-key-display").textContent = maskedKey(currentKey);
-}
-
 function showPortal() {
   document.getElementById("gate").style.display = "none";
   document.getElementById("portal").classList.add("show");
@@ -532,12 +519,11 @@ async function hydrateSession() {
     }
 
     authUser = unwrap(payload);
-    currentKey = authUser.api_key || "";
     document.getElementById("user-email").textContent = authUser.full_name || authUser.email;
     document.getElementById("user-role").textContent = authUser.role || "owner";
     document.getElementById("user-plan").textContent = displayPlan(authUser.plan).toUpperCase();
     document.getElementById("user-org").textContent = authUser.full_name ? `${authUser.email} · ${authUser.organization?.name || "No organization"}` : (authUser.organization?.name || "No organization");
-    renderApiKey();
+    document.getElementById("api-key-display").textContent = authUser.api_key_preview || "No key issued yet";
     document.getElementById("settings-plan").textContent = displayPlan(authUser.plan);
     document.getElementById("settings-role").textContent = authUser.role || "-";
     document.getElementById("settings-verified").textContent = authUser.verified ? "Yes" : "No";
@@ -558,8 +544,8 @@ async function hydrateSession() {
 
 async function loadOverview() {
   const [analyticsResult, usageResult] = await Promise.all([
-    fetchJsonWithQuota(`${API}/analytics`, { headers: { "X-API-Key": currentKey } }),
-    fetchJsonWithQuota(`${API}/keys/usage`, { headers: { "X-API-Key": currentKey } }),
+    fetchJsonWithQuota(`${API}/analytics`, { credentials: "include" }),
+    fetchJsonWithQuota(`${API}/keys/usage`, { credentials: "include" }),
   ]);
   const analytics = analyticsResult.data;
   const usage = usageResult.data;
@@ -591,9 +577,7 @@ function renderApiKeyUsage(usage) {
 }
 
 async function loadHistory() {
-  const { data } = await fetchJsonWithQuota(`${API}/history?limit=30`, {
-    headers: { "X-API-Key": currentKey }
-  });
+  const { data } = await fetchJsonWithQuota(`${API}/history?limit=30`, { credentials: "include" });
   const body = document.getElementById("history-body");
 
   if (!Array.isArray(data.entries) || !data.entries.length) {
@@ -614,9 +598,7 @@ async function loadHistory() {
 }
 
 async function loadRules() {
-  const { data } = await fetchJsonWithQuota(`${API}/rules`, {
-    headers: { "X-API-Key": currentKey }
-  });
+  const { data } = await fetchJsonWithQuota(`${API}/rules`, { credentials: "include" });
   const list = document.getElementById("rule-list");
 
   if (!Array.isArray(data.rules) || !data.rules.length) {
@@ -645,9 +627,9 @@ async function addRule() {
   const { response } = await fetchJsonWithQuota(`${API}/rules`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": currentKey
+      "Content-Type": "application/json"
     },
+    credentials: "include",
     body: JSON.stringify({ pattern, rule_type: ruleType, weight: 30 })
   });
 
@@ -662,15 +644,13 @@ async function addRule() {
 async function deleteRule(ruleId) {
   await fetchJsonWithQuota(`${API}/rules/${ruleId}`, {
     method: "DELETE",
-    headers: { "X-API-Key": currentKey }
+    credentials: "include"
   });
   await loadRules();
 }
 
 async function loadAlerts() {
-  const { data } = await fetchJsonWithQuota(`${API}/alerts`, {
-    headers: { "X-API-Key": currentKey }
-  });
+  const { data } = await fetchJsonWithQuota(`${API}/alerts`, { credentials: "include" });
   latestAlerts = data || {};
 
   document.getElementById("alert-slack").value = data.slack_url || "";
@@ -684,9 +664,9 @@ async function saveAlerts() {
   const { response } = await fetchJsonWithQuota(`${API}/alerts`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": currentKey
+      "Content-Type": "application/json"
     },
+    credentials: "include",
     body: JSON.stringify({
       slack_url: document.getElementById("alert-slack").value || null,
       webhook_url: document.getElementById("alert-webhook").value || null,
@@ -762,7 +742,7 @@ function updateChecklist() {
   if (!authUser) return;
   let done = 0;
   done += setChecklistState("check-verified", Boolean(authUser.verified), "Ready", "Pending");
-  done += setChecklistState("check-key", Boolean(currentKey), "Issued", "Pending");
+  done += setChecklistState("check-key", authUser.api_key_preview !== "No key issued yet", "Issued", "Pending");
   done += setChecklistState("check-scan", Number(latestOverview.total || 0) > 0, "Active", "Pending");
   const rolloutReady = Boolean(latestAlerts.slack_url || latestAlerts.webhook_url) || ["starter", "pro"].includes(String(latestBilling.plan || "").toLowerCase());
   done += setChecklistState("check-rollout", rolloutReady, "Configured", "Pending");
@@ -887,20 +867,6 @@ document.getElementById("billing-resume-btn").addEventListener("click", () => up
 document.getElementById("quota-upgrade-btn").addEventListener("click", () => switchTab("billing"));
 document.getElementById("toggle-block").addEventListener("click", () => document.getElementById("toggle-block").classList.toggle("on"));
 document.getElementById("toggle-confirm").addEventListener("click", () => document.getElementById("toggle-confirm").classList.toggle("on"));
-document.getElementById("copy-key-btn").addEventListener("click", async () => {
-  if (!currentKey) return;
-  await navigator.clipboard.writeText(currentKey);
-  const btn = document.getElementById("copy-key-btn");
-  const original = btn.textContent;
-  btn.textContent = "Copied!";
-  window.setTimeout(() => { btn.textContent = original; }, 1200);
-});
-document.getElementById("reveal-key-btn")?.addEventListener("click", () => {
-  showFullKey = !showFullKey;
-  renderApiKey();
-  document.getElementById("reveal-key-btn").textContent = showFullKey ? "Hide" : "Show";
-});
-
 window.addEventListener("load", hydrateSession);
 </script>
 </body>

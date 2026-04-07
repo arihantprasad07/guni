@@ -5,11 +5,18 @@ from __future__ import annotations
 import csv
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import ValidationError, field_validator
 
-from api.auth import DEMO_SESSION_COOKIE, get_demo_session_key, verify_api_key, verify_api_key_or_demo
+from api.auth import DEMO_SESSION_COOKIE, get_demo_session_key, verify_api_key, verify_api_key_or_demo, verify_api_key_or_session, verify_api_key_or_session_or_demo
+from api.input_validation import (
+    StrictRequestModel,
+    sanitize_choice,
+    sanitize_optional_text,
+    sanitize_text,
+    sanitize_url_like,
+)
 from api.models import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -64,7 +71,7 @@ def scan_html(
     body: ScanRequest,
     request: Request,
     response: Response,
-    api_key: str = Depends(verify_api_key_or_demo),
+    api_key: str = Depends(verify_api_key_or_session_or_demo),
 ):
     effective_api_key = api_key
     demo_cookie_created = False
@@ -157,8 +164,8 @@ def scan_url(
 )
 def get_history(
     request: Request,
-    limit: int = 20,
-    api_key: str = Depends(verify_api_key_or_demo),
+    limit: int = Query(20, ge=1),
+    api_key: str = Depends(verify_api_key_or_session_or_demo),
 ):
     limit = min(limit, 100)
     effective_api_key = api_key
@@ -188,7 +195,7 @@ def get_history(
 
 
 @router.get("/analytics", tags=["Analytics"])
-def get_analytics(api_key: str = Depends(verify_api_key)):
+def get_analytics(api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_get_analytics
 
@@ -197,14 +204,35 @@ def get_analytics(api_key: str = Depends(verify_api_key)):
         return {"error": str(exc)}
 
 
-class RuleRequest(BaseModel):
+class RuleRequest(StrictRequestModel):
     rule_type: str = "injection"
     pattern: str
     weight: int = 30
 
+    @field_validator("rule_type")
+    @classmethod
+    def validate_rule_type(cls, value: str) -> str:
+        return sanitize_choice(
+            value,
+            field_name="rule_type",
+            allowed={"injection", "phishing", "deception", "scripts", "goal_mismatch", "clickjacking"},
+        )
+
+    @field_validator("pattern")
+    @classmethod
+    def validate_pattern(cls, value: str) -> str:
+        return sanitize_text(value, field_name="pattern", max_length=2000, multiline=True)
+
+    @field_validator("weight")
+    @classmethod
+    def validate_weight(cls, value: int) -> int:
+        if value < 1 or value > 100:
+            raise ValueError("weight must be between 1 and 100.")
+        return value
+
 
 @router.post("/rules", tags=["Custom Rules"])
-def add_rule(body: RuleRequest, api_key: str = Depends(verify_api_key)):
+def add_rule(body: RuleRequest, api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_add_rule
 
@@ -215,7 +243,7 @@ def add_rule(body: RuleRequest, api_key: str = Depends(verify_api_key)):
 
 
 @router.get("/rules", tags=["Custom Rules"])
-def get_rules(api_key: str = Depends(verify_api_key)):
+def get_rules(api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_get_rules
 
@@ -225,7 +253,7 @@ def get_rules(api_key: str = Depends(verify_api_key)):
 
 
 @router.delete("/rules/{rule_id}", tags=["Custom Rules"])
-def delete_rule(rule_id: int, api_key: str = Depends(verify_api_key)):
+def delete_rule(rule_id: int, api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_delete_rule
 
@@ -235,15 +263,95 @@ def delete_rule(rule_id: int, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-class AlertRequest(BaseModel):
+class AlertRequest(StrictRequestModel):
     webhook_url: str | None = None
     slack_url: str | None = None
     on_block: bool = True
     on_confirm: bool = False
 
+    @field_validator("webhook_url")
+    @classmethod
+    def validate_webhook_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return sanitize_url_like(
+            value,
+            field_name="webhook_url",
+            max_length=2048,
+            allowed_schemes={"https"},
+            require_hostname=True,
+        )
+
+    @field_validator("slack_url")
+    @classmethod
+    def validate_slack_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return sanitize_url_like(
+            value,
+            field_name="slack_url",
+            max_length=2048,
+            allowed_schemes={"https"},
+            require_hostname=True,
+        )
+
+
+class CompareScanRequest(StrictRequestModel):
+    html_a: str
+    html_b: str
+    goal: str = "browse website"
+    llm_api_key: str | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_base_url: str | None = None
+
+    @field_validator("html_a", "html_b")
+    @classmethod
+    def validate_html(cls, value: str, info) -> str:
+        return sanitize_text(value, field_name=info.field_name, max_length=500_000, multiline=True, trim=False)
+
+    @field_validator("goal")
+    @classmethod
+    def validate_goal(cls, value: str) -> str:
+        return sanitize_text(value, field_name="goal", max_length=500)
+
+    @field_validator("llm_api_key")
+    @classmethod
+    def validate_llm_api_key(cls, value: str | None) -> str | None:
+        return sanitize_optional_text(value, field_name="llm_api_key", max_length=512)
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return sanitize_choice(
+            value,
+            field_name="llm_provider",
+            allowed={"anthropic", "openai", "gemini", "openai_compatible"},
+        )
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: str | None) -> str | None:
+        return sanitize_optional_text(value, field_name="llm_model", max_length=200)
+
+    @field_validator("llm_base_url")
+    @classmethod
+    def validate_llm_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return sanitize_url_like(
+            value,
+            field_name="llm_base_url",
+            max_length=2048,
+            allowed_schemes={"http", "https"},
+            require_hostname=True,
+        )
+
 
 @router.post("/alerts", tags=["Alerts"])
-def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key)):
+def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_set_alert
 
@@ -262,7 +370,7 @@ def configure_alerts(body: AlertRequest, api_key: str = Depends(verify_api_key))
 
 
 @router.get("/alerts", tags=["Alerts"])
-def get_alert_config(api_key: str = Depends(verify_api_key)):
+def get_alert_config(api_key: str = Depends(verify_api_key_or_session)):
     try:
         from api.database import db_get_alert
 
@@ -274,8 +382,8 @@ def get_alert_config(api_key: str = Depends(verify_api_key)):
 
 @router.get("/history/export", tags=["Audit"])
 def export_history_csv(
-    limit: int = 500,
-    api_key: str = Depends(verify_api_key),
+    limit: int = Query(500, ge=1, le=500),
+    api_key: str = Depends(verify_api_key_or_session),
 ):
     try:
         from api.database import db_get_history
@@ -311,20 +419,15 @@ async def scan_compare(
     request: Request,
     api_key: str = Depends(verify_api_key),
 ):
-    body = await request.json()
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="Request JSON body must be an object.")
-
-    html_a = body.get("html_a", "")
-    html_b = body.get("html_b", "")
-    goal = body.get("goal", "browse website")
-    llm_api_key = body.get("llm_api_key") or get_default_llm_api_key()
-    llm_provider = body.get("llm_provider")
-    llm_model = body.get("llm_model")
-    llm_base_url = body.get("llm_base_url")
-
-    if not html_a or not html_b:
-        raise HTTPException(status_code=422, detail="html_a and html_b required")
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Request body must contain valid JSON.") from exc
+    try:
+        body = CompareScanRequest.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    llm_api_key = body.llm_api_key or get_default_llm_api_key()
 
     check_rate_limit(api_key)
     enforce_scan_quota(api_key, scans_needed=2)
@@ -332,15 +435,15 @@ async def scan_compare(
     from guni import GuniScanner
 
     scanner = GuniScanner(
-        goal=goal,
+        goal=body.goal,
         llm_api_key=llm_api_key,
-        llm_provider=llm_provider,
-        llm_model=llm_model,
-        llm_base_url=llm_base_url,
+        llm_provider=body.llm_provider,
+        llm_model=body.llm_model,
+        llm_base_url=body.llm_base_url,
         tracking_key=api_key,
     )
-    result_a = scanner.scan(html=html_a, url="page_a")
-    result_b = scanner.scan(html=html_b, url="page_b")
+    result_a = scanner.scan(html=body.html_a, url="page_a")
+    result_b = scanner.scan(html=body.html_b, url="page_b")
 
     return {
         "page_a": build_scan_response(result_a),

@@ -8,16 +8,25 @@ import time
 from datetime import date
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, WebSocket, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from api.auth import verify_api_key
+from api.auth import verify_api_key, verify_api_key_or_session
 from api.config import load_settings, validate_runtime_settings
+from api.input_validation import (
+    StrictRequestModel,
+    sanitize_choice,
+    sanitize_email,
+    sanitize_optional_text,
+    sanitize_text,
+    sanitize_token,
+)
+from api.rate_limit import check_auth_rate_limit
 from api.realtime import websocket_scan_endpoint
 from api.routers.public_pages import router as public_pages_router
 from api.routers.scanning import router as scanning_router
@@ -150,13 +159,18 @@ def _display_role(user: dict | None) -> str:
 
 
 def _session_user(request: Request):
-    from api.auth_system import verify_session
+    from api.auth_system import decode_session
     from api.database import db_get_user_by_email
     session = request.cookies.get("guni_session", "")
-    email = verify_session(session) if session else None
-    if not email:
+    payload = decode_session(session) if session else None
+    if not payload:
         return None
-    return db_get_user_by_email(email)
+    user = db_get_user_by_email(payload.get("email", ""))
+    if not user:
+        return None
+    if int(payload.get("sv", 0) or 0) != int(user.get("session_version", 0) or 0):
+        return None
+    return user
 
 
 def _require_session_user(request: Request, roles: set[str] | None = None) -> dict:
@@ -325,7 +339,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         if exc.status_code >= 500:
             return _render_error_page("500.html", exc.status_code)
         return HTMLResponse(content=f"<html><body><h1>{exc.status_code}</h1><p>{exc.detail}</p></body></html>", status_code=exc.status_code)
-    return JSONResponse(status_code=exc.status_code, content=_json_payload(False, {}, str(exc.detail)))
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_json_payload(False, {}, str(exc.detail)),
+        headers=getattr(exc, "headers", None),
+    )
 
 
 @app.exception_handler(Exception)
@@ -397,55 +415,149 @@ def verify_email(token: str = "", background_tasks: BackgroundTasks = None):
     return HTMLResponse(content='<html><head><meta http-equiv="refresh" content="3;url=/signup"/><link rel="stylesheet" href="/static/guni.css"/></head><body class="g-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="text-align:center"><div style="font-size:48px;color:#f04040;margin-bottom:1rem">&#10007;</div><div style="font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem">Invalid or expired link</div><div style="color:var(--muted2);font-size:13px">Redirecting...</div></div></body></html>')
 
 
-class SignupRequest(BaseModel):
+class SignupRequest(StrictRequestModel):
     email: str
     password: str
     company: str | None = None
     full_name: str | None = None
+    plan: str = "free"
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return sanitize_text(value, field_name="password", max_length=1024, trim=False)
+
+    @field_validator("company")
+    @classmethod
+    def validate_company(cls, value: str | None) -> str | None:
+        return sanitize_optional_text(value, field_name="company", max_length=120)
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str | None) -> str | None:
+        return sanitize_optional_text(value, field_name="full_name", max_length=120)
+
+    @field_validator("plan")
+    @classmethod
+    def validate_plan(cls, value: str) -> str:
+        return sanitize_choice(value, field_name="plan", allowed={"free", "starter", "pro"})
 
 
-class SigninRequest(BaseModel):
+class SigninRequest(StrictRequestModel):
     email: str
     password: str
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
 
-class ResetRequest(BaseModel):
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return sanitize_text(value, field_name="password", max_length=1024, trim=False)
+
+
+class ResetRequest(StrictRequestModel):
     email: str
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
 
-class ResendVerificationRequest(BaseModel):
+
+class ResendVerificationRequest(StrictRequestModel):
     email: str
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
 
-class NewPasswordRequest(BaseModel):
+
+class NewPasswordRequest(StrictRequestModel):
     token: str
     password: str
 
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        return sanitize_token(value)
 
-class BillingCheckoutRequest(BaseModel):
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return sanitize_text(value, field_name="password", max_length=1024, trim=False)
+
+
+class BillingCheckoutRequest(StrictRequestModel):
     plan: str = "starter"
     interval: str = "monthly"
     company: str | None = None
 
+    @field_validator("plan")
+    @classmethod
+    def validate_plan(cls, value: str) -> str:
+        return sanitize_choice(value, field_name="plan", allowed={"starter", "pro"})
 
-class PilotRequest(BaseModel):
+    @field_validator("interval")
+    @classmethod
+    def validate_interval(cls, value: str) -> str:
+        return sanitize_choice(value, field_name="interval", allowed={"monthly", "yearly"})
+
+    @field_validator("company")
+    @classmethod
+    def validate_company(cls, value: str | None) -> str | None:
+        return sanitize_optional_text(value, field_name="company", max_length=120)
+
+
+class PilotRequest(StrictRequestModel):
     name: str
     company: str
     email: str
     use_case: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return sanitize_text(value, field_name="name", max_length=120)
+
+    @field_validator("company")
+    @classmethod
+    def validate_company(cls, value: str) -> str:
+        return sanitize_text(value, field_name="company", max_length=120)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
+
+    @field_validator("use_case")
+    @classmethod
+    def validate_use_case(cls, value: str) -> str:
+        return sanitize_text(value, field_name="use_case", max_length=4000, multiline=True)
 
 @app.post("/auth/signup", tags=["Auth"])
 async def auth_signup(body: SignupRequest, request: Request, background_tasks: BackgroundTasks):
     from api.auth_system import create_session, generate_token, hash_password
     from api.database import db_create_organization, db_create_user, db_get_user_by_email, db_log_audit_event, db_mark_user_verified, db_update_user_login
     from api.key_manager import PLAN_LIMITS, generate_api_key
+    check_auth_rate_limit(request)
     email = body.email.lower().strip()
-    plan = "free"
+    plan = body.plan.lower().strip() or "free"
     full_name = (body.full_name or "").strip()
     if not email or "@" not in email:
         raise HTTPException(status_code=422, detail="Invalid email")
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    if plan not in PLAN_LIMITS:
+        raise HTTPException(status_code=422, detail="Invalid plan")
     if db_get_user_by_email(email):
         raise HTTPException(status_code=409, detail="Account already exists")
     pw_hash = hash_password(body.password)
@@ -455,15 +567,16 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
     user = db_create_user(email, pw_hash, token, plan=plan, role=role, org_id=org["id"], full_name=full_name)
     if not user:
         raise HTTPException(status_code=500, detail="Could not create account")
-    api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS["free"], org_id=org["id"])["key"]
-    db_update_user_login(email, api_key)
+    api_key = None
     if email in _owner_emails():
         db_mark_user_verified(email)
         user = db_get_user_by_email(email) or user
+        api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS[plan], org_id=org["id"])["key"]
+        db_update_user_login(email, api_key)
     db_log_audit_event(actor_email=email, org_id=org["id"], action="auth.signup", target_type="user", target_id=email, metadata={"plan": plan, "role": _display_role(user)})
     if email not in _owner_emails():
         background_tasks.add_task(_send_verification_email_task, email, token, _public_base_url(request))
-    session = create_session(email)
+    session = create_session(email, int(user.get("session_version", 0) or 0)) if email in _owner_emails() else ""
     payload = {
         "success": True,
         "message": "Account created. Sign in with your password." if email in _owner_emails() else "Account created. Check your email to verify.",
@@ -471,12 +584,12 @@ async def auth_signup(body: SignupRequest, request: Request, background_tasks: B
         "full_name": user.get("full_name"),
         "plan": plan,
         "role": _display_role(user),
-        "api_key": api_key,
         "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]},
         "next_action": "portal",
     }
     response = JSONResponse(payload)
-    response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
+    if session:
+        response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
 
@@ -485,6 +598,7 @@ async def auth_signin(body: SigninRequest, request: Request):
     from api.auth_system import create_session, verify_password
     from api.database import db_get_user_by_email, db_log_audit_event, db_update_user_login, db_validate_key
     from api.key_manager import PLAN_LIMITS, generate_api_key
+    check_auth_rate_limit(request)
     email = body.email.lower().strip()
     user = db_get_user_by_email(email)
     if not user or not verify_password(body.password, user["password_hash"]):
@@ -496,9 +610,9 @@ async def auth_signin(body: SigninRequest, request: Request):
         plan = user.get("plan", "free")
         api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS.get(plan, 0), org_id=user.get("org_id"))["key"]
     db_update_user_login(email, api_key)
-    session = create_session(email)
+    session = create_session(email, int(user.get("session_version", 0) or 0))
     db_log_audit_event(actor_email=email, org_id=user.get("org_id"), action="auth.signin", target_type="user", target_id=email, metadata={"role": _display_role(user), "plan": user.get("plan", "free")})
-    response = JSONResponse({"success": True, "email": email, "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": api_key, "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
+    response = JSONResponse({"success": True, "email": email, "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "org_id": user.get("org_id"), "is_owner": _is_owner_user(user)})
     response.set_cookie("guni_session", session, max_age=7 * 24 * 3600, httponly=True, samesite="lax", secure=_request_is_secure(request) or _configured_https_base_url())
     return response
 
@@ -507,6 +621,7 @@ async def auth_signin(body: SigninRequest, request: Request):
 async def auth_reset_request(body: ResetRequest, request: Request, background_tasks: BackgroundTasks):
     from api.auth_system import generate_token
     from api.database import db_get_user_by_email, db_set_reset_token
+    check_auth_rate_limit(request)
     email = body.email.lower().strip()
     if db_get_user_by_email(email):
         token = generate_token()
@@ -520,6 +635,7 @@ async def auth_reset_request(body: ResetRequest, request: Request, background_ta
 async def auth_resend_verification(body: ResendVerificationRequest, request: Request, background_tasks: BackgroundTasks):
     from api.auth_system import generate_token
     from api.database import db_get_user_by_email, db_set_verify_token
+    check_auth_rate_limit(request)
     email = body.email.lower().strip()
     user = db_get_user_by_email(email)
     if user and not user.get("verified"):
@@ -530,9 +646,10 @@ async def auth_resend_verification(body: ResendVerificationRequest, request: Req
 
 
 @app.post("/auth/reset-password", tags=["Auth"])
-async def auth_reset_password(body: NewPasswordRequest):
+async def auth_reset_password(body: NewPasswordRequest, request: Request):
     from api.auth_system import hash_password
     from api.database import db_reset_password
+    check_auth_rate_limit(request)
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     if not db_reset_password(body.token, hash_password(body.password)):
@@ -543,18 +660,30 @@ async def auth_reset_password(body: NewPasswordRequest):
 @app.get("/auth/me", tags=["Auth"])
 async def auth_me(request: Request):
     from api.database import db_get_organization, db_get_subscription_by_email
+    from api.database import db_update_user_login, db_validate_key
+    from api.key_manager import PLAN_LIMITS, generate_api_key
     user = _require_session_user(request)
+    email = user["email"].lower()
+    owner_or_verified = bool(user.get("verified")) or email in _owner_emails()
+    api_key = user.get("api_key") or ""
+    if owner_or_verified and (not api_key or not db_validate_key(api_key)):
+        plan = str(user.get("plan", "free")).lower()
+        api_key = generate_api_key(email=email, plan=plan, scans_limit=PLAN_LIMITS.get(plan, 0), org_id=user.get("org_id"))["key"]
+        db_update_user_login(email, api_key)
+        user = _session_user(request) or {**user, "api_key": api_key}
     org = db_get_organization(user["org_id"]) if user.get("org_id") else None
     subscription = db_get_subscription_by_email(user["email"])
-    return {"email": user["email"], "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key": user.get("api_key"), "verified": bool(user.get("verified")), "org_id": user.get("org_id"), "organization": org, "subscription": subscription, "is_owner": _is_owner_user(user)}
+    api_key_preview = f"{'•' * max(8, len(api_key) - 8)}{api_key[-8:]}" if api_key else "No key issued yet"
+    return {"email": user["email"], "full_name": user.get("full_name"), "plan": user.get("plan", "free"), "role": _display_role(user), "api_key_preview": api_key_preview, "verified": bool(user.get("verified")), "org_id": user.get("org_id"), "organization": org, "subscription": subscription, "is_owner": _is_owner_user(user)}
 
 
 @app.post("/auth/signout", tags=["Auth"])
 async def auth_signout(request: Request):
-    from api.database import db_log_audit_event
+    from api.database import db_bump_session_version, db_log_audit_event
     user = _session_user(request)
     if user:
         db_log_audit_event(actor_email=user["email"], org_id=user.get("org_id"), action="auth.signout", target_type="user", target_id=user["email"])
+        db_bump_session_version(user["email"])
     response = JSONResponse({"success": True})
     response.delete_cookie("guni_session")
     return response
@@ -583,13 +712,18 @@ def owner_dashboard(request: Request):
 
 
 @app.get("/owner/summary", include_in_schema=False)
-def owner_summary(request: Request, limit: int = 20):
+def owner_summary(request: Request, limit: int = Query(20, ge=1, le=100)):
     _require_owner_user(request)
     return _build_owner_summary(limit=limit)
 
 
-class WaitlistRequest(BaseModel):
+class WaitlistRequest(StrictRequestModel):
     email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
 
 
 class WaitlistResponse(BaseModel):
@@ -800,9 +934,19 @@ def billing_cancelled():
     return HTMLResponse(content="<html><head><meta http-equiv='refresh' content='3;url=/portal'/><link rel='stylesheet' href='/static/guni.css'/></head><body class='g-page' style='display:flex;align-items:center;justify-content:center;min-height:100vh'><div style='text-align:center'><div style='font-size:48px;color:#f5a623;margin-bottom:1rem'>&#9888;</div><div style='font-family:var(--display);font-size:1.5rem;margin-bottom:0.5rem'>Checkout not completed</div><div style='color:var(--muted2);font-size:13px'>You can reopen billing from the portal.</div></div></body></html>")
 
 
-class KeyRequest(BaseModel):
+class KeyRequest(StrictRequestModel):
     email: str
     plan: str = "starter"
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return sanitize_email(value)
+
+    @field_validator("plan")
+    @classmethod
+    def validate_plan(cls, value: str) -> str:
+        return sanitize_choice(value, field_name="plan", allowed={"free", "starter", "pro"})
 
 
 def _require_org_key_access(actor: dict, key: str) -> dict:
@@ -828,7 +972,7 @@ def generate_key(body: KeyRequest, request: Request):
 
 
 @app.get("/keys/usage", tags=["Keys"])
-def get_key_usage(api_key: str = Depends(verify_api_key)):
+def get_key_usage(api_key: str = Depends(verify_api_key_or_session)):
     from api.key_manager import get_usage
     return get_usage(api_key)
 
@@ -866,7 +1010,7 @@ def rotate_customer_key(key: str, request: Request):
 
 
 @app.get("/audit/events", tags=["Audit"], include_in_schema=False)
-def get_audit_events(request: Request, limit: int = 50):
+def get_audit_events(request: Request, limit: int = Query(50, ge=1, le=200)):
     from api.database import db_get_audit_events
     user = _require_session_user(request, {"admin"})
     return {"events": db_get_audit_events(user["org_id"], limit=limit)}

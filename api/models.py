@@ -3,13 +3,21 @@ Guni API — Request & Response Models
 Defines the exact shape of every API input and output.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+from api.input_validation import (
+    StrictRequestModel,
+    sanitize_choice,
+    sanitize_optional_text,
+    sanitize_text,
+    sanitize_url_like,
+)
 
 
 # ── Requests ──────────────────────────────────────────────────────────────────
 
-class ScanRequest(BaseModel):
+class ScanRequest(StrictRequestModel):
     """POST /scan - scan raw HTML"""
     html: str = Field(..., description="Raw HTML content of the page to scan")
     goal: str = Field("browse website", description="Agent's declared objective")
@@ -33,8 +41,57 @@ class ScanRequest(BaseModel):
         }
     }
 
+    @field_validator("html")
+    @classmethod
+    def validate_html(cls, value: str) -> str:
+        return sanitize_text(value, field_name="html", max_length=500_000, multiline=True, trim=False)
 
-class ScanURLRequest(BaseModel):
+    @field_validator("goal")
+    @classmethod
+    def validate_goal(cls, value: str) -> str:
+        return sanitize_text(value, field_name="goal", max_length=500)
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return sanitize_url_like(value, field_name="url", max_length=2048, allow_empty=True)
+
+    @field_validator("llm_api_key")
+    @classmethod
+    def validate_llm_api_key(cls, value: Optional[str]) -> Optional[str]:
+        return sanitize_optional_text(value, field_name="llm_api_key", max_length=512)
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_choice(
+            value,
+            field_name="llm_provider",
+            allowed={"anthropic", "openai", "gemini", "openai_compatible"},
+        )
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: Optional[str]) -> Optional[str]:
+        return sanitize_optional_text(value, field_name="llm_model", max_length=200)
+
+    @field_validator("llm_base_url")
+    @classmethod
+    def validate_llm_base_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_url_like(
+            value,
+            field_name="llm_base_url",
+            max_length=2048,
+            allowed_schemes={"http", "https"},
+            require_hostname=True,
+        )
+
+
+class ScanURLRequest(StrictRequestModel):
     """POST /scan/url - fetch and scan a URL"""
     url:  str  = Field(...,               description="URL to fetch and scan")
     goal: str  = Field("browse website",  description="Agent's declared objective")
@@ -56,12 +113,77 @@ class ScanURLRequest(BaseModel):
         }
     }
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return sanitize_url_like(
+            value,
+            field_name="url",
+            max_length=2048,
+            allowed_schemes={"http", "https"},
+            require_hostname=True,
+        )
 
-class AnalyzeRequest(BaseModel):
+    @field_validator("goal")
+    @classmethod
+    def validate_goal(cls, value: str) -> str:
+        return sanitize_text(value, field_name="goal", max_length=500)
+
+    @field_validator("llm_api_key")
+    @classmethod
+    def validate_llm_api_key(cls, value: Optional[str]) -> Optional[str]:
+        return sanitize_optional_text(value, field_name="llm_api_key", max_length=512)
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_choice(
+            value,
+            field_name="llm_provider",
+            allowed={"anthropic", "openai", "gemini", "openai_compatible"},
+        )
+
+    @field_validator("llm_model")
+    @classmethod
+    def validate_llm_model(cls, value: Optional[str]) -> Optional[str]:
+        return sanitize_optional_text(value, field_name="llm_model", max_length=200)
+
+    @field_validator("llm_base_url")
+    @classmethod
+    def validate_llm_base_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return sanitize_url_like(
+            value,
+            field_name="llm_base_url",
+            max_length=2048,
+            allowed_schemes={"http", "https"},
+            require_hostname=True,
+        )
+
+
+class AnalyzeRequest(StrictRequestModel):
     """POST /analyze — evaluate a planned action"""
     action: str = Field(..., description="Action the client wants to perform")
     url:    str = Field(..., description="Target URL for the action")
     data:   Optional[str] = Field(None, description="Optional submitted data")
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, value: str) -> str:
+        return sanitize_text(value, field_name="action", max_length=1_000)
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return sanitize_url_like(value, field_name="url", max_length=2048, require_hostname=True)
+
+    @field_validator("data")
+    @classmethod
+    def validate_data(cls, value: Optional[str]) -> Optional[str]:
+        return sanitize_optional_text(value, field_name="data", max_length=10_000, multiline=True)
 
 
 # ── Responses ─────────────────────────────────────────────────────────────────

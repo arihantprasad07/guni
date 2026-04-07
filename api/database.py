@@ -706,6 +706,7 @@ def db_create_user(
             "verify_token": verify_token,
             "reset_token": None,
             "reset_expiry": None,
+            "session_version": 0,
             "created_at": _now(),
             "last_login": None,
         })
@@ -769,7 +770,7 @@ def db_reset_password(token: str, new_hash: str) -> bool:
         return False
     _collections()["users"].update_one(
         {"reset_token": token},
-        {"$set": {"password_hash": new_hash, "reset_token": None, "reset_expiry": None}},
+        {"$set": {"password_hash": new_hash, "reset_token": None, "reset_expiry": None}, "$inc": {"session_version": 1}},
     )
     return True
 
@@ -782,6 +783,14 @@ def db_update_user_login(email: str, api_key: str = None):
         {"email": email.lower().strip()},
         {"$set": updates},
     )
+
+
+def db_bump_session_version(email: str) -> bool:
+    result = _collections()["users"].update_one(
+        {"email": email.lower().strip()},
+        {"$inc": {"session_version": 1}},
+    )
+    return result.modified_count > 0
 
 
 def db_set_user_role(email: str, role: str) -> bool:
