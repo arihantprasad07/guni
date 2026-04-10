@@ -7,7 +7,7 @@ Detect prompt injection, phishing, clickjacking, redirect abuse, and goal hijack
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Live Demo](https://img.shields.io/badge/demo-live-green.svg)](https://guni.up.railway.app)
-[![Version](https://img.shields.io/badge/version-2.2.0-orange.svg)](https://guni.up.railway.app/changelog)
+[![Version](https://img.shields.io/badge/version-2.3.0-orange.svg)](https://guni.up.railway.app/changelog)
 [![CI](https://img.shields.io/badge/ci-github_actions-brightgreen.svg)](./.github/workflows/ci.yml)
 
 ![Guni Demo](https://raw.githubusercontent.com/arihantprasad07/guni/main/assets/demo.gif)
