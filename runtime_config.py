@@ -30,11 +30,20 @@ def _default_data_dir() -> Path:
         return Path(railway_volume) / "guni"
 
     if _on_railway():
-        for candidate in ("/data/guni", "/mnt/data/guni", "/var/data/guni"):
+        for candidate in (
+            "/home/guni/.guni",
+            "/tmp/guni",
+            "/app/.guni",
+            "/data/guni",
+            "/mnt/data/guni",
+            "/var/data/guni",
+        ):
             candidate_path = Path(candidate)
-            parent = candidate_path.parent
-            if parent.exists():
+            try:
+                candidate_path.mkdir(parents=True, exist_ok=True)
                 return candidate_path
+            except OSError:
+                continue
 
     return Path(".guni")
 
