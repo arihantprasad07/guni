@@ -30,6 +30,10 @@ def _open_mode_allowed() -> bool:
     return _is_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE"))
 
 
+def _public_demo_allowed() -> bool:
+    return _open_mode_allowed() or _is_truthy(os.environ.get("GUNI_ALLOW_PUBLIC_DEMO"))
+
+
 def _public_demo_path(request: Request) -> bool:
     return request.url.path in {"/scan", "/history", "/analyze"}
 
@@ -124,7 +128,7 @@ def _verify_api_key_from_request(request, api_key: str | None = None, *, allow_o
         if validate_api_key(api_key):
             return api_key
 
-    if allow_open_demo and not api_key and _public_demo_path(request) and _open_mode_allowed():
+    if allow_open_demo and not api_key and _public_demo_path(request) and _public_demo_allowed():
         return "open"
 
     raise HTTPException(

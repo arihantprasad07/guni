@@ -46,6 +46,7 @@ class AppSettings:
     cors_origins: tuple[str, ...]
     trusted_hosts: tuple[str, ...]
     allow_open_mode: bool
+    allow_public_demo: bool
     rate_limit: int
     admin_emails: set[str]
     owner_emails: set[str]
@@ -98,6 +99,7 @@ def load_settings() -> AppSettings:
         cors_origins=cors_origins,
         trusted_hosts=trusted_hosts,
         allow_open_mode=_truthy(os.environ.get("GUNI_ALLOW_OPEN_MODE")),
+        allow_public_demo=_truthy(os.environ.get("GUNI_ALLOW_PUBLIC_DEMO")),
         rate_limit=rate_limit,
         admin_emails=admin_emails,
         owner_emails=owner_emails,

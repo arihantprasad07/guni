@@ -221,7 +221,7 @@ def _build_owner_summary(limit: int = 20) -> dict:
     recent_emails = [event for event in runtime_events if str(event.get("action", "")).startswith("email.")][: min(limit, 100)]
     return {
         "totals": {**platform["totals"], "waitlist_total": len(waitlist), "runtime_issue_count": len(recent_issues)},
-        "system": {"email_configured": email_sender_configured(), "open_demo_enabled": SETTINGS.allow_open_mode, "owner_emails": sorted(_owner_emails())},
+        "system": {"email_configured": email_sender_configured(), "open_demo_enabled": (SETTINGS.allow_open_mode or SETTINGS.allow_public_demo), "owner_emails": sorted(_owner_emails())},
         "recent_users": platform["recent_users"],
         "recent_billing_events": platform["recent_billing_events"],
         "recent_waitlist": recent_waitlist,
