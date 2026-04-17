@@ -21,35 +21,42 @@ def _on_railway() -> bool:
 
 
 def _default_data_dir() -> Path:
+    candidates: list[Path] = []
+
     explicit_data_dir = os.environ.get("GUNI_DATA_DIR")
     if explicit_data_dir:
-        return Path(explicit_data_dir)
+        candidates.append(Path(explicit_data_dir))
 
     railway_volume = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
     if railway_volume:
-        return Path(railway_volume) / "guni"
+        candidates.append(Path(railway_volume) / "guni")
 
     if _on_railway():
-        for candidate in (
-            "/home/guni/.guni",
-            "/tmp/guni",
-            "/app/.guni",
-            "/data/guni",
-            "/mnt/data/guni",
-            "/var/data/guni",
-        ):
-            candidate_path = Path(candidate)
-            try:
-                candidate_path.mkdir(parents=True, exist_ok=True)
-                return candidate_path
-            except OSError:
-                continue
+        candidates.extend(
+            Path(candidate)
+            for candidate in (
+                "/home/guni/.guni",
+                "/tmp/guni",
+                "/app/.guni",
+                "/data/guni",
+                "/mnt/data/guni",
+                "/var/data/guni",
+            )
+        )
 
-    return Path(".guni")
+    candidates.append(Path(".guni"))
+
+    for candidate_path in candidates:
+        try:
+            candidate_path.mkdir(parents=True, exist_ok=True)
+            return candidate_path.resolve()
+        except OSError:
+            continue
+
+    raise RuntimeError("Could not find a writable data directory for runtime state.")
 
 
-DATA_DIR = Path(os.environ.get("GUNI_DATA_DIR", _default_data_dir())).resolve()
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = _default_data_dir()
 
 DB_PATH = os.environ.get("GUNI_DB_PATH", str(DATA_DIR / "guni.db"))
 MONGO_URI = os.environ.get("GUNI_MONGO_URI", os.environ.get("MONGO_URI", ""))
