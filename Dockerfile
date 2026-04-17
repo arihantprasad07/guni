@@ -27,4 +27,4 @@ USER guni
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8000}"]
+CMD ["python", "start_server.py"]
